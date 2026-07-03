@@ -136,16 +136,21 @@ then hand each PRD to `/developer` and go write the next one.
 
 ```
 .claude-plugin/
-  plugin.json               # plugin manifest (points `agents` at the dir below)
+  plugin.json               # plugin manifest
   marketplace.json          # lets you /plugin marketplace add sgomez/developer-skills
+agents/                     # subagents, auto-loaded by the plugin route
+  architect.md              # complexity triage — pinned sonnet, effort: low
+  code-author.md            # builder/fixer — model chosen per sub-issue
+  diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
   developer/                # orchestrator: PRD loop, fix cycles, auto-merge
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline GitHub review → verdict
   fix-pr/                   # address review threads → push → reply
   setup-developer-skills/   # one-time repo setup
-    agents/                 # single source for the subagents (plugin + npx routes)
-      architect.md          # complexity triage — pinned sonnet, effort: low
-      code-author.md        # builder/fixer — model chosen per sub-issue
-      diff-reviewer.md      # merge gate — pinned opus, effort: high
+    agents/                 # copy of agents/ bundled for the npx-skills route
 ```
+
+Contributor note: `agents/` and `skills/setup-developer-skills/agents/` must
+stay identical — the first serves the plugin route, the second travels with
+the setup skill on the `npx skills` route (which only copies skill folders).
