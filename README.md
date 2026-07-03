@@ -8,10 +8,10 @@ triage → build → review → fix → merge — and pings you when it's done.
 /developer <prd-issue>
         │
         ▼
-   ┌───────────┐   complexity tier    ┌─────────────┐
-   │ architect │ ───────────────────▶ │ code-author │──▶ draft PR
-   │ (sonnet)  │  haiku/sonnet/opus   │ (worktree)  │
-   └───────────┘                      └─────────────┘
+   ┌────────────┐  complexity tier    ┌─────────────┐
+   │ dispatcher │ ───────────────────▶│ code-author │──▶ draft PR
+   │  (sonnet)  │  haiku/sonnet/opus  │ (worktree)  │
+   └────────────┘                     └─────────────┘
                                             │
                                             ▼
                     NEEDS_FIXES      ┌───────────────┐
@@ -27,7 +27,7 @@ triage → build → review → fix → merge — and pings you when it's done.
 - **Sequential and dependency-aware** — sub-issues are delivered in
   `Blocked by` order; each PR branches from a `main` that already contains
   the previous one.
-- **Model-tiered** — an `architect` agent scores each sub-issue
+- **Model-tiered** — a `dispatcher` agent scores each sub-issue
   (trivial → `haiku`, standard → `sonnet`, complex → `opus`); the fixer
   escalates one tier per fix cycle.
 - **Unattended with an escape hatch** — max 3 review→fix cycles, then the
@@ -63,7 +63,7 @@ Installs the skills **and the three subagents** in one step:
 
 Plugin components are namespaced: the skills appear as
 `/developer-skills:developer`, `/developer-skills:setup-developer-skills`,
-etc., and the agents as `developer-skills:architect` and friends.
+etc., and the agents as `developer-skills:dispatcher` and friends.
 
 ### Option B — `npx skills` (skills only)
 
@@ -108,7 +108,7 @@ It will:
 2. Patch `docs/agents/issue-tracker.md` so child issues are created as
    **GitHub native sub-issues** (that's how `/developer` discovers work —
    body-text references are invisible to it).
-3. Install three agents into `.claude/agents/`: `architect`, `code-author`,
+3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels exist.
 
@@ -139,7 +139,7 @@ then hand each PRD to `/developer` and go write the next one.
   plugin.json               # plugin manifest
   marketplace.json          # lets you /plugin marketplace add sgomez/developer-skills
 agents/                     # subagents, auto-loaded by the plugin route
-  architect.md              # complexity triage — pinned sonnet, effort: low
+  dispatcher.md             # complexity triage — pinned sonnet, effort: low
   code-author.md            # builder/fixer — model chosen per sub-issue
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/

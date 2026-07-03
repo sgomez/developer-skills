@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching architect (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN and auto-merge to main. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN and auto-merge to main. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
@@ -22,7 +22,7 @@ If no issue number is given, ask for it and stop. Do not guess issue numbers.
 
 > **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
 > the plugin prefix: the skills appear as `developer-skills:<name>` and the
-> subagents as `developer-skills:architect` / `developer-skills:code-author` /
+> subagents as `developer-skills:dispatcher` / `developer-skills:code-author` /
 > `developer-skills:diff-reviewer`. Use the names exactly as they appear in
 > your available-skills and available-agents lists; the short names below
 > refer to whichever form is installed.
@@ -31,7 +31,7 @@ If no issue number is given, ask for it and stop. Do not guess issue numbers.
 
 | Step   | Subagent        | Model                    | Isolation  | Skill it runs     |
 |--------|-----------------|--------------------------|------------|-------------------|
-| triage | `architect`     | sonnet (pinned)          | —          | (reads the issue) |
+| triage | `dispatcher`     | sonnet (pinned)          | —          | (reads the issue) |
 | build  | `code-author`   | chosen by triage         | `worktree` | `implement-issue` |
 | review | `diff-reviewer` | opus (pinned)            | `worktree` | `review-pr`       |
 | fix    | `code-author`   | escalates per cycle      | `worktree` | `fix-pr`          |
@@ -125,7 +125,7 @@ Repeat while open sub-issues remain:
 
 ### 1. Triage
 
-Spawn `architect`:
+Spawn `dispatcher`:
 
 > Triage issue #`<subissue>`. Score its implementation complexity per your
 > rubric. End with the `RESULT complexity=… model=… reason=…` line.

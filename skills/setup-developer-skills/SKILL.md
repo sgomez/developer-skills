@@ -1,6 +1,6 @@
 ---
 name: setup-developer-skills
-description: Configure this repo for the /developer unattended PRD-delivery pipeline — runs setup-matt-pocock-skills if needed, patches the issue tracker doc so child issues are created as native GitHub sub-issues, installs the architect/code-author/diff-reviewer agents, and ensures the triage labels exist. Run once before first use of /developer.
+description: Configure this repo for the /developer unattended PRD-delivery pipeline — runs setup-matt-pocock-skills if needed, patches the issue tracker doc so child issues are created as native GitHub sub-issues, installs the dispatcher/code-author/diff-reviewer agents, and ensures the triage labels exist. Run once before first use of /developer.
 disable-model-invocation: true
 ---
 
@@ -48,7 +48,7 @@ of appending a duplicate.
 
 **If this skill was installed as a Claude Code plugin** (its name appears as
 `developer-skills:setup-developer-skills`), the three agents are already
-available, namespaced as `developer-skills:architect`,
+available, namespaced as `developer-skills:dispatcher`,
 `developer-skills:code-author`, `developer-skills:diff-reviewer` — skip this
 step.
 
@@ -56,7 +56,7 @@ step.
 install agents), copy the three agent definitions bundled in this skill
 folder into the repo's `.claude/agents/` directory (create it if missing):
 
-- [agents/architect.md](./agents/architect.md) — complexity triage (pinned `sonnet`, `effort: low`)
+- [agents/dispatcher.md](./agents/dispatcher.md) — complexity triage (pinned `sonnet`, `effort: low`)
 - [agents/code-author.md](./agents/code-author.md) — implements / fixes (model chosen per sub-issue)
 - [agents/diff-reviewer.md](./agents/diff-reviewer.md) — review gate before auto-merge (pinned `opus`, `effort: high`)
 
