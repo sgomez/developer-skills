@@ -1,0 +1,6 @@
+{
+  "name": "developer-skills",
+  "description": "Unattended PRD delivery pipeline: /developer loops over a PRD's sub-issues with architect → code-author → diff-reviewer workers, review→fix cycles, and auto-merge.",
+  "version": "0.1.0",
+  "agents": "./skills/setup-developer-skills/agents/"
+}

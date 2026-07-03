@@ -1,0 +1,12 @@
+{
+  "name": "sgomez",
+  "owner": {
+    "name": "Sergio Gómez"
+  },
+  "plugins": [
+    {
+      "name": "developer-skills",
+      "source": "./"
+    }
+  ]
+}
