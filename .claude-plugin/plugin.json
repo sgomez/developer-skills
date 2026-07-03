@@ -1,6 +1,10 @@
 {
   "name": "developer-skills",
-  "description": "Unattended PRD delivery pipeline: /developer loops over a PRD's sub-issues with architect → code-author → diff-reviewer workers, review→fix cycles, and auto-merge.",
+  "description": "Unattended PRD delivery pipeline: /developer loops over a PRD's sub-issues with architect \u2192 code-author \u2192 diff-reviewer workers, review\u2192fix cycles, and auto-merge.",
   "version": "0.1.0",
-  "agents": "./skills/setup-developer-skills/agents/"
+  "agents": [
+    "./skills/setup-developer-skills/agents/architect.md",
+    "./skills/setup-developer-skills/agents/code-author.md",
+    "./skills/setup-developer-skills/agents/diff-reviewer.md"
+  ]
 }
