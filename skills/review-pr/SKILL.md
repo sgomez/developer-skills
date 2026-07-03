@@ -26,14 +26,16 @@ gh pr view --json number,title,headRefName,baseRefName,state
 Refuse if PR is closed or merged.
 
 If the current branch is not the PR branch (the /developer pipeline runs this
-in a fresh worktree), check it out first:
+in a fresh worktree), check out the PR head detached:
 
 ```bash
-gh pr checkout <PR>
+git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
 ```
 
-Never `git checkout main` — in a linked worktree it fails because `main` is
-checked out in the primary worktree.
+Never `gh pr checkout` — in a linked worktree it fails with
+`fatal: '<branch>' is already used by worktree` because the PR branch is
+still checked out in the build worker's worktree. Never `git checkout main`
+either — `main` is checked out in the primary worktree.
 
 ### 2. Read full diff
 
@@ -78,8 +80,10 @@ gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
   -f "comments[][body]"="<finding>"
 ```
 
-If no actionable findings: post `APPROVE` event with a summary (non-blocking
-notes may go in the body).
+If no actionable findings: post a `COMMENT` review whose body starts with a
+clear "CLEAN" summary (non-blocking notes may go in the body). Never use the
+`APPROVE` event — the pipeline authors PRs under the same GitHub identity
+that reviews them, and GitHub rejects self-approval (HTTP 422).
 
 ### 5. Mark ready
 
@@ -89,7 +93,7 @@ gh pr ready <PR>
 
 ## Rules
 
-- Post review even if no findings (APPROVE + summary)
+- Post review even if no findings (COMMENT + "CLEAN" summary; never APPROVE)
 - Never push code changes — review only
 - One review submission (not individual comments)
 - Flag typecheck / test failures as blocking

@@ -149,8 +149,14 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 Spawn `diff-reviewer` with `isolation: "worktree"`:
 
-> Review PR #`<PR>`. Check it out with `gh pr checkout` in your worktree, run
-> the review-pr skill on it. End with the `RESULT verdict=…` line.
+> Review PR #`<PR>`. In your worktree get the PR head with
+> `git fetch origin pull/<PR>/head && git checkout --detach FETCH_HEAD`
+> (do not use `gh pr checkout` — the PR branch is checked out in the build
+> worker's worktree and git will refuse). Run the review-pr skill on it.
+> Posting the review (inline comments + summary) on the PR and marking it
+> ready with `gh pr ready` are part of your delegated task — you are
+> authorized to perform these GitHub writes. End with the
+> `RESULT verdict=…` line.
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
@@ -163,8 +169,12 @@ For cycle `c` = 1, 2, 3:
    tier (haiku → sonnet → opus; opus stays opus).
 2. Spawn `code-author` with that model and `isolation: "worktree"`:
 
-   > FIX job. PR #`<PR>`. Check it out with `gh pr checkout` in your worktree,
-   > run the fix-pr skill to address all review threads.
+   > FIX job. PR #`<PR>`. Check it out with `gh pr checkout` in your worktree;
+   > if that fails with "already used by worktree", run
+   > `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
+   > and push with `git push origin HEAD:<pr-branch>`. Run the fix-pr skill
+   > to address all review threads. Pushing the fixes and replying to the
+   > review threads are part of your delegated task.
    > End with the `RESULT pr=… url=…` line.
 
    `RESULT blocked …` → **escalate**, next sub-issue.
@@ -228,3 +238,7 @@ next unblocked sub-issue.
   the main context — the only exception is Step 0's scoped commit+push of
   context docs, before the loop starts.
 - Only spawn the fix worker when the review said `NEEDS_FIXES`.
+- If a worker reports that a permission was denied (posting the review,
+  `gh pr ready`, merging, …), never re-run the denied command yourself —
+  that is tunneling around the denial and will also be blocked. Treat the
+  sub-issue as blocked: **escalate** it and continue the loop.

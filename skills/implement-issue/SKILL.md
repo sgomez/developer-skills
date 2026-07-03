@@ -80,6 +80,11 @@ Never `git checkout main` — when running in a linked worktree (the /developer
 pipeline always does), `main` is checked out in the primary worktree and the
 command fails. Branching straight from `origin/main` works everywhere.
 
+In a fresh worktree, install dependencies before anything else (`pnpm
+install` or the project's equivalent) — worktrees do not share
+`node_modules`, and missing deps produce misleading typecheck/test failures
+in packages you never touched.
+
 ### 4. Implement
 
 - Explore relevant source files before writing any code
@@ -105,6 +110,9 @@ Implements #<N>: <issue title>
 - <key decision 1>
 - <key decision 2>
 ```
+
+Wrap body lines at 100 characters — commitlint's conventional config rejects
+longer lines (`body-max-line-length`).
 
 ### 6. Push + open PR
 
@@ -143,6 +151,7 @@ wait for an answer — the blocking comment plus your final report is the output
 ## Rules
 
 - One sub-issue per invocation — always check for sub-issues before treating an issue as standalone
+- Never bypass git hooks (`--no-verify`, `-n`). If a pre-push check fails in a package your change didn't touch, first suspect missing installs in the worktree (`pnpm install`); if it is genuinely broken on `origin/main`, report **Blocked** instead of pushing around the gate
 - No commented-out code or TODO comments in committed code
 - Do not modify files unrelated to the issue
 - Never close the issue manually — `Closes #N` in the PR body handles it on merge
