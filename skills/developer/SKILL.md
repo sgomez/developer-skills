@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN and auto-merge to main. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN and auto-merge to main. Sequential by default; --parallel builds independent sub-issues concurrently in waves. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
@@ -16,9 +16,12 @@ pass in its prompt. You (the orchestrator) hold the state between steps.
 /developer <issue>              # PRD with sub-issues → deliver them all, in order
                                 # plain issue → deliver just that one
 /developer <prd> <subissue>     # deliver a single specific sub-issue
+/developer <issue> --parallel   # PRD mode: build independent sub-issues
+                                # concurrently, in waves (see Parallel mode)
 ```
 
 If no issue number is given, ask for it and stop. Do not guess issue numbers.
+`--parallel` only changes PRD mode; in single mode it is a no-op.
 
 > **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
 > the plugin prefix: the skills appear as `developer-skills:<name>` and the
@@ -121,6 +124,33 @@ Repeat while open sub-issues remain:
 4. When no deliverable sub-issue remains (all closed, or the rest are blocked
    by escalated ones) → **wrap-up**.
 
+## Parallel mode (`--parallel`)
+
+Sequential is the default because each PR branches from a `main` that already
+contains the previous one — no merge conflicts by construction. `--parallel`
+trades that guarantee for throughput: independent sub-issues are built
+concurrently, and conflicts between their PRs become expected work, resolved
+by extra merge-fix jobs. Only offer/use it when the user asked for it.
+
+Work in **waves**:
+
+1. **Wave = every open sub-issue whose blockers are all closed** (same check
+   as step 1 of the PRD loop), minus sub-issues already escalated this run.
+2. Run the delivery pipeline on each wave member concurrently: spawn all
+   `dispatcher`s in one batch, then the `code-author` BUILD jobs in parallel
+   (each in its own worktree, `run_in_background: true`). As each build
+   reports its PR, spawn its `diff-reviewer`; fix cycles run per PR exactly
+   as in the sequential pipeline. Cap concurrent build/review/fix workers at
+   **3**; queue the rest of the wave.
+3. **Merges stay strictly serial** — never merge two PRs concurrently. Merge
+   each PR as it reaches CLEAN. Every PR in the wave branched from the same
+   `main`, so any PR merged after the first may conflict: on merge failure,
+   run the merge-fix job from the Merge step, then retry once.
+4. When every wave member is delivered (merged or escalated), recompute the
+   unblocked set → next wave. None left → **wrap-up**.
+
+Everything else — context economy, escalation, wrap-up, rules — is unchanged.
+
 ## Delivery pipeline (per sub-issue)
 
 ### 1. Triage
@@ -200,9 +230,12 @@ gh issue view <subissue> --json state --jq '.state'   # expect CLOSED
 ```
 
 If the merge fails (conflict with a previous merge), treat it as one extra fix
-cycle: spawn a `code-author` FIX job with model `opus` prompting it to update
-the branch from origin/main, resolve conflicts, and push — then merge again.
-If it still fails, **escalate**.
+cycle — the **merge-fix job**: spawn a `code-author` FIX job with model `opus`
+prompting it to update the branch from origin/main, resolve the conflicts —
+using the `resolving-merge-conflicts` skill if it appears in its available
+skills — and push. Then merge again. If it still fails, **escalate**. In
+parallel mode this job is routine, not exceptional: budget one merge-fix per
+conflicting PR before escalating.
 
 ## Escalation
 
@@ -227,9 +260,10 @@ next unblocked sub-issue.
 
 ## Rules
 
-- Strict sequential: one sub-issue fully delivered (merged or escalated)
-  before the next starts — each PR must branch from a main that already
-  contains the previous one.
+- Strict sequential by default: one sub-issue fully delivered (merged or
+  escalated) before the next starts — each PR must branch from a main that
+  already contains the previous one. With `--parallel`, builds/reviews/fixes
+  may overlap, but merges are always one at a time.
 - Unattended: never stop to ask the user anything mid-loop. Escalate via
   labels/comments and keep going.
 - Each worker is stateless: pass everything it needs in its prompt; never

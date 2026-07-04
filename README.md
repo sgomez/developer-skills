@@ -24,9 +24,12 @@ triage → build → review → fix → merge — and pings you when it's done.
                                      next sub-issue …
 ```
 
-- **Sequential and dependency-aware** — sub-issues are delivered in
-  `Blocked by` order; each PR branches from a `main` that already contains
-  the previous one.
+- **Sequential by default, parallel on demand** — sub-issues are delivered
+  in `Blocked by` order; each PR branches from a `main` that already contains
+  the previous one, so merges never conflict. Pass `--parallel` to build
+  independent sub-issues concurrently in waves instead — faster, at the cost
+  of merge conflicts between sibling PRs, which an extra opus fix worker
+  resolves before each (still serialized) merge.
 - **Model-tiered** — a `dispatcher` agent scores each sub-issue
   (trivial → `haiku`, standard → `sonnet`, complex → `opus`); the fixer
   escalates one tier per fix cycle.
@@ -84,7 +87,7 @@ for PRD authoring and repo configuration. Install the ones the pipeline needs
 with `--skill`:
 
 ```bash
-npx skills add mattpocock/skills --skill setup-matt-pocock-skills,to-prd,to-issues,tdd,grilling
+npx skills add mattpocock/skills --skill setup-matt-pocock-skills,to-prd,to-issues,tdd,grill-with-docs,grilling,domain-modeling,resolving-merge-conflicts,ask-matt
 ```
 
 (or `npx skills add mattpocock/skills` and pick interactively / `--skill '*'`
@@ -96,7 +99,11 @@ for everything.)
 | `to-prd` | **Required.** Publishes the PRD issue the pipeline consumes. |
 | `to-issues` | **Required.** Breaks the PRD into sub-issues with `Parent` / `Blocked by` ordering. |
 | `tdd` | Recommended. `implement-issue` follows TDD where tests exist. |
-| `grilling` / `grill-me` | Recommended. Interview yourself into a solid PRD before `/to-prd`. |
+| `grill-with-docs` | Recommended. The PRD interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
+| `grilling` / `grill-me` | The interview primitive behind `grill-with-docs`; `grill-me` is the stateless variant for when there's no codebase yet. |
+| `domain-modeling` | Used by `grill-with-docs` for the glossary / ADR vocabulary. |
+| `resolving-merge-conflicts` | Recommended, **strongly with `--parallel`**. The merge-fix worker runs it to resolve conflicts between sibling PRs before merging. |
+| `ask-matt` | Optional. A router over the whole mattpocock/skills set — ask it which skill or flow fits your situation. |
 | `triage` | Optional. Shares the same label vocabulary. |
 
 ## Setup (once per repo)
@@ -114,6 +121,48 @@ It will:
 3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels exist.
+
+## Permissions (recommended)
+
+`/developer` runs unattended, but the GitHub writes it performs — posting
+reviews, marking PRs ready, commenting, merging — hit permission prompts by
+default. With nobody at the keyboard, one denial means the worker reports
+blocked and the sub-issue gets escalated instead of merged. Pre-approve those
+`gh` calls in the target repo's `.claude/settings.json` (replace
+`OWNER/REPO`):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr ready:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Merging pull requests in the OWNER/REPO repository (gh pr merge, including --auto/--squash/--delete-branch, or the equivalent gh api merge endpoint) is allowed: the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
+    ]
+  }
+}
+```
+
+- **`permissions.allow`** pre-approves exactly the writes the pipeline needs:
+  `gh pr ready` and the reviews API (diff-reviewer posts the inline review and
+  flips the PR out of draft), `gh pr comment` (fix-pr replies to threads,
+  escalation comments), `gh pr merge` (the orchestrator's auto-merge).
+- **`autoMode.allow`** only matters if you run with `"defaultMode": "auto"`:
+  auto mode double-checks outward-facing actions in natural language even when
+  the command is allowlisted, so it needs a plain-English rule stating that
+  merging is intended. Keep `"$defaults"` first to preserve the built-in
+  rules.
+
+Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
+blast radius small; the other three are gh-subcommand-scoped and safe to allow
+globally in `~/.claude/settings.json` if you prefer.
 
 ## Antigravity
 
@@ -145,6 +194,7 @@ best-effort outside Claude Code.
 
 ```
 /developer <prd-issue>            # deliver every open sub-issue, in order
+/developer <prd-issue> --parallel # build independent sub-issues concurrently
 /developer <issue>                # plain issue (no sub-issues) → deliver just it
 /developer <prd> <subissue>       # deliver one specific sub-issue
 /implement-issue 42               # manual: issue → branch → TDD → draft PR
@@ -152,8 +202,9 @@ best-effort outside Claude Code.
 /fix-pr 42                        # manual: address unresolved review threads
 ```
 
-The intended loop: write PRDs with `/grilling` + `/to-prd` + `/to-issues`,
-then hand each PRD to `/developer` and go write the next one.
+The intended loop: write PRDs with `/grill-with-docs` + `/to-prd` +
+`/to-issues`, then hand each PRD to `/developer` and go write the next one.
+(Not sure which skill fits? `/ask-matt`.)
 
 ## What's in the box
 
