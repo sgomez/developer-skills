@@ -1,5 +1,5 @@
 {
   "name": "developer-skills",
   "description": "Unattended PRD delivery pipeline: /developer loops over a PRD's sub-issues with dispatcher \u2192 code-author \u2192 diff-reviewer workers, review\u2192fix cycles, and auto-merge.",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
