@@ -40,15 +40,18 @@ triage → build → review → fix → merge — and pings you when it's done.
 > CLEAN. The `diff-reviewer` (Opus) is the only gate. If you want a human
 > merge gate, edit the Merge step in `skills/developer/SKILL.md`.
 
-## Claude Code only
+## Claude Code first
 
-This pipeline runs **only on Claude Code**. The skills follow the
+The full pipeline runs **only on Claude Code**. The skills follow the
 cross-agent `SKILL.md` convention, but everything that makes the pipeline
 work is Claude-specific: the subagent definitions (`agents/*.md` frontmatter
 with `model:`/`effort:`), the Agent-tool orchestration with per-spawn model
 override and **worktree isolation**, and the push notification at the end.
 Other agentic tools (Cursor, Codex, etc.) use different agent file formats
 and have no equivalent of these primitives.
+
+The worker agents and skills (not the orchestration) also run on
+**Google Antigravity** — see [Antigravity](#antigravity) below.
 
 ## Install
 
@@ -111,6 +114,26 @@ It will:
 3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels exist.
+
+## Antigravity
+
+The Antigravity CLI (`agy`) imports Claude Code plugins natively, so the
+whole repo installs straight from GitHub — skills and agents included:
+
+```bash
+agy plugin install https://github.com/sgomez/developer-skills
+```
+
+It clones the repo into `~/.gemini/config/plugins/developer-skills` and
+converts the Claude-format `agents/*.md` and `skills/` on load. Reinstall to
+update; `agy plugin list` / `agy plugin uninstall developer-skills` to manage.
+
+Caveats: all five skills are imported, including the `/developer`
+orchestrator, and Antigravity does have worktree isolation for agents. What
+it lacks is per-spawn model tiers and `effort:` — subagents run on
+Antigravity's own models, so the `dispatcher`'s haiku/sonnet/opus triage
+doesn't steer which model builds each sub-issue. The unattended loop is
+best-effort outside Claude Code.
 
 ## Requirements
 
