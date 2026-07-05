@@ -51,8 +51,8 @@ The loop may cover many sub-issues; your context must survive all of them.
 - **Never read issue or PR bodies yourself.** Workers read them in their own
   disposable contexts. You only run the cheap listing commands below.
 - From each worker, keep only its final `RESULT` line.
-- Track per sub-issue: number, chosen model, PR number, verdict, fix cycles,
-  outcome (merged / escalated / blocked).
+- Track per sub-issue: number, task id, chosen model, PR number, verdict, fix
+  cycles, wave (parallel mode), outcome (merged / escalated / blocked).
 
 ## Step 0 — Publish context docs before anything else
 
@@ -99,6 +99,29 @@ gh api graphql -f query='
   issue, with the issue itself as spec (no separate PRD number).
 - **Two arguments given**: run the delivery pipeline once on `<subissue>` with
   `<prd>` as the PRD. Skip the loop.
+
+## Progress board (PRD mode — not optional)
+
+The user follows the run through the harness task list. Keep it faithful at
+every transition; a stale board defeats its purpose.
+
+1. **Immediately after mode detection**, create one task per open sub-issue
+   with **TaskCreate**, in sub-issue order: subject `#<N> <title>`,
+   activeForm `Delivering #<N>`. The whole plan must be on the board before
+   the first worker spawns.
+2. When the delivery pipeline starts on a sub-issue → **TaskUpdate**
+   `status: in_progress`. In parallel mode every wave member goes
+   in_progress as its build spawns, so the board shows exactly what is
+   running concurrently.
+3. Terminal transitions, the moment they happen:
+   - **merged** (sub-issue verified CLOSED) → `status: completed`.
+   - **escalated** → back to `status: pending` and rename the subject to
+     `#<N> <title> — escalated: <one-line reason>`. Never mark an escalated
+     sub-issue completed — unchecked items at the end are the human's queue.
+4. Sub-issues that never became deliverable (blocked by an escalated one)
+   stay pending; rename them `#<N> <title> — blocked by #<M>` at wrap-up.
+
+Single mode (no sub-issues) skips the board.
 
 ## PRD loop
 
@@ -284,11 +307,18 @@ continue the loop with the next unblocked sub-issue.
 
 ## Wrap-up
 
-1. **Push notification** (PushNotification tool):
+1. **Reconcile the task board**: every task must be completed or renamed per
+   the Progress board rules — nothing left silently in_progress.
+2. **Push notification** (PushNotification tool):
    `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.`
-2. **Chat summary** — one table: sub-issue, model used, PR, fix cycles,
-   outcome. List escalated sub-issues with reasons so the user can pick them
-   up.
+3. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
+   (parallel mode), outcome. List escalated sub-issues with reasons so the
+   user can pick them up.
+4. **Execution report** — how the run actually unfolded. In `--parallel`
+   mode, one line per wave listing the jobs that ran concurrently and their
+   outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
+   merge-fix on #14`. In sequential mode, the delivery order with any
+   merge-fix jobs noted.
 
 ## Rules
 
