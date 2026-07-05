@@ -89,6 +89,18 @@ gh api repos/{owner}/{repo}/pulls/<PR>/comments/<COMMENT_ID>/replies \
 
 List each comment addressed and what was done. Flag any comment skipped and why.
 
+If the fixes surfaced a genuine discovery — something no repo doc answered
+that cost you a failed approach or cross-file reverse-engineering — record it
+on the PR so the docs harvest can pick it up:
+
+```bash
+gh pr comment <PR> --body "## Discoveries
+- <one line, written for the next agent>"
+```
+
+Same bar as implement-issue's Discoveries section: most fix jobs have none;
+skip the comment entirely then.
+
 ## Rules
 
 - One commit for all fixes (not one per comment)

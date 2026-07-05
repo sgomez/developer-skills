@@ -145,8 +145,24 @@ gh pr create \
 
 ## Test plan
 - [ ] <acceptance criterion 1>
-- [ ] <acceptance criterion 2>"
+- [ ] <acceptance criterion 2>
+
+## Discoveries
+<see below — omit the section when empty, the normal case>"
 ```
+
+**Discoveries** is how hard-won knowledge outlives your context: an
+orchestrator harvests these sections across PRs and promotes what repeats
+into the repo's agent docs. List only things that meet **both** bars:
+
+- no repo doc (`AGENTS.md` / `CLAUDE.md`, `docs/agents/`, `docs/stack-notes`,
+  `CONTEXT.md`) answered it, **and**
+- it actually cost you something — a failed approach, reverse-engineering a
+  pattern from several files, or finding that a doc contradicts the code.
+
+One line each, written for the next agent (name files/commands, not your
+journey). Everyday exploration does not qualify; most PRs should have **no**
+Discoveries section.
 
 ### 7. Done
 

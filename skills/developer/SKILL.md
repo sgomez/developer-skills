@@ -32,12 +32,13 @@ If no issue number is given, ask for it and stop. Do not guess issue numbers.
 
 ## Workers (subagents)
 
-| Step   | Subagent        | Model                    | Isolation  | Skill it runs     |
-|--------|-----------------|--------------------------|------------|-------------------|
-| triage | `dispatcher`     | sonnet (pinned)          | —          | (reads the issue) |
-| build  | `code-author`   | chosen by triage         | `worktree` | `implement-issue` |
-| review | `diff-reviewer` | opus (pinned)            | `worktree` | `review-pr`       |
-| fix    | `code-author`   | escalates per cycle      | `worktree` | `fix-pr`          |
+| Step    | Subagent        | Model                    | Isolation  | Skill it runs     |
+|---------|-----------------|--------------------------|------------|-------------------|
+| triage  | `dispatcher`     | sonnet (pinned)          | —          | (reads the issue) |
+| build   | `code-author`   | chosen by triage         | `worktree` | `implement-issue` |
+| review  | `diff-reviewer` | opus (pinned)            | `worktree` | `review-pr`       |
+| fix     | `code-author`   | escalates per cycle      | `worktree` | `fix-pr`          |
+| harvest | `code-author`   | sonnet (pinned)          | `worktree` | (reads PR bodies) |
 
 Spawn each via the **Agent** tool with the matching `subagent_type`. Pass
 `isolation: "worktree"` to every code-author and diff-reviewer spawn. Pass
@@ -331,12 +332,34 @@ continue the loop with the next unblocked sub-issue.
 
 1. **Reconcile the task board**: every task must be completed or renamed per
    the Progress board rules — nothing left silently in_progress.
-2. **Push notification** (PushNotification tool):
+2. **Harvest discoveries** — turn what the workers learned into docs before
+   the knowledge is lost. Skip only when the run produced no PRs. Spawn one
+   `code-author` with `model: sonnet` and `isolation: "worktree"`:
+
+   > HARVEST job. This run delivered PRs #`<list every PR of the run,
+   > merged or escalated>`. For each, read its body and comments
+   > (`gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
+   > entries. Compare them against the repo's agent docs (`AGENTS.md` and
+   > everything under `docs/agents/`). Promote only entries that repeat
+   > across PRs, correct a doc the code has outgrown, or would clearly have
+   > saved another worker real work; drop one-off trivia. If nothing
+   > qualifies, change nothing. Otherwise branch from origin/main, fold the
+   > entries into the right doc (update the existing recipe/pattern doc;
+   > create a new `docs/agents/` doc only if none fits), commit as
+   > `docs(agents): harvest discoveries from PRD #<prd> run`, and push with
+   > `git push origin HEAD:main` — never check out main. If the push is
+   > rejected, fetch and rebase once, then push again; if it still fails,
+   > stop and report it. End with the `RESULT docs=<updated|none>` line.
+
+   Then run the **Cleanup** worktree removal for its worktree if it pushed
+   changes. This job is best-effort: if it reports blocked, note it in the
+   summary and move on.
+3. **Push notification** (PushNotification tool):
    `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.`
-3. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
+4. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
    (parallel mode), outcome. List escalated sub-issues with reasons so the
-   user can pick them up.
-4. **Execution report** — how the run actually unfolded. In `--parallel`
+   user can pick them up. Note whether the harvest updated docs.
+5. **Execution report** — how the run actually unfolded. In `--parallel`
    mode, one line per wave listing the jobs that ran concurrently and their
    outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
    merge-fix on #14`. In sequential mode, the delivery order with any

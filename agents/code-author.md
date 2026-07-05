@@ -38,11 +38,17 @@ Consequences:
 
 ## Inputs
 
-The prompt gives you one of two jobs:
+The prompt gives you one of these jobs:
 
 - **BUILD** — implement a specific sub-issue. You receive a PRD issue number
   and a sub-issue number.
 - **FIX** — address review comments on an existing PR. You receive a PR number.
+- **MERGE-FIX** — make a conflicting PR mergeable again. You receive a PR
+  number and instructions for getting its branch without colliding with the
+  build worker's worktree.
+- **HARVEST** — distill the `## Discoveries` entries from a run's PRs into
+  the repo's agent docs. The prompt carries the PR list and the full
+  procedure; your only output beyond the doc commit is the `RESULT` line.
 
 ## What to do
 
@@ -80,6 +86,12 @@ End your reply with exactly one line, nothing after it:
 
 ```
 RESULT pr=<number> url=<pr-url>
+```
+
+On a HARVEST job, end instead with:
+
+```
+RESULT docs=<updated|none>
 ```
 
 If you could not produce/locate a PR (blocked, unfixable failures), end with:
