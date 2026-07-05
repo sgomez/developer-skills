@@ -237,6 +237,37 @@ skills — and push. Then merge again. If it still fails, **escalate**. In
 parallel mode this job is routine, not exceptional: budget one merge-fix per
 conflicting PR before escalating.
 
+### 6. Cleanup
+
+The harness only auto-removes a worker's worktree when it is **unchanged** —
+build and fix workers always leave a branch, commits, and `node_modules`
+behind, so without this step every sub-issue leaks worktrees until the disk
+fills. Run it whenever a sub-issue finishes, **merged or escalated** —
+everything is pushed by then, so nothing local is worth keeping.
+
+Identify what belongs to this sub-issue, then find its worktrees:
+
+```bash
+BRANCH=$(gh pr view <PR> --json headRefName --jq .headRefName)   # skip if no PR
+HEAD_SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
+git worktree list --porcelain
+```
+
+Remove every **linked** worktree (never the primary checkout) that is on
+`$BRANCH`, `fix/pr-<PR>`, or `agent/issue-<subissue>-*` (a blocked build that
+never opened a PR), or detached at `$HEAD_SHA` (the diff-reviewer's case).
+Then drop the leftover local branches:
+
+```bash
+git worktree remove --force <path>            # once per matching worktree
+git branch -D <branch>                        # each matching local branch
+git worktree prune
+```
+
+Matching strictly on this sub-issue's branches/sha is what makes this safe in
+`--parallel` mode — other wave members' worktrees never match. On an escalated
+sub-issue the remote branch and open PR are untouched; only local state goes.
+
 ## Escalation
 
 When a sub-issue is blocked, non-convergent after 3 fix cycles, or unmergeable:
@@ -247,8 +278,9 @@ gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url 
 gh issue comment <prd> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
-Leave the PR open (never merge an unclean PR). Continue the loop with the
-next unblocked sub-issue.
+Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
+(step 6) — the local worktrees go, the remote branch and PR stay — then
+continue the loop with the next unblocked sub-issue.
 
 ## Wrap-up
 
@@ -269,8 +301,10 @@ next unblocked sub-issue.
 - Each worker is stateless: pass everything it needs in its prompt; never
   assume it can see prior steps.
 - Never run `git checkout`, `git pull`, or any state-changing git command in
-  the main context — the only exception is Step 0's scoped commit+push of
-  context docs, before the loop starts.
+  the main context — the only exceptions are Step 0's scoped commit+push of
+  context docs and the per-sub-issue worktree Cleanup (step 6), which only
+  ever removes linked worker worktrees and their local branches, never the
+  primary checkout.
 - Only spawn the fix worker when the review said `NEEDS_FIXES`.
 - If a worker reports that a permission was denied (posting the review,
   `gh pr ready`, merging, …), never re-run the denied command yourself —
