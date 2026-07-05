@@ -80,13 +80,28 @@ Never `git checkout main` — when running in a linked worktree (the /developer
 pipeline always does), `main` is checked out in the primary worktree and the
 command fails. Branching straight from `origin/main` works everywhere.
 
-In a fresh worktree, install dependencies before anything else (`pnpm
-install` or the project's equivalent) — worktrees do not share
-`node_modules`, and missing deps produce misleading typecheck/test failures
-in packages you never touched.
+**Branch before you explore.** A linked worktree is created from the *local*
+main, which can lag `origin/main` — source read before this step may be
+missing already-merged work and send you down a stale path.
+
+In a fresh worktree, right after branching:
+
+1. Install dependencies (`pnpm install` or the project's equivalent) —
+   worktrees do not share `node_modules`, and missing deps produce misleading
+   typecheck/test failures in packages you never touched.
+2. Run any prerequisite build the project's agent docs call out (e.g. a shared
+   contract package the apps consume from `dist` — check `AGENTS.md` /
+   `CLAUDE.md` for the exact command).
+
+All file reads and edits use paths inside the worktree (relative to cwd) —
+never absolute paths into the primary checkout.
 
 ### 4. Implement
 
+- Before grepping for prior art, check the repo's agent docs (`AGENTS.md` /
+  `CLAUDE.md` and anything they link under `docs/agents/` — e.g. pattern
+  recipes naming golden files to copy). Only explore for what the docs
+  don't already answer.
 - Explore relevant source files before writing any code
 - Use TDD where tests exist: write failing test → implement → pass → refactor
 - Keep change as small as possible — only what the issue requires

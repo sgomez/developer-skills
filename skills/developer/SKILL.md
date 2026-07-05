@@ -61,7 +61,7 @@ committed **and pushed** is invisible to them. Grilling/PRD sessions edit
 these files but do not commit them. Before dispatching any worker:
 
 ```bash
-git status --porcelain -- CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents
+git status --porcelain -- CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
 ```
 
 If anything shows up, stage **only those paths** (never the user's unrelated
@@ -69,7 +69,7 @@ work-in-progress), commit on the current branch (must be `main` — if not,
 stop and tell the user), and push:
 
 ```bash
-git add CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents
+git add CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
 git commit -m "docs(domain): publish context map and ADR updates"
 git push origin main
 ```
@@ -243,8 +243,13 @@ Never touch local git state — your checkout may be in use by the user. Merge
 remotely:
 
 ```bash
-gh pr merge <PR> --merge --delete-branch
+gh pr merge <PR> --merge
 ```
+
+Do **not** pass `--delete-branch`: it also tries to delete the *local* branch,
+which is always still checked out in the build worker's worktree, so it fails
+noisily every time. The remote branch is deleted in Cleanup (step 6), after
+the worktrees are gone.
 
 `Closes #<subissue>` in the PR body closes the sub-issue on merge — verify:
 
@@ -253,12 +258,22 @@ gh issue view <subissue> --json state --jq '.state'   # expect CLOSED
 ```
 
 If the merge fails (conflict with a previous merge), treat it as one extra fix
-cycle — the **merge-fix job**: spawn a `code-author` FIX job with model `opus`
-prompting it to update the branch from origin/main, resolve the conflicts —
-using the `resolving-merge-conflicts` skill if it appears in its available
-skills — and push. Then merge again. If it still fails, **escalate**. In
-parallel mode this job is routine, not exceptional: budget one merge-fix per
-conflicting PR before escalating.
+cycle — the **merge-fix job**: spawn a `code-author` with model `opus` and
+`isolation: "worktree"`:
+
+> MERGE-FIX job. PR #`<PR>` cannot be merged into main (conflict with a
+> previously merged PR). In your worktree get the PR branch with
+> `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
+> (do not use `gh pr checkout` or check out the branch by name — it is
+> checked out in the build worker's worktree and git will refuse). Merge
+> `origin/main` into it, resolve the conflicts — using the
+> `resolving-merge-conflicts` skill if it appears in your available skills —
+> run the project checks, and push with
+> `git push origin HEAD:<pr-branch>`. End with the `RESULT pr=… url=…` line.
+
+Then merge again. If it still fails, **escalate**. In parallel mode this job
+is routine, not exceptional: budget one merge-fix per conflicting PR before
+escalating.
 
 ### 6. Cleanup
 
@@ -285,6 +300,13 @@ Then drop the leftover local branches:
 git worktree remove --force <path>            # once per matching worktree
 git branch -D <branch>                        # each matching local branch
 git worktree prune
+```
+
+If the sub-issue was **merged**, also delete the remote branch now (the merge
+deliberately skipped `--delete-branch`):
+
+```bash
+git push origin --delete $BRANCH
 ```
 
 Matching strictly on this sub-issue's branches/sha is what makes this safe in

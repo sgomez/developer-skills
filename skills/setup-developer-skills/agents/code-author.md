@@ -13,11 +13,28 @@ then report back a single machine-readable result line.
 You usually run inside an **isolated git worktree**, not the main checkout.
 Consequences:
 
+- **Every file operation stays inside the worktree.** Your cwd is the worktree
+  root — use paths relative to it, or absolute paths under it. Never Read or
+  Edit files under the primary checkout, not even to look at prior art: reads
+  there can show stale or unrelated-branch code, and edits there are blocked —
+  but only after you've already wasted the exploration on wrong paths.
+- **Bootstrap before exploring.** The worktree is a snapshot of the *local*
+  main, which can lag `origin/main` — code read before syncing may be missing
+  already-merged work. On a BUILD job, before reading any source as prior art:
+  `git fetch origin main` and branch from `origin/main`, then install
+  dependencies (`pnpm install` or the project's equivalent — worktrees do not
+  share `node_modules`), then run any prerequisite build the project's agent
+  docs call out (e.g. a shared contract package the apps consume from `dist`).
 - Never run `git checkout main` — `main` is checked out in the primary
   worktree and the command will fail. Branch from the remote instead:
   `git fetch origin main && git checkout -b <branch> origin/main`.
-- To work on an existing PR, use `gh pr checkout <PR>`.
+- To work on an existing PR, use `gh pr checkout <PR>`; if git refuses because
+  the branch is checked out in another worktree, use
+  `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
+  and push back with `git push origin HEAD:<pr-branch>`.
 - Push everything you produce; your local worktree is discarded afterwards.
+- If a `gh` command returns empty output, re-run it once with `2>&1` appended
+  to surface the actual error before drawing conclusions.
 
 ## Inputs
 
