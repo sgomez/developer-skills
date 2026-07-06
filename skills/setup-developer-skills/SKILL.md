@@ -1,6 +1,6 @@
 ---
 name: setup-developer-skills
-description: Configure this repo for the /developer unattended PRD-delivery pipeline — runs setup-matt-pocock-skills if needed, patches the issue tracker doc so child issues are created as native GitHub sub-issues, installs the dispatcher/code-author/diff-reviewer agents, and ensures the triage labels exist. Run once before first use of /developer.
+description: Configure this repo for the /developer unattended PRD-delivery pipeline — runs setup-matt-pocock-skills if needed, patches the issue tracker doc so child issues are created as native GitHub sub-issues, installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults (parallel/sequential execution, auto/manual merge) written to docs/agents/developer-defaults.md. Run once before first use of /developer.
 disable-model-invocation: true
 ---
 
@@ -75,16 +75,76 @@ gh label create ready-for-agent --description "Fully specified, an agent can pic
 gh label create ready-for-human --description "Needs human attention" --color D93F0B 2>/dev/null || true
 ```
 
-### 5. Report
+### 5. Choose the run defaults
 
-Summarise what was set up and remind the user of the flow:
+Ask the user two questions (AskUserQuestion, one call, both questions):
+
+1. **Execution** — should `/developer` build independent sub-issues in
+   parallel waves (recommended: faster; sibling-PR conflicts are resolved by
+   merge-fix workers) or sequentially (one sub-issue fully delivered before
+   the next)?
+2. **Merge** — when the review verdict is CLEAN, should `/developer` merge
+   the PR to `main` automatically, or mark it ready and leave the merge to a
+   human (recommended)? Be explicit that `auto` means unattended merges to
+   `main` with the opus diff-reviewer as the only gate, and that with
+   `manual` the sub-issues stay open until the human merges, so dependent
+   sub-issues wait for those merges.
+
+Write the answers to `docs/agents/developer-defaults.md` from the template
+[developer-defaults.md](./developer-defaults.md) (drop the HTML comment on
+the first line, set the two values in the fenced block).
+
+**Idempotence**: if the file already exists, show the current values, ask
+the two questions with the current values as the recommended options, and
+rewrite the file.
+
+**If the user chose `merge: auto`**, the merge (and the other GitHub writes)
+will hit permission prompts — and with nobody at the keyboard a single
+denial escalates the sub-issue instead of merging it. Offer to add this to
+the repo's `.claude/settings.json` (merge with existing content, replace
+OWNER/REPO from `git remote -v`):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr ready:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
+    ]
+  }
+}
+```
+
+The `autoMode.allow` sentence matters as much as the allowlist: auto mode
+double-checks outward-facing actions like merges in natural language even
+when the command is allowlisted, so it needs the plain-English record that
+the user authorized merging. With `merge: manual`, offer the same block
+minus the two merge rules (`Bash(gh pr merge:*)` and the autoMode sentence) —
+the ready/comment/reviews-API rules still save prompts during review and fix
+cycles.
+
+### 6. Report
+
+Summarise what was set up — including the chosen defaults — and remind the
+user of the flow:
 
 1. Grill/discuss a feature → `/to-prd` publishes the PRD issue.
 2. `/to-issues <prd>` breaks it into **native sub-issues** with `Blocked by`
    ordering.
 3. `/developer <prd>` delivers them all unattended — triage → build → review
-   → fix cycles → auto-merge — and sends a push notification when done.
+   → fix cycles → merge per the chosen policy — and sends a push
+   notification when done.
 
-Warn them explicitly: **`/developer` auto-merges PRs to `main` when the
-review verdict is CLEAN.** If they want a human gate instead, they should
-edit the Merge step of `skills/developer/SKILL.md` in their copy.
+If they chose `merge: auto`, warn them explicitly: **`/developer` will merge
+PRs to `main` unattended when the review verdict is CLEAN.** If they chose
+`manual`, remind them the wrap-up summary lists the ready-to-merge PRs in
+dependency order, and that per-run flags (`--auto-merge`, `--sequential`, …)
+override the defaults.

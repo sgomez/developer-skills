@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN and auto-merge to main. Sequential by default; --parallel builds independent sub-issues concurrently in waves. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
@@ -13,15 +13,18 @@ pass in its prompt. You (the orchestrator) hold the state between steps.
 ## Invoke
 
 ```
-/developer <issue>              # PRD with sub-issues → deliver them all, in order
+/developer <issue>              # PRD with sub-issues → deliver them all
                                 # plain issue → deliver just that one
 /developer <prd> <subissue>     # deliver a single specific sub-issue
-/developer <issue> --parallel   # PRD mode: build independent sub-issues
-                                # concurrently, in waves (see Parallel mode)
+
+Flags (override the repo defaults — see Run configuration):
+  --parallel | --sequential     # PRD mode: waves vs one-at-a-time
+  --auto-merge | --no-auto-merge  # merge CLEAN PRs vs leave them ready
 ```
 
 If no issue number is given, ask for it and stop. Do not guess issue numbers.
-`--parallel` only changes PRD mode; in single mode it is a no-op.
+The execution flags only change PRD mode; in single mode they are a no-op.
+Accept the bare words `parallel` / `sequential` as synonyms for the flags.
 
 > **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
 > the plugin prefix: the skills appear as `developer-skills:<name>` and the
@@ -29,6 +32,35 @@ If no issue number is given, ask for it and stop. Do not guess issue numbers.
 > `developer-skills:diff-reviewer`. Use the names exactly as they appear in
 > your available-skills and available-agents lists; the short names below
 > refer to whichever form is installed.
+
+## Run configuration
+
+Two knobs govern a run. Resolve each one **before mode detection**, in this
+precedence order: CLI flag > repo default > factory default.
+
+| Knob        | Values                    | Factory default |
+|-------------|---------------------------|-----------------|
+| `execution` | `parallel` / `sequential` | `parallel`      |
+| `merge`     | `auto` / `manual`         | `manual`        |
+
+Repo defaults live in `docs/agents/developer-defaults.md`, written by
+`/setup-developer-skills`. Read it once at the start (it is short — this is
+an allowed exception to "never read bodies yourself"); if it is missing or a
+knob is absent, fall back to the factory default. State the resolved
+configuration in one line before starting, e.g.
+`Run config: execution=parallel, merge=manual (repo defaults)`.
+
+What `merge` means:
+
+- **`auto`** — a CLEAN verdict triggers `gh pr merge` (Merge step). The
+  committed `merge: auto` line in `docs/agents/developer-defaults.md` is the
+  user's standing authorization for these merges.
+- **`manual`** — the pipeline stops at CLEAN: the PR is already marked ready
+  by the reviewer, so record the sub-issue as **ready-to-merge** and leave
+  the merge to the human. Because sub-issues only close on merge
+  (`Closes #N`), anything `Blocked by` a ready-to-merge sub-issue stays
+  blocked for the rest of the run — expected, not an error; it lands in the
+  wrap-up as the human's queue.
 
 ## Workers (subagents)
 
@@ -53,7 +85,8 @@ The loop may cover many sub-issues; your context must survive all of them.
   disposable contexts. You only run the cheap listing commands below.
 - From each worker, keep only its final `RESULT` line.
 - Track per sub-issue: number, task id, chosen model, PR number, verdict, fix
-  cycles, wave (parallel mode), outcome (merged / escalated / blocked).
+  cycles, wave (parallel mode), outcome (merged / ready-to-merge / escalated /
+  blocked).
 
 ## Step 0 — Publish context docs before anything else
 
@@ -116,11 +149,16 @@ every transition; a stale board defeats its purpose.
    running concurrently.
 3. Terminal transitions, the moment they happen:
    - **merged** (sub-issue verified CLOSED) → `status: completed`.
+   - **ready-to-merge** (`merge: manual`, verdict CLEAN) → back to
+     `status: pending` and rename the subject to
+     `#<N> <title> — ready to merge: PR #<PR>`. Not completed — the human
+     still has to merge it.
    - **escalated** → back to `status: pending` and rename the subject to
      `#<N> <title> — escalated: <one-line reason>`. Never mark an escalated
      sub-issue completed — unchecked items at the end are the human's queue.
-4. Sub-issues that never became deliverable (blocked by an escalated one)
-   stay pending; rename them `#<N> <title> — blocked by #<M>` at wrap-up.
+4. Sub-issues that never became deliverable (blocked by an escalated one, or
+   by a ready-to-merge one the human hasn't merged yet) stay pending; rename
+   them `#<N> <title> — blocked by #<M>` at wrap-up.
 
 Single mode (no sub-issues) skips the board.
 
@@ -138,23 +176,29 @@ Repeat while open sub-issues remain:
 
    Take the first open sub-issue whose blockers are all closed. Skip
    sub-issues you already escalated this run (and, naturally, anything they
-   block stays blocked).
+   block stays blocked). With `merge: manual`, sub-issues you already
+   delivered as ready-to-merge count as done for *your* loop but their
+   dependents stay blocked — skip both.
 
 2. Run the **delivery pipeline** on it.
 
-3. On **merged** → next iteration. On **escalated/blocked** → record it,
-   next iteration.
+3. On **merged** or **ready-to-merge** → next iteration. On
+   **escalated/blocked** → record it, next iteration.
 
-4. When no deliverable sub-issue remains (all closed, or the rest are blocked
-   by escalated ones) → **wrap-up**.
+4. When no deliverable sub-issue remains (all closed or ready-to-merge, or
+   the rest are blocked by escalated/unmerged ones) → **wrap-up**.
 
-## Parallel mode (`--parallel`)
+## Parallel mode (`execution: parallel`)
 
-Sequential is the default because each PR branches from a `main` that already
-contains the previous one — no merge conflicts by construction. `--parallel`
-trades that guarantee for throughput: independent sub-issues are built
-concurrently, and conflicts between their PRs become expected work, resolved
-by extra merge-fix jobs. Only offer/use it when the user asked for it.
+Parallel is the factory default (see Run configuration). The trade-off:
+sequential with `merge: auto` delivers one sub-issue fully before the next
+starts, so each PR branches from a `main` that already contains the previous
+one — no merge conflicts by construction. Parallel trades that guarantee for
+throughput: independent sub-issues are built concurrently, and conflicts
+between their PRs become expected work, resolved by extra merge-fix jobs.
+Note that with `merge: manual` sibling PRs all branch from the same `main`
+regardless of execution mode — sequential buys no conflict guarantee there,
+so parallel costs nothing extra.
 
 Work in **waves**:
 
@@ -166,12 +210,15 @@ Work in **waves**:
    reports its PR, spawn its `diff-reviewer`; fix cycles run per PR exactly
    as in the sequential pipeline. Cap concurrent build/review/fix workers at
    **3**; queue the rest of the wave.
-3. **Merges stay strictly serial** — never merge two PRs concurrently. Merge
-   each PR as it reaches CLEAN. Every PR in the wave branched from the same
-   `main`, so any PR merged after the first may conflict: on merge failure,
-   run the merge-fix job from the Merge step, then retry once.
-4. When every wave member is delivered (merged or escalated), recompute the
-   unblocked set → next wave. None left → **wrap-up**.
+3. **Merges stay strictly serial** — never merge two PRs concurrently. With
+   `merge: auto`, merge each PR as it reaches CLEAN. Every PR in the wave
+   branched from the same `main`, so any PR merged after the first may
+   conflict: on merge failure, run the merge-fix job from the Merge step,
+   then retry once. With `merge: manual` there is nothing to serialize —
+   each CLEAN PR just becomes ready-to-merge.
+4. When every wave member is delivered (merged, ready-to-merge, or
+   escalated), recompute the unblocked set → next wave. None left →
+   **wrap-up**.
 
 Everything else — context economy, escalation, wrap-up, rules — is unchanged.
 
@@ -236,6 +283,19 @@ For cycle `c` = 1, 2, 3:
 
 ### 5. Merge
 
+**With `merge: manual`** (the factory default) there is nothing to merge:
+the reviewer already marked the PR ready, so record the sub-issue as
+**ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
+run **Cleanup** (step 6), and move on. The sub-issue stays open until the
+human merges, so its dependents remain blocked this run.
+
+**With `merge: auto`**: this merge is pre-authorized — the user opted into
+`merge: auto` in `docs/agents/developer-defaults.md` (or passed
+`--auto-merge` this run), which is standing authorization to merge PRs whose
+review verdict is CLEAN. If the permission system still asks, say exactly
+that; if it *denies*, follow the denial rule under Rules (escalate, never
+retry).
+
 Never touch local git state — your checkout may be in use by the user. Merge
 remotely:
 
@@ -277,8 +337,9 @@ escalating.
 The harness only auto-removes a worker's worktree when it is **unchanged** —
 build and fix workers always leave a branch, commits, and `node_modules`
 behind, so without this step every sub-issue leaks worktrees until the disk
-fills. Run it whenever a sub-issue finishes, **merged or escalated** —
-everything is pushed by then, so nothing local is worth keeping.
+fills. Run it whenever a sub-issue finishes — **merged, ready-to-merge, or
+escalated** — everything is pushed by then, so nothing local is worth
+keeping.
 
 All removal mechanics live in the bundled script
 `scripts/cleanup-worktrees.sh` (next to this SKILL.md — under the plugin
@@ -311,8 +372,9 @@ git push origin --delete $BRANCH
 ```
 
 Matching strictly on this sub-issue's branches/sha is what makes this safe in
-`--parallel` mode — other wave members' worktrees never match. On an escalated
-sub-issue the remote branch and open PR are untouched; only local state goes.
+parallel mode — other wave members' worktrees never match. On an escalated or
+ready-to-merge sub-issue the remote branch and open PR are untouched; only
+local state goes.
 
 ## Escalation
 
@@ -336,8 +398,8 @@ continue the loop with the next unblocked sub-issue.
    the knowledge is lost. Skip only when the run produced no PRs. Spawn one
    `code-author` with `model: sonnet` and `isolation: "worktree"`:
 
-   > HARVEST job. This run delivered PRs #`<list every PR of the run,
-   > merged or escalated>`. For each, read its body and comments
+   > HARVEST job. This run delivered PRs #`<list every PR of the run —
+   > merged, ready-to-merge, or escalated>`. For each, read its body and comments
    > (`gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
    > entries. Compare them against the repo's agent docs (`AGENTS.md` and
    > everything under `docs/agents/`). Promote only entries that repeat
@@ -365,11 +427,15 @@ continue the loop with the next unblocked sub-issue.
    it verbatim in the chat summary — never repair the primary checkout
    yourself.
 4. **Push notification** (PushNotification tool):
-   `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.`
+   `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.` — with
+   `merge: manual`, use
+   `PRD #<prd>: <N> ready to merge, <M> escalated, <K> still blocked.`
 5. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
    (parallel mode), outcome. List escalated sub-issues with reasons so the
-   user can pick them up. Note whether the harvest updated docs.
-6. **Execution report** — how the run actually unfolded. In `--parallel`
+   user can pick them up. With `merge: manual`, list the ready-to-merge PRs
+   **in dependency order** — that is the human's merge queue, and merging in
+   that order minimizes conflicts. Note whether the harvest updated docs.
+6. **Execution report** — how the run actually unfolded. In parallel
    mode, one line per wave listing the jobs that ran concurrently and their
    outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
    merge-fix on #14`. In sequential mode, the delivery order with any
@@ -377,10 +443,15 @@ continue the loop with the next unblocked sub-issue.
 
 ## Rules
 
-- Strict sequential by default: one sub-issue fully delivered (merged or
-  escalated) before the next starts — each PR must branch from a main that
-  already contains the previous one. With `--parallel`, builds/reviews/fixes
-  may overlap, but merges are always one at a time.
+- Resolve the run configuration (execution + merge) once, before mode
+  detection, and stick to it for the whole run — flags > repo defaults >
+  factory defaults (parallel, manual).
+- In sequential mode, one sub-issue is fully delivered (merged,
+  ready-to-merge, or escalated) before the next starts. In parallel mode,
+  builds/reviews/fixes may overlap, but merges are always one at a time.
+- Never run `gh pr merge` when the resolved config says `merge: manual` —
+  ready + CLEAN is the terminal state there, even if merging seems
+  convenient.
 - Unattended: never stop to ask the user anything mid-loop. Escalate via
   labels/comments and keep going.
 - Each worker is stateless: pass everything it needs in its prompt; never

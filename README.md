@@ -20,16 +20,21 @@ triage → build → review → fix → merge — and pings you when it's done.
   ┌─────────────┐    re-review       └───────────────┘
   │ code-author │ ──────────────────▶       │ CLEAN
   │ (fix, ≤3×)  │                           ▼
-  └─────────────┘                    auto-merge to main,
+  └─────────────┘                    merge (auto) or hand
+                                     off ready-to-merge,
                                      next sub-issue …
 ```
 
-- **Sequential by default, parallel on demand** — sub-issues are delivered
-  in `Blocked by` order; each PR branches from a `main` that already contains
-  the previous one, so merges never conflict. Pass `--parallel` to build
-  independent sub-issues concurrently in waves instead — faster, at the cost
-  of merge conflicts between sibling PRs, which an extra opus fix worker
-  resolves before each (still serialized) merge.
+- **Configurable defaults** — `/setup-developer-skills` asks how the pipeline
+  should run in this repo and writes `docs/agents/developer-defaults.md`;
+  per-run flags (`--parallel`/`--sequential`, `--auto-merge`/`--no-auto-merge`)
+  override it. Factory defaults: **parallel execution, manual merge**.
+- **Parallel by default, sequential on demand** — independent sub-issues
+  (per `Blocked by` order) are built concurrently in waves; merge conflicts
+  between sibling PRs are resolved by an extra opus fix worker before each
+  (always serialized) merge. `sequential` delivers one sub-issue fully before
+  the next — with auto-merge, each PR then branches from a `main` that
+  already contains the previous one, so merges never conflict.
 - **Model-tiered** — a `dispatcher` agent scores each sub-issue
   (trivial → `haiku`, standard → `sonnet`, complex → `opus`); the fixer
   escalates one tier per fix cycle.
@@ -39,9 +44,11 @@ triage → build → review → fix → merge — and pings you when it's done.
 - **Isolated** — every worker runs in its own git worktree; the orchestrator
   never touches your checkout.
 
-> ⚠️ `/developer` **auto-merges PRs to `main`** when the reviewer verdict is
-> CLEAN. The `diff-reviewer` (Opus) is the only gate. If you want a human
-> merge gate, edit the Merge step in `skills/developer/SKILL.md`.
+> By default `/developer` does **not** merge: a CLEAN PR is marked ready and
+> handed to you, with the wrap-up listing the merge queue in dependency
+> order. Opt into `merge: auto` at setup (or pass `--auto-merge`) and it
+> **merges PRs to `main` unattended** when the reviewer verdict is CLEAN —
+> the `diff-reviewer` (Opus) is then the only gate.
 
 ## Claude Code first
 
@@ -102,7 +109,7 @@ for everything.)
 | `grill-with-docs` | Recommended. The PRD interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
 | `grilling` / `grill-me` | The interview primitive behind `grill-with-docs`; `grill-me` is the stateless variant for when there's no codebase yet. |
 | `domain-modeling` | Used by `grill-with-docs` for the glossary / ADR vocabulary. |
-| `resolving-merge-conflicts` | Recommended, **strongly with `--parallel`**. The merge-fix worker runs it to resolve conflicts between sibling PRs before merging. |
+| `resolving-merge-conflicts` | Recommended, **strongly with parallel execution (the default)**. The merge-fix worker runs it to resolve conflicts between sibling PRs before merging. |
 | `ask-matt` | Optional. A router over the whole mattpocock/skills set — ask it which skill or flow fits your situation. |
 | `triage` | Optional. Shares the same label vocabulary. |
 
@@ -121,15 +128,22 @@ It will:
 3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels exist.
+5. Ask for the repo's run defaults — parallel vs sequential execution,
+   auto vs manual merge — and write them to
+   `docs/agents/developer-defaults.md`. If you pick auto-merge, it offers to
+   pre-approve the needed `gh` permissions (see below) so the unattended
+   merge doesn't die on a permission prompt.
 
 ## Permissions (recommended)
 
 `/developer` runs unattended, but the GitHub writes it performs — posting
 reviews, marking PRs ready, commenting, merging — hit permission prompts by
 default. With nobody at the keyboard, one denial means the worker reports
-blocked and the sub-issue gets escalated instead of merged. Pre-approve those
-`gh` calls in the target repo's `.claude/settings.json` (replace
-`OWNER/REPO`):
+blocked and the sub-issue gets escalated instead of merged.
+`/setup-developer-skills` offers to write this configuration for you (the
+merge rules only when you chose `merge: auto`); to do it by hand,
+pre-approve those `gh` calls in the target repo's `.claude/settings.json`
+(replace `OWNER/REPO`):
 
 ```json
 {
@@ -144,7 +158,7 @@ blocked and the sub-issue gets escalated instead of merged. Pre-approve those
   "autoMode": {
     "allow": [
       "$defaults",
-      "Merging pull requests in the OWNER/REPO repository (gh pr merge, including --auto/--squash/--delete-branch, or the equivalent gh api merge endpoint) is allowed: the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
+      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
     ]
   }
 }
@@ -156,9 +170,12 @@ blocked and the sub-issue gets escalated instead of merged. Pre-approve those
   escalation comments), `gh pr merge` (the orchestrator's auto-merge).
 - **`autoMode.allow`** only matters if you run with `"defaultMode": "auto"`:
   auto mode double-checks outward-facing actions in natural language even when
-  the command is allowlisted, so it needs a plain-English rule stating that
-  merging is intended. Keep `"$defaults"` first to preserve the built-in
-  rules.
+  the command is allowlisted — merging an agent-authored PR is exactly the
+  kind of action it is suspicious of — so it needs a plain-English rule
+  stating that *you* authorized merging (that's also why the rule cites
+  `docs/agents/developer-defaults.md`: the committed `merge: auto` line is
+  the durable record of that authorization). Keep `"$defaults"` first to
+  preserve the built-in rules.
 
 Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
 blast radius small; the other three are gh-subcommand-scoped and safe to allow
@@ -193,8 +210,9 @@ best-effort outside Claude Code.
 ## Usage
 
 ```
-/developer <prd-issue>            # deliver every open sub-issue, in order
-/developer <prd-issue> --parallel # build independent sub-issues concurrently
+/developer <prd-issue>            # deliver every open sub-issue (repo defaults)
+/developer <prd-issue> --sequential --auto-merge
+                                  # per-run overrides of the repo defaults
 /developer <issue>                # plain issue (no sub-issues) → deliver just it
 /developer <prd> <subissue>       # deliver one specific sub-issue
 /implement-issue 42               # manual: issue → branch → TDD → draft PR
@@ -217,11 +235,11 @@ agents/                     # subagents, auto-loaded by the plugin route
   code-author.md            # builder/fixer — model chosen per sub-issue
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
-  developer/                # orchestrator: PRD loop, fix cycles, auto-merge
+  developer/                # orchestrator: PRD loop, fix cycles, merge policy
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline GitHub review → verdict
   fix-pr/                   # address review threads → push → reply
-  setup-developer-skills/   # one-time repo setup
+  setup-developer-skills/   # one-time repo setup (incl. run-defaults template)
     agents/                 # copy of agents/ bundled for the npx-skills route
 ```
 
