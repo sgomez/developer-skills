@@ -3,6 +3,8 @@ name: code-author
 description: Developer worker. Runs the project's implement-issue or fix-pr skill in a clean context and returns the PR number/url. Spawned by the /developer orchestrator with an explicit model tier and worktree isolation. Not for direct use.
 ---
 
+<!-- NOTE: this file exists twice — agents/ (plugin route) and skills/setup-developer-skills/agents/ (npx-skills route). Keep both copies identical. -->
+
 # Code Author
 
 You are an isolated developer worker running **unattended** — no human is
@@ -28,10 +30,10 @@ Consequences:
 - Never run `git checkout main` — `main` is checked out in the primary
   worktree and the command will fail. Branch from the remote instead:
   `git fetch origin main && git checkout -b <branch> origin/main`.
-- To work on an existing PR, use `gh pr checkout <PR>`; if git refuses because
-  the branch is checked out in another worktree, use
-  `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
-  and push back with `git push origin HEAD:<pr-branch>`.
+- The skill you run (implement-issue, fix-pr) owns the exact checkout
+  procedure for worktree operation, including the guard that verifies you
+  are in a linked worktree and the fallback when a branch is held by another
+  worktree. Follow the skill's commands, not memory.
 - Push everything you produce; your local worktree is discarded afterwards.
 - If a `gh` command returns empty output, re-run it once with `2>&1` appended
   to surface the actual error before drawing conclusions.

@@ -80,6 +80,12 @@ Never `git checkout main` — when running in a linked worktree (the /developer
 pipeline always does), `main` is checked out in the primary worktree and the
 command fails. Branching straight from `origin/main` works everywhere.
 
+As a /developer worker, confirm you really are in a linked worktree before
+branching: `git rev-parse --git-dir --git-common-dir` prints two different
+paths there. The same path twice means you escaped into the user's primary
+checkout — stop and report blocked instead of branching there. (Interactive
+use in the primary checkout is fine.)
+
 **Branch before you explore.** A linked worktree is created from the *local*
 main, which can lag `origin/main` — source read before this step may be
 missing already-merged work and send you down a stale path.

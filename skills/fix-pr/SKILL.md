@@ -25,11 +25,29 @@ gh pr view <PR> --json number,title,headRefName,state
 Refuse if PR is closed or merged.
 
 If the current branch is not the PR branch (the /developer pipeline runs this
-in a fresh worktree), check it out first:
+in a fresh worktree), first confirm **where you are**:
+
+```bash
+git rev-parse --git-dir --git-common-dir   # two different paths = linked worktree
+```
+
+As a /developer worker you must be in a linked worktree; if both paths are
+equal you are in the user's primary checkout — do not check anything out,
+end with `RESULT blocked reason=escaped worktree`. Then:
 
 ```bash
 gh pr checkout <PR>
 ```
+
+If that fails with `already used by worktree` (normal under /developer — the
+PR branch is checked out in the build worker's worktree):
+
+```bash
+git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>
+```
+
+and push later with `git push origin HEAD:<pr-branch>` instead of a plain
+push.
 
 Never `git checkout main` — in a linked worktree it fails because `main` is
 checked out in the primary worktree.
@@ -72,7 +90,7 @@ Fix failures before committing.
 ```bash
 git add <files you changed>   # stage by path — never `git add -p` (interactive) or `git add -A`
 git commit -m "fix(pr): address review comments on #<PR>"
-git push origin <branch>
+git push origin <branch>      # from a local fix/pr-<PR>: git push origin HEAD:<pr-branch>
 ```
 
 ### 5. Reply to threads

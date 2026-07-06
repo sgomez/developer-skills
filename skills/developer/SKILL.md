@@ -192,8 +192,7 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 > BUILD job. PRD issue #`<prd>`, sub-issue #`<subissue>`.
 > Read the PRD for context, then run the implement-issue skill on the
-> sub-issue. You are in an isolated worktree — branch from origin/main.
-> End with the `RESULT pr=… url=…` line.
+> sub-issue. End with the `RESULT pr=… url=…` line.
 
 - `RESULT blocked …` → **escalate** (see below) and move to the next
   sub-issue.
@@ -203,10 +202,8 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 Spawn `diff-reviewer` with `isolation: "worktree"`:
 
-> Review PR #`<PR>`. In your worktree get the PR head with
-> `git fetch origin pull/<PR>/head && git checkout --detach FETCH_HEAD`
-> (do not use `gh pr checkout` — the PR branch is checked out in the build
-> worker's worktree and git will refuse). Run the review-pr skill on it.
+> Review PR #`<PR>` by running the review-pr skill on it — its step 1 gives
+> the exact checkout procedure for your worktree; follow it, not memory.
 > Posting the review (inline comments + summary) on the PR and marking it
 > ready with `gh pr ready` are part of your delegated task — you are
 > authorized to perform these GitHub writes. End with the
@@ -214,6 +211,7 @@ Spawn `diff-reviewer` with `isolation: "worktree"`:
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
+- `RESULT blocked` or anything malformed → **escalate**, next sub-issue.
 
 ### 4. Fix cycle (max 3)
 
@@ -223,11 +221,9 @@ For cycle `c` = 1, 2, 3:
    tier (haiku → sonnet → opus; opus stays opus).
 2. Spawn `code-author` with that model and `isolation: "worktree"`:
 
-   > FIX job. PR #`<PR>`. Check it out with `gh pr checkout` in your worktree;
-   > if that fails with "already used by worktree", run
-   > `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
-   > and push with `git push origin HEAD:<pr-branch>`. Run the fix-pr skill
-   > to address all review threads. Pushing the fixes and replying to the
+   > FIX job. PR #`<PR>`. Run the fix-pr skill to address all review
+   > threads — its step 1 gives the exact checkout procedure for your
+   > worktree; follow it, not memory. Pushing the fixes and replying to the
    > review threads are part of your delegated task.
    > End with the `RESULT pr=… url=…` line.
 
@@ -284,24 +280,28 @@ behind, so without this step every sub-issue leaks worktrees until the disk
 fills. Run it whenever a sub-issue finishes, **merged or escalated** —
 everything is pushed by then, so nothing local is worth keeping.
 
-Identify what belongs to this sub-issue, then find its worktrees:
+All removal mechanics live in the bundled script
+`scripts/cleanup-worktrees.sh` (next to this SKILL.md — under the plugin
+root when installed as a plugin). **Never improvise `git worktree remove`,
+`git branch -D`, or any other repair yourself** — the script is the only
+sanctioned way to touch local git state here. It removes only the linked
+worktrees and local branches matching what you pass, refuses by construction
+to touch the primary checkout, and if it finds the primary in detached HEAD
+it prints a `WARN` line and leaves it alone (that is the fingerprint of a
+worker having escaped its worktree — carry the WARN into your wrap-up
+summary, do not "fix" the checkout).
 
 ```bash
 BRANCH=$(gh pr view <PR> --json headRefName --jq .headRefName)   # skip if no PR
 HEAD_SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
-git worktree list --porcelain
+bash <skill-dir>/scripts/cleanup-worktrees.sh \
+  --branch "$BRANCH" --branch "fix/pr-<PR>" \
+  --branch "agent/issue-<subissue>-*" --sha "$HEAD_SHA"
 ```
 
-Remove every **linked** worktree (never the primary checkout) that is on
-`$BRANCH`, `fix/pr-<PR>`, or `agent/issue-<subissue>-*` (a blocked build that
-never opened a PR), or detached at `$HEAD_SHA` (the diff-reviewer's case).
-Then drop the leftover local branches:
-
-```bash
-git worktree remove --force <path>            # once per matching worktree
-git branch -D <branch>                        # each matching local branch
-git worktree prune
-```
+(A blocked build that never opened a PR has no `$BRANCH`/`$HEAD_SHA` — drop
+those flags; the `agent/issue-<subissue>-*` pattern still catches its
+worktree.)
 
 If the sub-issue was **merged**, also delete the remote branch now (the merge
 deliberately skipped `--delete-branch`):
@@ -343,23 +343,33 @@ continue the loop with the next unblocked sub-issue.
    > everything under `docs/agents/`). Promote only entries that repeat
    > across PRs, correct a doc the code has outgrown, or would clearly have
    > saved another worker real work; drop one-off trivia. If nothing
-   > qualifies, change nothing. Otherwise branch from origin/main, fold the
-   > entries into the right doc (update the existing recipe/pattern doc;
+   > qualifies, change nothing. Otherwise create branch `agent/harvest-<prd>`
+   > from origin/main, fold the entries into the right doc (update the
+   > existing recipe/pattern doc;
    > create a new `docs/agents/` doc only if none fits), commit as
    > `docs(agents): harvest discoveries from PRD #<prd> run`, and push with
    > `git push origin HEAD:main` — never check out main. If the push is
    > rejected, fetch and rebase once, then push again; if it still fails,
    > stop and report it. End with the `RESULT docs=<updated|none>` line.
 
-   Then run the **Cleanup** worktree removal for its worktree if it pushed
-   changes. This job is best-effort: if it reports blocked, note it in the
-   summary and move on.
-3. **Push notification** (PushNotification tool):
+   This job is best-effort: if it reports blocked, note it in the summary
+   and move on.
+3. **Final sweep** — one last pass of the cleanup script, catching the
+   harvest worktree and anything a half-failed pipeline left behind:
+
+   ```bash
+   bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
+   ```
+
+   If it prints a `WARN` line (primary checkout in detached HEAD), include
+   it verbatim in the chat summary — never repair the primary checkout
+   yourself.
+4. **Push notification** (PushNotification tool):
    `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.`
-4. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
+5. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
    (parallel mode), outcome. List escalated sub-issues with reasons so the
    user can pick them up. Note whether the harvest updated docs.
-5. **Execution report** — how the run actually unfolded. In `--parallel`
+6. **Execution report** — how the run actually unfolded. In `--parallel`
    mode, one line per wave listing the jobs that ran concurrently and their
    outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
    merge-fix on #14`. In sequential mode, the delivery order with any
@@ -377,9 +387,9 @@ continue the loop with the next unblocked sub-issue.
   assume it can see prior steps.
 - Never run `git checkout`, `git pull`, or any state-changing git command in
   the main context — the only exceptions are Step 0's scoped commit+push of
-  context docs and the per-sub-issue worktree Cleanup (step 6), which only
-  ever removes linked worker worktrees and their local branches, never the
-  primary checkout.
+  context docs, the `cleanup-worktrees.sh` script (steps 6 and wrap-up),
+  and the merged-branch `git push origin --delete`. If the script warns that
+  the primary checkout is detached, report it — never repair it.
 - Only spawn the fix worker when the review said `NEEDS_FIXES`.
 - If a worker reports that a permission was denied (posting the review,
   `gh pr ready`, merging, …), never re-run the denied command yourself —

@@ -26,7 +26,17 @@ gh pr view --json number,title,headRefName,baseRefName,state
 Refuse if PR is closed or merged.
 
 If the current branch is not the PR branch (the /developer pipeline runs this
-in a fresh worktree), check out the PR head detached:
+in a fresh worktree), first confirm **where you are**:
+
+```bash
+git rev-parse --git-dir --git-common-dir   # two different paths = linked worktree
+```
+
+If both paths are equal you are in the **primary checkout** — detaching or
+switching it would hijack the user's working state. Never do it: as a
+/developer worker end with `RESULT blocked reason=escaped worktree —
+refusing to touch the primary checkout`; interactively, stop and tell the
+user. In a linked worktree, check out the PR head detached:
 
 ```bash
 git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
