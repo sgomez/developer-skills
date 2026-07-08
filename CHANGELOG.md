@@ -5,6 +5,35 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-08
+
+Integration with [mattpocock/skills v1.1](https://www.aihero.dev/skills/skills-changelog-v1-1-wayfinder-to-spec-to-tickets-grilling-improvements),
+which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
+`/to-tickets`, and prefers the tracker's native blocking links over
+`Blocked by` body sections.
+
+### Added
+- `/developer` and `implement-issue` now check GitHub's **native issue
+  dependencies** (`issue_dependencies_summary.blocked_by`) in addition to the
+  `Blocked by` body section when picking the next unblocked sub-issue —
+  `/to-tickets` wires native edges where the tracker has them, so body-only
+  parsing could silently see everything as unblocked.
+- `delivery-ops-github.md`: new "Discover a sub-issue's blockers" operation
+  covering both native dependencies and the body fallback; body sections
+  remain required as the portable fallback.
+- `delivery-ops-local.md`: explicit rule that tickets are per-issue files
+  under `.scratch/<feature>/issues/` — overriding `/to-tickets`' local-files
+  default of a single root `tickets.md`, which the pipeline cannot see.
+
+### Changed
+- All references to `/to-prd` and `/to-issues` updated to `/to-spec` and
+  `/to-tickets` (setup skill flow, delivery-ops templates).
+
+### Documentation
+- README: install command and dependency table updated to the v1.1 skill
+  names, plus a `wayfinder` row and its place in the intended loop
+  (`/wayfinder` → `/to-spec` → `/to-tickets` → `/developer`).
+
 ## [0.10.0] - 2026-07-08
 
 ### Added
@@ -104,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
+[0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
 [0.10.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.9.0
 [0.8.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.8.0

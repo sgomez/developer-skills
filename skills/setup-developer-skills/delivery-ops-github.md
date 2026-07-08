@@ -10,6 +10,11 @@ this section confirms they apply and adds the sub-issue requirement.
 - **Issue ref**: the issue number (`#42` / `42`).
 - **Read an issue with comments**: `gh issue view <N> --comments`.
 - **Enumerate children of a parent**: the GraphQL sub-issues query (below).
+- **Discover a sub-issue's blockers**: check **both** the native dependency
+  summary (`gh api repos/{owner}/{repo}/issues/<N> --jq
+  '.issue_dependencies_summary.blocked_by // 0'` — the count of *open*
+  blockers; 0 or absent = clear) and the `## Blocked by` body section;
+  either being non-clear means blocked.
 - **Check a blocker's state**: `gh issue view <N> --json state --jq .state`
   (`CLOSED` = no longer blocking).
 - **Comment on an issue**: `gh issue comment <N> --body "..."`.
@@ -22,7 +27,7 @@ this section confirms they apply and adds the sub-issue requirement.
 
 ### Parent/child issues MUST be native sub-issues
 
-When a skill breaks a parent issue (a PRD, a plan) into child issues — e.g. `/to-issues` — each child **must be linked to the parent as a GitHub native sub-issue**, not just referenced in the body text. The `/developer` orchestrator discovers work exclusively through native sub-issue links; a child that is only mentioned in prose is invisible to it.
+When a skill breaks a parent issue (a PRD/spec, a plan) into child issues — e.g. `/to-tickets` — each child **must be linked to the parent as a GitHub native sub-issue**, not just referenced in the body text. The `/developer` orchestrator discovers work exclusively through native sub-issue links; a child that is only mentioned in prose is invisible to it.
 
 After creating each child issue, link it:
 
@@ -33,7 +38,7 @@ gh api repos/{owner}/{repo}/issues/<PARENT_NUMBER>/sub_issues \
   --method POST -F sub_issue_id=$CHILD_ID
 ```
 
-Keep the `## Parent` and `## Blocked by` sections in the child's body as well — the native link gives machine discovery and the parent's progress panel; the body sections carry the dependency ordering between siblings.
+Keep the `## Parent` and `## Blocked by` sections in the child's body as well — the native link gives machine discovery and the parent's progress panel; the body sections carry the dependency ordering between siblings. Wiring GitHub's native issue dependencies (blocked-by links) in addition is welcome — the pipeline reads them too — but the body sections remain required as the portable fallback.
 
 To list a parent's sub-issues:
 

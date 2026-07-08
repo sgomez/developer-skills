@@ -48,10 +48,11 @@ gh api graphql -f query='
 }' --jq '.data.repository.issue.subIssues.nodes[] | select(.state == "OPEN") | "#\(.number) \(.title)"'
 ```
 
-If sub-issues exist, pick the first unblocked one. Check "Blocked by" in each sub-issue body and verify all referenced issues are closed (per the tracker doc's blocker-state operation) — GitHub default:
+If sub-issues exist, pick the first unblocked one. Blockers may be wired as the tracker's native dependency links, as a "Blocked by" section in the sub-issue body, or both (`/to-tickets` prefers native edges where the tracker has them) — check both, per the tracker doc's blocker-state operation. GitHub default:
 
 ```bash
-gh issue view <N> --json state --jq '.state'  # must be "CLOSED" for each blocker
+gh api repos/OWNER/REPO/issues/<N> --jq '.issue_dependencies_summary.blocked_by // 0'  # open native blockers; 0 = clear
+gh issue view <BLOCKER> --json state --jq '.state'  # each body-listed blocker must be "CLOSED"
 ```
 
 Pick the first open sub-issue where all blockers are closed. If none are unblocked, report to user and stop.

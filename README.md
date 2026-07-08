@@ -90,11 +90,11 @@ This route cannot install agents — `/setup-developer-skills` copies them into
 ### Dependencies (both options)
 
 This repo depends on [mattpocock/skills](https://github.com/mattpocock/skills)
-for PRD authoring and repo configuration. Install the ones the pipeline needs
-with `--skill`:
+(v1.1+) for spec/PRD authoring and repo configuration. Install the ones the
+pipeline needs with `--skill`:
 
 ```bash
-npx skills add mattpocock/skills --skill setup-matt-pocock-skills,to-prd,to-issues,tdd,grill-with-docs,grilling,domain-modeling,resolving-merge-conflicts,ask-matt
+npx skills add mattpocock/skills --skill setup-matt-pocock-skills,to-spec,to-tickets,tdd,grill-with-docs,grilling,domain-modeling,resolving-merge-conflicts,wayfinder,ask-matt
 ```
 
 (or `npx skills add mattpocock/skills` and pick interactively / `--skill '*'`
@@ -103,14 +103,15 @@ for everything.)
 | Skill | Why it's needed |
 |---|---|
 | `setup-matt-pocock-skills` | **Required.** Creates `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`, which every skill here reads. |
-| `to-prd` | **Required.** Publishes the PRD issue the pipeline consumes. |
-| `to-issues` | **Required.** Breaks the PRD into sub-issues with `Parent` / `Blocked by` ordering. |
+| `to-spec` | **Required.** Publishes the spec (PRD) issue the pipeline consumes. Replaces `to-prd` (renamed in mattpocock/skills v1.1). |
+| `to-tickets` | **Required.** Breaks the spec into sub-issues with `Parent` / `Blocked by` ordering (native sub-issue and blocking links where the tracker has them). Replaces `to-issues` / `to-plan`. |
 | `tdd` | Recommended. `implement-issue` follows TDD where tests exist. |
 | `grill-with-docs` | Recommended. The PRD interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
 | `grilling` / `grill-me` | The interview primitive behind `grill-with-docs`; `grill-me` is the stateless variant for when there's no codebase yet. |
 | `domain-modeling` | Used by `grill-with-docs` for the glossary / ADR vocabulary. |
 | `resolving-merge-conflicts` | Recommended, **strongly with parallel execution (the default)**. The merge-fix worker runs it to resolve conflicts between sibling PRs before merging. |
 | `ask-matt` | Optional. A router over the whole mattpocock/skills set — ask it which skill or flow fits your situation. |
+| `wayfinder` | Optional. For plans too big for one session: charts a shared map of investigation tickets on the tracker, resolved one session at a time — then feed the result to `to-spec`. |
 | `triage` | Optional. Shares the same label vocabulary. |
 
 ## Setup (once per repo)
@@ -244,8 +245,9 @@ best-effort outside Claude Code.
 /fix-pr 42                        # manual: address unresolved review threads
 ```
 
-The intended loop: write PRDs with `/grill-with-docs` + `/to-prd` +
-`/to-issues`, then hand each PRD to `/developer` and go write the next one.
+The intended loop: write specs with `/grill-with-docs` (or `/wayfinder` when
+the plan is too big for one session) + `/to-spec` + `/to-tickets`, then hand
+each spec to `/developer` and go write the next one.
 (Not sure which skill fits? `/ask-matt`.)
 
 ## What's in the box

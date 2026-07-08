@@ -214,12 +214,17 @@ Repeat while open sub-issues remain:
 
 1. **Pick the next unblocked sub-issue**: for each open sub-issue (lowest
    number first), check its blockers without reading full bodies — the
-   "check a blocker's state" operation from the tracker doc. GitHub
-   default:
+   "check a blocker's state" operation from the tracker doc. Blockers may
+   be wired as the tracker's **native dependency links**, as a
+   `Blocked by` body section, or both (`/to-tickets` prefers native edges
+   where the tracker has them) — check both. GitHub default:
 
    ```bash
+   # native dependencies: count of OPEN blockers (0 or absent = clear)
+   gh api repos/{owner}/{repo}/issues/<N> --jq '.issue_dependencies_summary.blocked_by // 0'
+   # body fallback: every listed blocker must be CLOSED
    gh issue view <N> --json body --jq '.body' | grep -A3 -i "blocked by"
-   gh issue view <BLOCKER> --json state --jq '.state'   # must be CLOSED
+   gh issue view <BLOCKER> --json state --jq '.state'
    ```
 
    Take the first open sub-issue whose blockers are all closed. Skip

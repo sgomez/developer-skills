@@ -31,6 +31,15 @@ override them.** They build on this tracker's layout: one feature per
   — after a change merges, whoever merged it closes the issue this way
   (the orchestrator does it under `merge: auto`; the human otherwise).
 
+### Tickets are per-issue files, never a root `tickets.md`
+
+When a skill breaks a spec/PRD into tickets — e.g. `/to-tickets`, whose
+local-files default is a single `tickets.md` in the repo root — this
+tracker's layout **overrides that default**: publish one file per ticket at
+`.scratch/<feature>/issues/<NN>-<slug>.md` next to the parent `PRD.md`,
+each with its own `Status:` line and `Blocked by: NN, NN` line. A single
+root `tickets.md` is invisible to the pipeline.
+
 Issue files live on `main` in the primary checkout. Workers in linked
 worktrees read them via their own checkout; **writes** (comments, `Status:`
 changes) that must survive the run are made by the orchestrator in the

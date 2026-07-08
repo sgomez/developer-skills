@@ -96,7 +96,7 @@ comment, label, close). Append the section that matches the tracker found in
 step 1 (drop the HTML comment on the first line):
 
 - [delivery-ops-github.md](./delivery-ops-github.md) — native GitHub
-  sub-issues (also instructs `/to-issues` to create them)
+  sub-issues (also instructs `/to-tickets` to create them)
 - [delivery-ops-gitlab.md](./delivery-ops-gitlab.md) — `glab` mechanics +
   `Part of #<parent>` markers
 - [delivery-ops-local.md](./delivery-ops-local.md) — `.scratch/` file
@@ -231,8 +231,8 @@ during review and fix cycles).
 Summarise what was set up — tracker, code host, chosen defaults — and remind
 the user of the flow:
 
-1. Grill/discuss a feature → `/to-prd` publishes the PRD issue.
-2. `/to-issues <prd>` breaks it into child issues discoverable by the
+1. Grill/discuss a feature → `/to-spec` publishes the spec (PRD) issue.
+2. `/to-tickets <spec>` breaks it into child issues discoverable by the
    pipeline (native sub-issues on GitHub; the tracker doc's equivalent
    elsewhere) with `Blocked by` ordering.
 3. `/developer <prd>` delivers them all unattended — triage → build → review

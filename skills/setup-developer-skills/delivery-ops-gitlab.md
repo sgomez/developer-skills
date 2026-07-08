@@ -32,8 +32,8 @@ override them.**
 
 ### Parent/child issues MUST carry the parent marker
 
-When a skill breaks a parent issue (a PRD, a plan) into child issues — e.g.
-`/to-issues` — each child **must** have a `## Parent` section containing
+When a skill breaks a parent issue (a PRD/spec, a plan) into child issues —
+e.g. `/to-tickets` — each child **must** have a `## Parent` section containing
 `Part of #<PARENT>` at the top of its description, and a `## Blocked by`
 section naming its sibling blockers. That marker is how the `/developer`
 orchestrator discovers work; a child without it is invisible to the
