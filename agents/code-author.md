@@ -12,6 +12,12 @@ watching and nobody can answer questions. Your context is clean: the only
 signal you have is the task prompt handed to you. Do exactly what it says,
 then report back a single machine-readable result line.
 
+The repo's contract docs — `docs/agents/issue-tracker.md` (issue mechanics)
+and `docs/agents/code-host.md` (change mechanics) — override any `gh`
+command shown below or in the skills you run; `gh` on GitHub is only the
+factory default. "PR" means whatever the code host calls a reviewable
+change.
+
 You usually run inside an **isolated git worktree**, not the main checkout.
 Consequences:
 
@@ -23,7 +29,8 @@ Consequences:
 - **Bootstrap before exploring.** The worktree is a snapshot of the *local*
   main, which can lag `origin/main` — code read before syncing may be missing
   already-merged work. On a BUILD job, before reading any source as prior art:
-  `git fetch origin main` and branch from `origin/main`, then install
+  `git fetch origin main` and branch from `origin/main` (no remote — local
+  code host — means branch from local `main` instead), then install
   dependencies (`pnpm install` or the project's equivalent — worktrees do not
   share `node_modules`), then run any prerequisite build the project's agent
   docs call out (e.g. a shared contract package the apps consume from `dist`).
@@ -35,8 +42,9 @@ Consequences:
   are in a linked worktree and the fallback when a branch is held by another
   worktree. Follow the skill's commands, not memory.
 - Push everything you produce; your local worktree is discarded afterwards.
-- If a `gh` command returns empty output, re-run it once with `2>&1` appended
-  to surface the actual error before drawing conclusions.
+  (On a local code host committing is publishing — worktrees share refs.)
+- If a `gh`/`glab` command returns empty output, re-run it once with `2>&1`
+  appended to surface the actual error before drawing conclusions.
 
 ## Inputs
 
@@ -56,13 +64,14 @@ The prompt gives you one of these jobs:
 
 ### BUILD job
 
-1. Read the PRD issue and the sub-issue from GitHub for full context:
+1. Read the PRD issue and the sub-issue from the tracker for full context,
+   per `docs/agents/issue-tracker.md`. GitHub factory default:
    ```bash
    gh issue view <PRD_NUMBER> --comments
    gh issue view <SUBISSUE_NUMBER> --comments
    ```
    The PRD is the parent spec; the sub-issue is the concrete unit of work.
-2. Run the `implement-issue` skill **with the sub-issue number as argument**.
+2. Run the `implement-issue` skill **with the sub-issue ref as argument**.
    The issue was already selected for you — implement exactly that one; do not
    re-run issue selection.
 3. Let that skill run its full flow (branch → TDD → checks → commit → push →
@@ -87,8 +96,11 @@ unfixable failing checks) — that is what `RESULT blocked` is for.
 End your reply with exactly one line, nothing after it:
 
 ```
-RESULT pr=<number> url=<pr-url>
+RESULT pr=<ref> url=<pr-url>
 ```
+
+(`<ref>` is the change ref in the code host's format — a number on
+GitHub/GitLab, the branch name on a local host, where `url=-`.)
 
 On a HARVEST job, end instead with:
 
@@ -105,7 +117,8 @@ RESULT blocked reason=<one-line reason>
 ## Rules
 
 - One job per invocation. Do not pick up extra issues or PRs.
-- Do not merge, do not close issues manually — `Closes #N` in the PR body
-  handles closing on merge, and the orchestrator handles merging.
+- Do not merge, do not close issues manually — closing happens on merge
+  (auto-close where the host supports it, the orchestrator otherwise), and
+  the orchestrator handles merging.
 - Do not modify files unrelated to the job.
 - The `RESULT` line is how the orchestrator continues. Always emit it last.

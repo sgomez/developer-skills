@@ -1,11 +1,20 @@
 ---
 name: implement-issue
-description: Implements a GitHub issue end-to-end: fetches spec, creates branch, writes code with TDD, runs checks, commits, pushes, opens draft PR, closes issue. No API key, no containers — uses gh CLI and git directly with your Claude subscription. Use when user says "implement issue", "work on issue #N", "/implement-issue", or wants to process a GitHub issue locally.
+description: Implements an issue end-to-end: fetches the spec from the project issue tracker, creates branch, writes code with TDD, runs checks, commits, publishes a draft change (PR/MR), closes issue on merge. Tracker- and host-agnostic — GitHub via gh CLI is the factory default; docs/agents/issue-tracker.md and docs/agents/code-host.md override. Use when user says "implement issue", "work on issue #N", "/implement-issue", or wants to process an issue locally.
 ---
 
 # Implement Issue
 
-Full issue → PR → close flow, locally, using `gh` and `git`.
+Full issue → PR → close flow, locally.
+
+**Contract docs.** The issue mechanics come from the repo's
+`docs/agents/issue-tracker.md` (its `## Delivery operations` section) and
+the change mechanics from `docs/agents/code-host.md` — read both first if
+present. The commands below are the **GitHub factory defaults** (`gh`),
+used verbatim when those docs are absent or confirm GitHub; when a doc
+defines a different mechanic for an operation, the doc wins. "PR" below
+means whatever the code host calls a reviewable change (pull request,
+merge request, branch + change file).
 
 ## Invoke
 
@@ -23,8 +32,8 @@ One sub-issue per invocation — keeps sessions short and focused.
 
 **If an orchestrator (e.g. /developer) already told you which sub-issue to
 implement, skip selection entirely** — verify the issue is open and go to
-step 2. The checks below are for interactive use, where the given number may
-be a parent:
+step 2. The checks below are for interactive use, where the given ref may
+be a parent. Enumerate its children per the tracker doc — GitHub default:
 
 ```bash
 gh api graphql -f query='
@@ -39,7 +48,7 @@ gh api graphql -f query='
 }' --jq '.data.repository.issue.subIssues.nodes[] | select(.state == "OPEN") | "#\(.number) \(.title)"'
 ```
 
-If sub-issues exist, pick the first unblocked one. Check "Blocked by" in each sub-issue body and verify all referenced issues are closed:
+If sub-issues exist, pick the first unblocked one. Check "Blocked by" in each sub-issue body and verify all referenced issues are closed (per the tracker doc's blocker-state operation) — GitHub default:
 
 ```bash
 gh issue view <N> --json state --jq '.state'  # must be "CLOSED" for each blocker
@@ -49,7 +58,7 @@ Pick the first open sub-issue where all blockers are closed. If none are unblock
 
 If no sub-issues exist, implement the issue directly.
 
-**If no number given**, list candidates from the tracker:
+**If no ref given**, list open issues carrying the AFK-ready triage label per the tracker doc — GitHub default:
 
 ```bash
 gh issue list --state open --label "ready-for-agent" --json number,title,labels \
@@ -62,6 +71,8 @@ Priority order: **bugs > tracer bullets > polish > refactors**. Pick highest-pri
 
 ### 2. Read spec
 
+Read the issue with its comments per the tracker doc — GitHub default:
+
 ```bash
 gh issue view <N> --comments
 ```
@@ -72,9 +83,14 @@ Read the full body, acceptance criteria, and all comments. Pull parent PRD if re
 
 ```bash
 # slug = issue title lowercased, spaces→dashes, max 50 chars
+# <N> = the issue ref, slugified if it isn't a plain number
 git fetch origin main
 git checkout -b agent/issue-<N>-<slug> origin/main
 ```
+
+(On a local code host there is no `origin` — branch from local `main`
+instead: `git checkout -b agent/issue-<N>-<slug> main`. The code-host doc
+names the base.)
 
 Never `git checkout main` — when running in a linked worktree (the /developer
 pipeline always does), `main` is checked out in the primary worktree and the
@@ -135,7 +151,10 @@ Implements #<N>: <issue title>
 Wrap body lines at 100 characters — commitlint's conventional config rejects
 longer lines (`body-max-line-length`).
 
-### 6. Push + open PR
+### 6. Publish the change (push + open PR)
+
+Publish a **draft** change per the code-host doc, linked to the issue for
+closing. GitHub default:
 
 ```bash
 git push origin agent/issue-<N>-<slug>
@@ -157,6 +176,11 @@ gh pr create \
 <see below — omit the section when empty, the normal case>"
 ```
 
+Whatever the host, the change body keeps this shape — `Closes <ref>`,
+`## What changed`, `## Test plan`, optional `## Discoveries` — the
+orchestrator's harvest depends on it. Use the issue's tracker ref in
+`Closes`; whether that auto-closes anything is the code-host doc's call.
+
 **Discoveries** is how hard-won knowledge outlives your context: an
 orchestrator harvests these sections across PRs and promotes what repeats
 into the repo's agent docs. List only things that meet **both** bars:
@@ -172,11 +196,11 @@ Discoveries section.
 
 ### 7. Done
 
-The PR body contains `Closes #<N>` — GitHub auto-closes the implemented sub-issue when the PR is merged. Do **not** close the issue manually. The parent issue stays open until all sub-issues are merged.
+Do **not** close the issue manually. If the code host auto-closes linked issues on merge (GitHub/GitLab with issues in the same repo — see the code-host doc), `Closes #<N>` handles it; otherwise closing after the merge belongs to whoever merges (the orchestrator under /developer, the human interactively). The parent issue stays open until all sub-issues are merged.
 
 ## Blocked
 
-If you cannot implement (missing context, unfixable failures, external dependency):
+If you cannot implement (missing context, unfixable failures, external dependency), comment on the issue per the tracker doc — GitHub default:
 
 ```bash
 gh issue comment <N> --body "Blocked: <specific reason>. <what is needed to unblock>."
@@ -191,4 +215,4 @@ wait for an answer — the blocking comment plus your final report is the output
 - Never bypass git hooks (`--no-verify`, `-n`). If a pre-push check fails in a package your change didn't touch, first suspect missing installs in the worktree (`pnpm install`); if it is genuinely broken on `origin/main`, report **Blocked** instead of pushing around the gate
 - No commented-out code or TODO comments in committed code
 - Do not modify files unrelated to the issue
-- Never close the issue manually — `Closes #N` in the PR body handles it on merge
+- Never close the issue manually — closing happens on merge (auto-close where the host supports it, otherwise by whoever merges)

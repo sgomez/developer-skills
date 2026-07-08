@@ -115,35 +115,55 @@ for everything.)
 
 ## Setup (once per repo)
 
+Two commands, **in this order** — the second builds on the first:
+
 ```
-/setup-developer-skills
+/setup-matt-pocock-skills    # 1. Matt's setup: issue tracker, triage labels, domain docs
+/setup-developer-skills      # 2. this plugin: code host, delivery ops, agents, run defaults
 ```
 
-It will:
+The order is enforced, not just recommended: Matt's setup skill declares
+`disable-model-invocation`, so ours cannot run it for you —
+`/setup-developer-skills` **refuses to start** when the repo isn't
+configured yet (no `docs/agents/issue-tracker.md`) and asks you to run
+Matt's first.
 
-1. Run `/setup-matt-pocock-skills` first if the repo isn't configured yet.
-2. Patch `docs/agents/issue-tracker.md` so child issues are created as
-   **GitHub native sub-issues** (that's how `/developer` discovers work —
-   body-text references are invisible to it).
+`/setup-developer-skills` will:
+
+1. Determine the **code host** (GitHub, GitLab, or local branches — anything
+   else as freeform prose) and write its mechanics to
+   `docs/agents/code-host.md`.
+2. Patch `docs/agents/issue-tracker.md` with the pipeline's **Delivery
+   operations** — how `/developer` reads issues, discovers children (native
+   sub-issues on GitHub), checks blockers, comments, labels, and closes.
 3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
    `diff-reviewer`.
-4. Ensure the `ready-for-agent` / `ready-for-human` labels exist.
+4. Ensure the `ready-for-agent` / `ready-for-human` labels (or the tracker's
+   equivalent) exist.
 5. Ask for the repo's run defaults — parallel vs sequential execution,
    auto vs manual merge — and write them to
    `docs/agents/developer-defaults.md`. If you pick auto-merge, it offers to
-   pre-approve the needed `gh` permissions (see below) so the unattended
+   pre-approve the needed CLI permissions (see below) so the unattended
    merge doesn't die on a permission prompt.
+
+**Issues and code are independent axes**: issues can live on GitHub, GitLab,
+local markdown under `.scratch/` (all first-class), or anywhere you can
+describe (Jira, Linear, …); changes can live on GitHub PRs, GitLab MRs, or
+local branches. The skills carry the GitHub `gh` mechanics inline as the
+factory default and defer to the two docs for everything else. A local code
+host runs with `merge: manual` only.
 
 ## Permissions (recommended)
 
-`/developer` runs unattended, but the GitHub writes it performs — posting
+`/developer` runs unattended, but the code-host writes it performs — posting
 reviews, marking PRs ready, commenting, merging — hit permission prompts by
 default. With nobody at the keyboard, one denial means the worker reports
 blocked and the sub-issue gets escalated instead of merged.
 `/setup-developer-skills` offers to write this configuration for you (the
-merge rules only when you chose `merge: auto`); to do it by hand,
-pre-approve those `gh` calls in the target repo's `.claude/settings.json`
-(replace `OWNER/REPO`):
+merge rules only when you chose `merge: auto`), adapted to your code host —
+the GitHub version by hand means pre-approving these `gh` calls in the
+target repo's `.claude/settings.json` (replace `OWNER/REPO`; GitLab is the
+same shape with the `glab` equivalents):
 
 ```json
 {
@@ -203,8 +223,12 @@ best-effort outside Claude Code.
 
 ## Requirements
 
-- GitHub repo + [`gh` CLI](https://cli.github.com/) authenticated
-  (`gh auth status`). GitLab / local trackers are not supported.
+- A configured issue tracker and code host (`/setup-developer-skills` writes
+  both docs). First-class: **GitHub** ([`gh` CLI](https://cli.github.com/)
+  authenticated), **GitLab** ([`glab` CLI](https://gitlab.com/gitlab-org/cli)
+  authenticated), and **local** (markdown issues under `.scratch/`, changes
+  as local branches — no remote needed). Other trackers/hosts work as
+  freeform configuration.
 - Claude Code with subagents and worktree isolation (any recent version).
 
 ## Usage
@@ -237,10 +261,12 @@ agents/                     # subagents, auto-loaded by the plugin route
 skills/
   developer/                # orchestrator: PRD loop, fix cycles, merge policy
   implement-issue/          # issue → branch → TDD → checks → draft PR
-  review-pr/                # diff review → inline GitHub review → verdict
+  review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply
   setup-developer-skills/   # one-time repo setup (incl. run-defaults template)
     agents/                 # copy of agents/ bundled for the npx-skills route
+    code-host-*.md          # code-host templates (github / gitlab / local)
+    delivery-ops-*.md       # issue-tracker Delivery operations templates
 ```
 
 Contributor note: `agents/` and `skills/setup-developer-skills/agents/` must

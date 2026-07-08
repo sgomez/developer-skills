@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Orchestrates unattended PRD delivery — loops over a PRD's native sub-issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended PRD delivery — loops over a PRD's child issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
@@ -33,6 +33,42 @@ Accept the bare words `parallel` / `sequential` as synonyms for the flags.
 > your available-skills and available-agents lists; the short names below
 > refer to whichever form is installed.
 
+## Contract docs (tracker + code host)
+
+The pipeline is agnostic about where issues and changes live. Two committed
+docs define the mechanics for this repo, and every worker reads them in its
+own context:
+
+- **`docs/agents/issue-tracker.md`** — issue operations (read an issue,
+  enumerate children of a parent, check a blocker, comment, label, close)
+  in its `## Delivery operations` section.
+- **`docs/agents/code-host.md`** — change operations (publish, check out in
+  a worktree, review, mark ready, reply, merge, auto-close semantics).
+
+Read both once at the start (they are short — an allowed exception to
+"never read bodies yourself"). **Every command block below shows the GitHub
+factory default (`gh`); when a contract doc defines a different mechanic
+for the same operation, the doc wins.** If a doc is missing, the GitHub
+defaults apply as-is — suggest `/setup-developer-skills` if that looks
+wrong.
+
+Note two capability flags from `docs/agents/code-host.md`:
+
+- **Unattended merge supported?** A local code host never merges
+  unattended — if the resolved config says `merge: auto` there, override to
+  `manual` and say so in the run-config line.
+- **Issue auto-close on merge?** If not (e.g. issues on a tracker the code
+  host can't close), the orchestrator closes the delivered issue itself
+  per the tracker ops right after verifying the merge.
+
+With a **local** tracker or code host, two extra standing adjustments:
+Step 0 also publishes `.scratch/` (the tracker/change files live there),
+and tracker writes (comments, `Status:` changes) are yours to make in the
+primary checkout, scoped to `.scratch/` paths, committed as
+`chore(tracker): …` — an extension of Step 0's exception. A local code
+host also moves Cleanup earlier: run it (with `--keep-branches`) after
+**every** worker reports, so the change branch is free for the next worker.
+
 ## Run configuration
 
 Two knobs govern a run. Resolve each one **before mode detection**, in this
@@ -52,7 +88,8 @@ configuration in one line before starting, e.g.
 
 What `merge` means:
 
-- **`auto`** — a CLEAN verdict triggers `gh pr merge` (Merge step). The
+- **`auto`** — a CLEAN verdict triggers the code host's merge operation
+  (Merge step; `gh pr merge` on GitHub). The
   committed `merge: auto` line in `docs/agents/developer-defaults.md` is the
   user's standing authorization for these merges.
 - **`manual`** — the pipeline stops at CLEAN: the PR is already marked ready
@@ -92,7 +129,8 @@ The loop may cover many sub-issues; your context must survive all of them.
 
 Workers branch from `origin/main`, so any domain-context file that is not
 committed **and pushed** is invisible to them. Grilling/PRD sessions edit
-these files but do not commit them. Before dispatching any worker:
+these files but do not commit them. Before dispatching any worker (add
+`.scratch` to the paths when the tracker or code host is local):
 
 ```bash
 git status --porcelain -- CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
@@ -108,13 +146,17 @@ git commit -m "docs(domain): publish context map and ADR updates"
 git push origin main
 ```
 
+(No remote — local code host — means no push: the commit alone publishes,
+since linked worktrees share the repo.)
+
 If the push is rejected, stop and report — do not rebase or force anything.
 This is the flow's start, before going unattended; the user is still there to
 resolve it.
 
 ## Mode detection
 
-Query native GitHub sub-issues of the given issue (infer OWNER/REPO from
+Enumerate the children of the given issue per the tracker's Delivery
+operations. GitHub default — native sub-issues (infer OWNER/REPO from
 `git remote -v`):
 
 ```bash
@@ -127,6 +169,10 @@ gh api graphql -f query='
   }
 }' --jq '.data.repository.issue.subIssues.nodes'
 ```
+
+(Throughout this skill, `#<N>` stands for the issue ref in the tracker's
+own format — a number on GitHub/GitLab, a file path on a local tracker —
+and `#<PR>` for the change ref in the code host's format.)
 
 - **Open sub-issues exist → PRD mode**: loop over all of them (below).
 - **No sub-issues → single mode**: run the delivery pipeline once on the given
@@ -167,7 +213,9 @@ Single mode (no sub-issues) skips the board.
 Repeat while open sub-issues remain:
 
 1. **Pick the next unblocked sub-issue**: for each open sub-issue (lowest
-   number first), check its blockers without reading full bodies:
+   number first), check its blockers without reading full bodies — the
+   "check a blocker's state" operation from the tracker doc. GitHub
+   default:
 
    ```bash
    gh issue view <N> --json body --jq '.body' | grep -A3 -i "blocked by"
@@ -249,12 +297,12 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 Spawn `diff-reviewer` with `isolation: "worktree"`:
 
-> Review PR #`<PR>` by running the review-pr skill on it — its step 1 gives
-> the exact checkout procedure for your worktree; follow it, not memory.
-> Posting the review (inline comments + summary) on the PR and marking it
-> ready with `gh pr ready` are part of your delegated task — you are
-> authorized to perform these GitHub writes. End with the
-> `RESULT verdict=…` line.
+> Review PR #`<PR>` by running the review-pr skill on it — its step 1 plus
+> the repo's `docs/agents/code-host.md` give the exact checkout procedure
+> for your worktree; follow them, not memory. Posting the review (inline
+> comments + summary) on the PR and marking it ready are part of your
+> delegated task — you are authorized to perform these code-host writes.
+> End with the `RESULT verdict=…` line.
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
@@ -269,10 +317,10 @@ For cycle `c` = 1, 2, 3:
 2. Spawn `code-author` with that model and `isolation: "worktree"`:
 
    > FIX job. PR #`<PR>`. Run the fix-pr skill to address all review
-   > threads — its step 1 gives the exact checkout procedure for your
-   > worktree; follow it, not memory. Pushing the fixes and replying to the
-   > review threads are part of your delegated task.
-   > End with the `RESULT pr=… url=…` line.
+   > threads — its step 1 plus the repo's `docs/agents/code-host.md` give
+   > the exact checkout procedure for your worktree; follow them, not
+   > memory. Pushing the fixes and replying to the review threads are part
+   > of your delegated task. End with the `RESULT pr=… url=…` line.
 
    `RESULT blocked …` → **escalate**, next sub-issue.
 3. Re-review: spawn `diff-reviewer` again (same prompt as step 3, mention it
@@ -297,7 +345,7 @@ that; if it *denies*, follow the denial rule under Rules (escalate, never
 retry).
 
 Never touch local git state — your checkout may be in use by the user. Merge
-remotely:
+remotely, per the code-host doc's merge operation. GitHub default:
 
 ```bash
 gh pr merge <PR> --merge
@@ -308,20 +356,26 @@ which is always still checked out in the build worker's worktree, so it fails
 noisily every time. The remote branch is deleted in Cleanup (step 6), after
 the worktrees are gone.
 
-`Closes #<subissue>` in the PR body closes the sub-issue on merge — verify:
+Then make sure the sub-issue is closed. If the code host auto-closes linked
+issues (see `docs/agents/code-host.md`), just verify — GitHub default:
 
 ```bash
 gh issue view <subissue> --json state --jq '.state'   # expect CLOSED
 ```
+
+If there is **no auto-close** (issues on a different tracker than the code
+host, or a local tracker), close the sub-issue yourself per the tracker
+ops, with a comment naming the merged change.
 
 If the merge fails (conflict with a previous merge), treat it as one extra fix
 cycle — the **merge-fix job**: spawn a `code-author` with model `opus` and
 `isolation: "worktree"`:
 
 > MERGE-FIX job. PR #`<PR>` cannot be merged into main (conflict with a
-> previously merged PR). In your worktree get the PR branch with
+> previously merged PR). In your worktree get the PR branch per the
+> fix-that-pushes checkout in `docs/agents/code-host.md` (GitHub default:
 > `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
-> (do not use `gh pr checkout` or check out the branch by name — it is
+> — do not use `gh pr checkout` or check out the branch by name, it is
 > checked out in the build worker's worktree and git will refuse). Merge
 > `origin/main` into it, resolve the conflicts — using the
 > `resolving-merge-conflicts` skill if it appears in your available skills —
@@ -360,12 +414,20 @@ bash <skill-dir>/scripts/cleanup-worktrees.sh \
   --branch "agent/issue-<subissue>-*" --sha "$HEAD_SHA"
 ```
 
+(The two `gh pr view` lines are the GitHub default for the change-metadata
+operation — on another host get branch and head sha per
+`docs/agents/code-host.md`; on a local host the change ref *is* the branch
+and `git rev-parse <branch>` gives the sha. With a local code host always
+add `--keep-branches`: the local branch is the only copy of unmerged work,
+so only the worktrees go.)
+
 (A blocked build that never opened a PR has no `$BRANCH`/`$HEAD_SHA` — drop
 those flags; the `agent/issue-<subissue>-*` pattern still catches its
 worktree.)
 
 If the sub-issue was **merged**, also delete the remote branch now (the merge
-deliberately skipped `--delete-branch`):
+deliberately skipped `--delete-branch`; skip this on a local host — there is
+no remote branch):
 
 ```bash
 git push origin --delete $BRANCH
@@ -378,7 +440,10 @@ local state goes.
 
 ## Escalation
 
-When a sub-issue is blocked, non-convergent after 3 fix cycles, or unmergeable:
+When a sub-issue is blocked, non-convergent after 3 fix cycles, or
+unmergeable, apply the `ready-for-human` triage label to the sub-issue and
+comment on both the sub-issue and the PRD, per the tracker ops. GitHub
+default:
 
 ```bash
 gh issue edit <subissue> --add-label "ready-for-human"
@@ -400,7 +465,8 @@ continue the loop with the next unblocked sub-issue.
 
    > HARVEST job. This run delivered PRs #`<list every PR of the run —
    > merged, ready-to-merge, or escalated>`. For each, read its body and comments
-   > (`gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
+   > per the repo's `docs/agents/code-host.md` (GitHub default:
+   > `gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
    > entries. Compare them against the repo's agent docs (`AGENTS.md` and
    > everything under `docs/agents/`). Promote only entries that repeat
    > across PRs, correct a doc the code has outgrown, or would clearly have
@@ -414,6 +480,11 @@ continue the loop with the next unblocked sub-issue.
    > rejected, fetch and rebase once, then push again; if it still fails,
    > stop and report it. End with the `RESULT docs=<updated|none>` line.
 
+   With a **local code host** there is no remote to push through and `main`
+   may never be moved unattended: instruct the harvest worker to leave its
+   commit on the `agent/harvest-<prd>` branch instead, and list that branch
+   in the wrap-up as one more item in the human's merge queue.
+
    This job is best-effort: if it reports blocked, note it in the summary
    and move on.
 3. **Final sweep** — one last pass of the cleanup script, catching the
@@ -422,6 +493,9 @@ continue the loop with the next unblocked sub-issue.
    ```bash
    bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
    ```
+
+   (With a local code host: `--sweep --keep-branches` — unmerged local
+   branches are the only copy of the work.)
 
    If it prints a `WARN` line (primary checkout in detached HEAD), include
    it verbatim in the chat summary — never repair the primary checkout
@@ -449,9 +523,9 @@ continue the loop with the next unblocked sub-issue.
 - In sequential mode, one sub-issue is fully delivered (merged,
   ready-to-merge, or escalated) before the next starts. In parallel mode,
   builds/reviews/fixes may overlap, but merges are always one at a time.
-- Never run `gh pr merge` when the resolved config says `merge: manual` —
-  ready + CLEAN is the terminal state there, even if merging seems
-  convenient.
+- Never run the merge operation (`gh pr merge`, `glab mr merge`, …) when
+  the resolved config says `merge: manual` — ready + CLEAN is the terminal
+  state there, even if merging seems convenient.
 - Unattended: never stop to ask the user anything mid-loop. Escalate via
   labels/comments and keep going.
 - Each worker is stateless: pass everything it needs in its prompt; never
@@ -459,10 +533,12 @@ continue the loop with the next unblocked sub-issue.
 - Never run `git checkout`, `git pull`, or any state-changing git command in
   the main context — the only exceptions are Step 0's scoped commit+push of
   context docs, the `cleanup-worktrees.sh` script (steps 6 and wrap-up),
-  and the merged-branch `git push origin --delete`. If the script warns that
-  the primary checkout is detached, report it — never repair it.
+  the merged-branch `git push origin --delete`, and — local tracker only —
+  the scoped `.scratch/` tracker-write commits from Contract docs. If the
+  script warns that the primary checkout is detached, report it — never
+  repair it.
 - Only spawn the fix worker when the review said `NEEDS_FIXES`.
 - If a worker reports that a permission was denied (posting the review,
-  `gh pr ready`, merging, …), never re-run the denied command yourself —
+  marking the PR ready, merging, …), never re-run the denied command yourself —
   that is tunneling around the denial and will also be blocked. Treat the
   sub-issue as blocked: **escalate** it and continue the loop.

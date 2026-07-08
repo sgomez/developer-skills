@@ -6,8 +6,8 @@
 # improvising `git worktree remove` / `git branch -D` from prose.
 #
 # Usage:
-#   cleanup-worktrees.sh --branch <glob> [--branch <glob>]... [--sha <sha>]...
-#   cleanup-worktrees.sh --sweep [--sha <sha>]...
+#   cleanup-worktrees.sh --branch <glob> [--branch <glob>]... [--sha <sha>]... [--keep-branches]
+#   cleanup-worktrees.sh --sweep [--sha <sha>]... [--keep-branches]
 #
 #   --branch  remove linked worktrees whose checked-out branch matches the
 #             glob, and delete matching local branches (repeatable)
@@ -15,6 +15,9 @@
 #             diff-reviewer case (repeatable, full SHA)
 #   --sweep   shorthand adding the worker patterns agent/* and fix/pr-*;
 #             for the final wrap-up pass
+#   --keep-branches
+#             remove only the worktrees; never delete local branches. For
+#             local code hosts, where the branch is the only copy of the work
 #
 # Guarantees:
 #   - never touches the primary checkout (first entry of `git worktree list`)
@@ -26,12 +29,13 @@ set -euo pipefail
 
 usage() { grep '^# ' "$0" | sed 's/^# //' >&2; exit 2; }
 
-patterns=() shas=()
+patterns=() shas=() keep_branches=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch) [[ $# -ge 2 ]] || usage; patterns+=("$2"); shift 2 ;;
     --sha)    [[ $# -ge 2 ]] || usage; shas+=("$2");     shift 2 ;;
     --sweep)  patterns+=("agent/*" "fix/pr-*");          shift ;;
+    --keep-branches) keep_branches=1;                    shift ;;
     *) usage ;;
   esac
 done
@@ -90,6 +94,7 @@ done
 
 # --- delete matching local branches (skipped if still checked out) ----------
 deleted=0
+(( keep_branches )) && patterns=()
 while IFS= read -r b; do
   [[ "$b" == main || "$b" == master ]] && continue
   for p in "${patterns[@]}"; do

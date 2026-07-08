@@ -1,11 +1,18 @@
 ---
 name: review-pr
-description: Reviews the current PR branch diff against main, posts inline review comments and a summary, then marks the PR ready for review. Local replacement for the agent-review GitHub workflow. Use when user says "review pr", "review this pr", "/review-pr", or wants to run automated review on a pull request.
+description: Reviews a change (PR/MR) diff against main, posts inline review comments and a summary, then marks it ready for review. Tracker- and host-agnostic — GitHub via gh is the factory default; docs/agents/code-host.md overrides. Use when user says "review pr", "review this pr", "/review-pr", or wants to run automated review on a pull request.
 ---
 
 # Review PR
 
-Reviews current branch diff, posts GitHub review, marks PR ready.
+Reviews the change's diff, posts the review, marks it ready.
+
+**Contract doc.** Change mechanics come from the repo's
+`docs/agents/code-host.md` — read it first if present. The commands below
+are the **GitHub factory defaults** (`gh`), used verbatim when that doc is
+absent or confirms GitHub; when it defines a different mechanic for an
+operation (checkout, read feedback, post review, mark ready), the doc
+wins. "PR" below means whatever the code host calls a reviewable change.
 
 ## Invoke
 
@@ -18,7 +25,7 @@ Reviews current branch diff, posts GitHub review, marks PR ready.
 
 ### 1. Identify and check out the PR
 
-If no number given:
+If no ref given, get the current branch's change metadata — GitHub default:
 ```bash
 gh pr view --json number,title,headRefName,baseRefName,state
 ```
@@ -36,7 +43,8 @@ If both paths are equal you are in the **primary checkout** — detaching or
 switching it would hijack the user's working state. Never do it: as a
 /developer worker end with `RESULT blocked reason=escaped worktree —
 refusing to touch the primary checkout`; interactively, stop and tell the
-user. In a linked worktree, check out the PR head detached:
+user. In a linked worktree, check out the change head detached, per the
+code-host doc's read-only checkout. GitHub default:
 
 ```bash
 git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
@@ -50,11 +58,11 @@ either — `main` is checked out in the primary worktree.
 ### 2. Read full diff
 
 ```bash
-git fetch origin main
+git fetch origin main    # local host: skip the fetch, diff against main
 git diff origin/main...HEAD
 ```
 
-Also read:
+Also read the existing feedback and rendered diff — GitHub default:
 ```bash
 gh pr view --comments   # existing comments
 gh pr diff              # rendered diff with context
@@ -73,11 +81,12 @@ Separate findings into **actionable** (require a code change: bugs, failing
 checks, missing acceptance criteria, security) and **notes** (style
 preferences, questions, nice-to-haves). Only actionable findings block.
 
-### 4. Post GitHub review
+### 4. Post the review
 
-For each actionable finding, post an inline review comment on the exact line.
-Group into a single review submission. Use `line` + `side` (`position` is
-deprecated) and `-F` for the numeric field:
+For each actionable finding, post an inline review comment on the exact
+line, per the code-host doc's post-review operation; group everything into
+one review submission where the host supports it. GitHub default — use
+`line` + `side` (`position` is deprecated) and `-F` for the numeric field:
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
@@ -90,12 +99,16 @@ gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
   -f "comments[][body]"="<finding>"
 ```
 
-If no actionable findings: post a `COMMENT` review whose body starts with a
-clear "CLEAN" summary (non-blocking notes may go in the body). Never use the
-`APPROVE` event — the pipeline authors PRs under the same GitHub identity
-that reviews them, and GitHub rejects self-approval (HTTP 422).
+If no actionable findings: post a review whose summary starts with a clear
+"CLEAN" (non-blocking notes may go in the body). Never use an approval
+event (`APPROVE`, `glab mr approve`, …) — the pipeline authors changes
+under the same identity that reviews them; on GitHub self-approval is
+rejected outright (HTTP 422), and everywhere the CLEAN summary is the
+approval signal.
 
 ### 5. Mark ready
+
+Per the code-host doc — GitHub default:
 
 ```bash
 gh pr ready <PR>
@@ -103,9 +116,10 @@ gh pr ready <PR>
 
 ## Rules
 
-- Post review even if no findings (COMMENT + "CLEAN" summary; never APPROVE)
-- Never push code changes — review only
-- One review submission (not individual comments)
+- Post review even if no findings ("CLEAN" summary; never an approval event)
+- Never push code changes — review only (exception: a local code host's
+  review lives in the change file; committing that one file is the review)
+- One review submission, not comment-by-comment (where the host can batch)
 - Flag typecheck / test failures as blocking
 - Unattended: never ask the user anything; when unsure whether a finding
   blocks, ask "would this stop me merging?" — if not, it's a note
