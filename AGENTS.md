@@ -32,8 +32,11 @@ Versioning follows [Semantic Versioning](https://semver.org). While the project
 is `0.x`, every GitHub release is a **pre-release** (there is no stable/`Latest`
 release until `1.0.0`).
 
-Development happens on the **`next` branch** (tested locally via
-`scripts/plugin-mode.sh dev`, which keeps the same version as the last release).
+Development happens on the **`next` branch** (kept at the same version as the
+last release). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
+uncommitted edits included — this machine only) or `scripts/plugin-mode.sh
+next` (the pushed `next` branch on GitHub — works the same on any machine).
+`scripts/plugin-mode.sh prod` switches back to the published release.
 Changelog entries land under the `## [Unreleased]` heading as you go; a release
 promotes that section to the new version.
 

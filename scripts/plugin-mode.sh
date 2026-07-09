@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 # plugin-mode.sh — toggle the sgomez marketplace between prod (published GitHub
-# marketplace) and dev (this checkout on the "next" branch) to test the plugin
-# locally before publishing a new version.
+# marketplace), dev (this checkout's uncommitted changes), and next (the
+# pushed "next" branch on GitHub, testable from any machine).
 #
-#   scripts/plugin-mode.sh dev       # marketplace -> this directory (branch: next), install user-wide
-#   scripts/plugin-mode.sh prod      # marketplace -> GitHub, remove the user-wide install
-#   scripts/plugin-mode.sh refresh   # dev only: pick up local edits (re-sync + update)
+#   scripts/plugin-mode.sh dev       # marketplace -> this checkout (branch: next), install user-wide
+#   scripts/plugin-mode.sh next      # marketplace -> GitHub "next" branch (any machine), install user-wide
+#   scripts/plugin-mode.sh prod      # marketplace -> GitHub default branch, remove the user-wide install
+#   scripts/plugin-mode.sh refresh   # dev/next only: pick up latest changes (re-sync + update)
 #   scripts/plugin-mode.sh status    # which mode is active, what is installed
 #
-# Dev mode copies this checkout into the install, so we always develop on the
-# "next" branch until a version is published — dev/refresh refuse to run from
-# any other branch. Prod points back at the original published marketplace.
-# Because next carries the same version as the released build, the copy-keyed
-# installer would skip an update, so dev/refresh force uninstall + install.
+# `dev` copies this checkout into the install, so it only works on this
+# machine but needs no push — good for testing edits before they're
+# committed. `next` instead points at the pushed "next" branch on GitHub via
+# a git ref (owner/repo.git#next), so the exact same command works on any
+# machine, even one without this checkout — but it only sees changes once
+# they're pushed to "next". `dev`/`refresh` (in dev mode) refuse to run from
+# any branch other than "next" to keep the copy meaningful; `next` has no
+# such requirement since it always pulls from GitHub regardless of your
+# local branch.
 #
-# The marketplace keeps its name ("sgomez") in both modes, so the plugin id
+# Because "next" (both flavors) carries the same version as the last
+# released build, the copy/ref-keyed installer would skip an update, so
+# dev/next/refresh force uninstall + install.
+#
+# The marketplace keeps its name ("sgomez") in every mode, so the plugin id
 # developer-skills@sgomez stays stable: any project-scoped install resolves
 # against whichever source is active. Restart Claude Code sessions after a
 # switch — plugins load at session start.
@@ -26,6 +35,7 @@ PLUGIN="developer-skills"
 GITHUB_SOURCE="sgomez/developer-skills"
 DEV_BRANCH="next"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REMOTE_NEXT_SOURCE="https://github.com/${GITHUB_SOURCE}.git#${DEV_BRANCH}"
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
@@ -75,6 +85,18 @@ cmd_dev() {
   note "Restart Claude Code sessions to load the new code."
 }
 
+cmd_next() {
+  bold "Switching to NEXT mode (marketplace -> $REMOTE_NEXT_SOURCE)"
+  uninstall_user_scope
+  swap_marketplace "$REMOTE_NEXT_SOURCE"
+  claude plugin install "$PLUGIN@$MARKETPLACE" --scope user
+  bold "Next mode active."
+  note "The plugin is installed user-wide from GitHub's '$DEV_BRANCH' branch."
+  note "This is the same command on every machine — push to '$DEV_BRANCH' first."
+  note "After pushing new commits to '$DEV_BRANCH', run: $0 refresh"
+  note "Restart Claude Code sessions to load the new code."
+}
+
 cmd_prod() {
   bold "Switching to PROD mode (marketplace -> github.com/$GITHUB_SOURCE)"
   uninstall_user_scope
@@ -86,14 +108,17 @@ cmd_prod() {
 }
 
 cmd_refresh() {
-  require_dev_branch
   local src
   src="$(current_source)"
-  if [[ "$src" != *"$REPO_DIR"* ]]; then
-    bold "Not in dev mode (source: ${src:-none}) — run: $0 dev"
+  if [[ "$src" == *"$REPO_DIR"* ]]; then
+    require_dev_branch
+    bold "Re-syncing the local marketplace and plugin (dev mode)"
+  elif [[ "$src" == "$REMOTE_NEXT_SOURCE" ]]; then
+    bold "Re-syncing the remote marketplace and plugin (next mode)"
+  else
+    bold "Not in dev or next mode (source: ${src:-none}) — run: $0 dev  or  $0 next"
     exit 1
   fi
-  bold "Re-syncing the local marketplace and plugin"
   claude plugin marketplace update "$MARKETPLACE"
   # Installs are copies keyed by version; `plugin update` skips when the
   # version is unchanged, so force a fresh copy with uninstall + install.
@@ -109,6 +134,8 @@ cmd_status() {
     bold "Mode: NONE — marketplace '$MARKETPLACE' is not configured"
   elif [[ "$src" == *"$REPO_DIR"* ]]; then
     bold "Mode: DEV — marketplace '$MARKETPLACE' -> $src"
+  elif [[ "$src" == "$REMOTE_NEXT_SOURCE" ]]; then
+    bold "Mode: NEXT — marketplace '$MARKETPLACE' -> $src"
   else
     bold "Mode: PROD — marketplace '$MARKETPLACE' -> $src"
   fi
@@ -119,11 +146,12 @@ cmd_status() {
 
 case "${1:-}" in
   dev)     cmd_dev ;;
+  next)    cmd_next ;;
   prod)    cmd_prod ;;
   refresh) cmd_refresh ;;
   status)  cmd_status ;;
   *)
-    sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 1
     ;;
 esac
