@@ -18,6 +18,12 @@ Changes staged on the `next` branch, published as a new version once ready.
   consistently mis-tiered. The `dispatcher` reads that calibration on top of
   its generic rubric, so triage learns this repo's real complexity across
   runs.
+- **Dispatcher triage brief** (report FF1). `dispatcher`'s `RESULT` line now
+  also carries `touches=` (dirs/modules the issue will touch) and `hints=`
+  (the pattern or file to imitate) — the exploration it already does to
+  score complexity, previously thrown away. The orchestrator forwards
+  `hints` verbatim into the Build step's prompt, so the builder starts from
+  what triage already found instead of re-exploring the same ground cold.
 
 ## [0.12.0] - 2026-07-09
 

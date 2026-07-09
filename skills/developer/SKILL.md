@@ -123,7 +123,9 @@ The loop may cover many sub-issues; your context must survive all of them.
 - From each worker, keep only its final `RESULT` line.
 - Track per sub-issue: number, task id, chosen model, PR number, verdict, fix
   cycles, wave (parallel mode), outcome (merged / ready-to-merge / escalated /
-  blocked).
+  blocked). Also keep the dispatcher's `touches`/`hints` just long enough to
+  forward `hints` into that sub-issue's Build step — discard both once the
+  build is spawned, they have no use after that.
 
 ## Step 0 — Publish context docs before anything else
 
@@ -292,9 +294,12 @@ immune: reviewers fetch the PR head from the remote instead.)
 Spawn `dispatcher`:
 
 > Triage issue #`<subissue>`. Score its implementation complexity per your
-> rubric. End with the `RESULT complexity=… model=… reason=…` line.
+> rubric. End with the
+> `RESULT complexity=… model=… touches=… hints=… reason=…` line.
 
-Parse `model=<tier>`. On any malformed result, default to `opus`.
+Parse `model=<tier>`. On any malformed result, default to `opus`. Parse
+`touches=` and `hints=` too, defaulting each to `none` if the line predates
+this field or omits it — never block the pipeline on a missing hint.
 
 ### 2. Build
 
@@ -302,7 +307,9 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 > BUILD job. Spec issue #`<spec>`, sub-issue #`<subissue>`.
 > Read the spec for context, then run the implement-issue skill on the
-> sub-issue. End with the `RESULT pr=… url=…` line.
+> sub-issue. Triage found: `<dispatcher's hints, verbatim, or omit this line
+> entirely when hints=none>`.
+> End with the `RESULT pr=… url=…` line.
 
 - `RESULT blocked …` → **escalate** (see below) and move to the next
   sub-issue.

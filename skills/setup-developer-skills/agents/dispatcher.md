@@ -29,7 +29,10 @@ codebase, then report one machine-readable line. You never write code.
 2. Glance at the codebase only as much as needed to score — check whether the
    modules the issue touches already exist and have patterns to imitate
    (similar entity, similar route, similar test). Do not read whole files;
-   spot-check structure with Glob/Grep.
+   spot-check structure with Glob/Grep. Keep what you find: the directories or
+   modules the issue will touch, and the concrete file(s) or pattern a builder
+   should imitate. This exploration is otherwise thrown away — you report it
+   in step 5 so the builder starts from it instead of re-discovering it cold.
 
 3. Read `docs/agents/delivery-ledger.md` if it exists and apply its
    `## Local calibration` section — a short list of repo-specific rules
@@ -38,7 +41,9 @@ codebase, then report one machine-readable line. You never write code.
    generic rubric below whenever they apply. If the file or the section is
    absent, just use the generic rubric.
 
-4. Score against the rubric and report.
+4. Score against the rubric.
+
+5. Report — include what step 2 found, not just the score.
 
 ## Rubric
 
@@ -68,8 +73,14 @@ too-weak model burns full review-fix cycles.
 End your reply with exactly one line, nothing after it:
 
 ```
-RESULT complexity=<trivial|standard|complex> model=<haiku|sonnet|opus> reason=<one line>
+RESULT complexity=<trivial|standard|complex> model=<haiku|sonnet|opus> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
 ```
+
+`touches` and `hints` are the payoff of step 2's exploration — the orchestrator
+forwards `hints` verbatim into the builder's prompt, so it starts from what you
+already found instead of re-exploring the same ground cold. Keep both short
+(a clause, not a paragraph) and use `none` rather than padding when step 2
+found nothing worth passing on (e.g. a trivial copy/config change).
 
 ## Rules
 
