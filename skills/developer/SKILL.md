@@ -499,26 +499,58 @@ continue the loop with the next unblocked sub-issue.
 
 1. **Reconcile the task board**: every task must be completed or renamed per
    the Progress board rules — nothing left silently in_progress.
-2. **Harvest discoveries** — turn what the workers learned into docs before
-   the knowledge is lost. Skip only when the run produced no PRs. Spawn one
-   `code-author` with `model: sonnet` and `isolation: "worktree"`:
+2. **Harvest discoveries and record the run** — turn what the workers learned
+   into docs, and persist this run's outcome so the dispatcher can calibrate
+   to this repo. Skip only when the run produced no PRs. The harvest worker
+   does both in one branch/commit; pass it the per-sub-issue facts you already
+   hold (the same rows as the chat-summary table) as the **ledger rows**, one
+   per delivered sub-issue:
+
+   `<today> spec=#<spec> sub=#<N> model=<tier> pr=#<PR> verdict=<CLEAN|—> cycles=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>`
+
+   (`verdict=—`/`wave=—` where it doesn't apply — e.g. an escalated sub-issue
+   with no CLEAN, or sequential mode.)
+   Spawn one `code-author` with `model: sonnet` and `isolation: "worktree"`:
 
    > HARVEST job. This run delivered PRs #`<list every PR of the run —
-   > merged, ready-to-merge, or escalated>`. For each, read its body and comments
-   > per the repo's `docs/agents/code-host.md` (GitHub default:
+   > merged, ready-to-merge, or escalated>`. Create branch
+   > `agent/harvest-<spec>` from origin/main, then do two things on it:
+   >
+   > **(a) Record the run in the ledger.** Append these rows verbatim to the
+   > `## Run log` section of `docs/agents/delivery-ledger.md`, creating the
+   > file if it does not exist (with a one-line title, an empty
+   > `## Local calibration` section, and a `## Run log` section):
+   >
+   > ```
+   > <the ledger rows, one per delivered sub-issue>
+   > ```
+   >
+   > Then read the **recent** `## Run log` — the last ~50 rows are plenty
+   > (older rows already left their mark in the calibration; the log is a
+   > rolling window of evidence, not an archive) — and update
+   > `## Local calibration`: add or refine a short bullet **only** when the log
+   > shows a class of issue was consistently mis-tiered — e.g. issues touching
+   > a given area scored `standard` but needed 2+ fix cycles or escalated at
+   > that tier. Each bullet names the signal and the corrected tier (the
+   > dispatcher reads them on top of its generic rubric). Change nothing there
+   > if no pattern is evident yet; never invent a rule from a single row.
+   >
+   > **(b) Harvest discoveries.** For each PR read its body and comments per the
+   > repo's `docs/agents/code-host.md` (GitHub default:
    > `gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
    > entries. Compare them against the repo's agent docs (`AGENTS.md` and
-   > everything under `docs/agents/`). Promote only entries that repeat
-   > across PRs, correct a doc the code has outgrown, or would clearly have
-   > saved another worker real work; drop one-off trivia. If nothing
-   > qualifies, change nothing. Otherwise create branch `agent/harvest-<spec>`
-   > from origin/main, fold the entries into the right doc (update the
-   > existing recipe/pattern doc;
-   > create a new `docs/agents/` doc only if none fits), commit as
-   > `docs(agents): harvest discoveries from spec #<spec> run`, and push with
-   > `git push origin HEAD:main` — never check out main. If the push is
-   > rejected, fetch and rebase once, then push again; if it still fails,
-   > stop and report it. End with the `RESULT docs=<updated|none>` line.
+   > everything under `docs/agents/`). Promote only entries that repeat across
+   > PRs, correct a doc the code has outgrown, or would clearly have saved
+   > another worker real work; drop one-off trivia. Fold the survivors into the
+   > right doc (update the existing recipe/pattern doc; create a new
+   > `docs/agents/` doc only if none fits). If nothing qualifies, leave the
+   > docs untouched — the ledger append from (a) still stands.
+   >
+   > Commit as `docs(agents): record spec #<spec> run and harvest discoveries`
+   > and push with `git push origin HEAD:main` — never check out main. If the
+   > push is rejected, fetch and rebase once, then push again; if it still
+   > fails, stop and report it. End with the
+   > `RESULT docs=<updated|none> ledger=<appended|failed>` line.
 
    With a **local code host** there is no remote to push through and `main`
    may never be moved unattended: instruct the harvest worker to leave its

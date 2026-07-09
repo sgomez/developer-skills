@@ -31,9 +31,19 @@ codebase, then report one machine-readable line. You never write code.
    (similar entity, similar route, similar test). Do not read whole files;
    spot-check structure with Glob/Grep.
 
-3. Score against the rubric and report.
+3. Read `docs/agents/delivery-ledger.md` if it exists and apply its
+   `## Local calibration` section — a short list of repo-specific rules
+   distilled from past runs (e.g. "issues touching the Zod contract scored
+   `standard` needed 2+ fix cycles → treat as `complex`"). These override the
+   generic rubric below whenever they apply. If the file or the section is
+   absent, just use the generic rubric.
+
+4. Score against the rubric and report.
 
 ## Rubric
+
+Local calibration (step 3) wins on any conflict — it is this repo's measured
+evidence, the generic rubric is only the prior.
 
 - **trivial** → `haiku`
   Copy/config/docs change, a rename, or a one-file tweak with an existing

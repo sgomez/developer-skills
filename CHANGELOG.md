@@ -5,6 +5,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Changes staged on the `next` branch, published as a new version once ready.
+
+### Added
+- **Delivery ledger + dispatcher calibration** (report F1). The wrap-up harvest
+  job now also records the run in `docs/agents/delivery-ledger.md` — one
+  `## Run log` row per delivered sub-issue (date, model, PR, verdict, fix
+  cycles, wave, outcome) — and distills a `## Local
+  calibration` section from the accumulated log when a class of issue proves
+  consistently mis-tiered. The `dispatcher` reads that calibration on top of
+  its generic rubric, so triage learns this repo's real complexity across
+  runs.
+
 ## [0.12.0] - 2026-07-09
 
 Second round of alignment with mattpocock/skills v1.1 (see 0.11.0): the
@@ -209,6 +223,7 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.12.0...next
 [0.12.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.12.0
 [0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
 [0.10.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.10.0
