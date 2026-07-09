@@ -27,7 +27,7 @@ this section confirms they apply and adds the sub-issue requirement.
 
 ### Parent/child issues MUST be native sub-issues
 
-When a skill breaks a parent issue (a PRD/spec, a plan) into child issues — e.g. `/to-tickets` — each child **must be linked to the parent as a GitHub native sub-issue**, not just referenced in the body text. The `/developer` orchestrator discovers work exclusively through native sub-issue links; a child that is only mentioned in prose is invisible to it.
+When a skill breaks a parent issue (a spec/PRD, a plan) into child issues — e.g. `/to-tickets` — each child **must be linked to the parent as a GitHub native sub-issue**, not just referenced in the body text. The `/developer` orchestrator discovers work exclusively through native sub-issue links; a child that is only mentioned in prose is invisible to it.
 
 After creating each child issue, link it:
 

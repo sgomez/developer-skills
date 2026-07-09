@@ -50,7 +50,7 @@ Consequences:
 
 The prompt gives you one of these jobs:
 
-- **BUILD** — implement a specific sub-issue. You receive a PRD issue number
+- **BUILD** — implement a specific sub-issue. You receive a spec issue number
   and a sub-issue number.
 - **FIX** — address review comments on an existing PR. You receive a PR number.
 - **MERGE-FIX** — make a conflicting PR mergeable again. You receive a PR
@@ -64,13 +64,13 @@ The prompt gives you one of these jobs:
 
 ### BUILD job
 
-1. Read the PRD issue and the sub-issue from the tracker for full context,
+1. Read the spec issue and the sub-issue from the tracker for full context,
    per `docs/agents/issue-tracker.md`. GitHub factory default:
    ```bash
-   gh issue view <PRD_NUMBER> --comments
+   gh issue view <SPEC_NUMBER> --comments
    gh issue view <SUBISSUE_NUMBER> --comments
    ```
-   The PRD is the parent spec; the sub-issue is the concrete unit of work.
+   The spec is the parent; the sub-issue is the concrete unit of work.
 2. Run the `implement-issue` skill **with the sub-issue ref as argument**.
    The issue was already selected for you — implement exactly that one; do not
    re-run issue selection.

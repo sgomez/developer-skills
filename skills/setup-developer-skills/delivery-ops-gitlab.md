@@ -17,6 +17,11 @@ override them.**
   matches titles). Where the project has native work-item hierarchy or
   linked issues, `glab api "projects/:id/issues/<PARENT>/links"` is the
   richer source — use it when it returns results.
+- **Discover a sub-issue's blockers**: the `## Blocked by` body section is
+  canonical. Where the project also wires native blocking links (a GitLab
+  Premium feature), cross-check with
+  `glab api "projects/:id/issues/<N>/links"` and treat any open
+  `is_blocked_by` link as blocking too.
 - **Check a blocker's state**:
   `glab issue view <N> -F json | jq -r .state` (`closed` = no longer
   blocking).
@@ -32,7 +37,7 @@ override them.**
 
 ### Parent/child issues MUST carry the parent marker
 
-When a skill breaks a parent issue (a PRD/spec, a plan) into child issues —
+When a skill breaks a parent issue (a spec/PRD, a plan) into child issues —
 e.g. `/to-tickets` — each child **must** have a `## Parent` section containing
 `Part of #<PARENT>` at the top of its description, and a `## Blocked by`
 section naming its sibling blockers. That marker is how the `/developer`

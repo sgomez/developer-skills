@@ -78,7 +78,7 @@ Read the issue with its comments per the tracker doc — GitHub default:
 gh issue view <N> --comments
 ```
 
-Read the full body, acceptance criteria, and all comments. Pull parent PRD if referenced (the "Parent" section in the issue body).
+Read the full body, acceptance criteria, and all comments. Pull the parent spec if referenced (the "Parent" section in the issue body).
 
 ### 3. Create branch
 
@@ -126,7 +126,13 @@ never absolute paths into the primary checkout.
   recipes naming golden files to copy). Only explore for what the docs
   don't already answer.
 - Explore relevant source files before writing any code
-- Use TDD where tests exist: write failing test → implement → pass → refactor
+- Follow the parent spec's **Implementation Decisions** and **Testing
+  Decisions** where present: build to the interfaces it fixes, write tests
+  at the pre-agreed seams (external behaviour, not implementation details),
+  and reuse the prior-art tests it names
+- Use TDD where tests exist: write failing test → implement → pass (red →
+  green). Leave refactor-level cleanups to the review phase — the reviewer
+  flags them; don't overload the implementation session
 - Keep change as small as possible — only what the issue requires
 - Run the project's checks (see `AGENTS.md` / `CLAUDE.md` for the exact commands), typically:
 

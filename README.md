@@ -1,11 +1,11 @@
 # developer-skills
 
-Unattended PRD delivery for [Claude Code](https://claude.com/claude-code):
-you write PRDs, a pipeline of isolated agents implements every sub-issue —
+Unattended spec delivery for [Claude Code](https://claude.com/claude-code):
+you write specs, a pipeline of isolated agents implements every sub-issue —
 triage → build → review → fix → merge — and pings you when it's done.
 
 ```
-/developer <prd-issue>
+/developer <spec-issue>
         │
         ▼
    ┌────────────┐  complexity tier    ┌─────────────┐
@@ -39,7 +39,7 @@ triage → build → review → fix → merge — and pings you when it's done.
   (trivial → `haiku`, standard → `sonnet`, complex → `opus`); the fixer
   escalates one tier per fix cycle.
 - **Unattended with an escape hatch** — max 3 review→fix cycles, then the
-  sub-issue is labeled `ready-for-human`, commented on the PRD, and the loop
+  sub-issue is labeled `ready-for-human`, commented on the spec, and the loop
   moves on. Push notification with the tally at the end.
 - **Isolated** — every worker runs in its own git worktree; the orchestrator
   never touches your checkout.
@@ -90,7 +90,7 @@ This route cannot install agents — `/setup-developer-skills` copies them into
 ### Dependencies (both options)
 
 This repo depends on [mattpocock/skills](https://github.com/mattpocock/skills)
-(v1.1+) for spec/PRD authoring and repo configuration. Install the ones the
+(v1.1+) for spec authoring and repo configuration. Install the ones the
 pipeline needs with `--skill`:
 
 ```bash
@@ -106,7 +106,7 @@ for everything.)
 | `to-spec` | **Required.** Publishes the spec (PRD) issue the pipeline consumes. Replaces `to-prd` (renamed in mattpocock/skills v1.1). |
 | `to-tickets` | **Required.** Breaks the spec into sub-issues with `Parent` / `Blocked by` ordering (native sub-issue and blocking links where the tracker has them). Replaces `to-issues` / `to-plan`. |
 | `tdd` | Recommended. `implement-issue` follows TDD where tests exist. |
-| `grill-with-docs` | Recommended. The PRD interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
+| `grill-with-docs` | Recommended. The spec interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
 | `grilling` / `grill-me` | The interview primitive behind `grill-with-docs`; `grill-me` is the stateless variant for when there's no codebase yet. |
 | `domain-modeling` | Used by `grill-with-docs` for the glossary / ADR vocabulary. |
 | `resolving-merge-conflicts` | Recommended, **strongly with parallel execution (the default)**. The merge-fix worker runs it to resolve conflicts between sibling PRs before merging. |
@@ -179,7 +179,8 @@ same shape with the `glab` equivalents):
   "autoMode": {
     "allow": [
       "$defaults",
-      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
+      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN.",
+      "Running the developer-skills cleanup-worktrees.sh script (including --sweep) is allowed: it only removes the pipeline's own linked worktrees and agent/* branches, refuses to touch the primary checkout, and is the sanctioned cleanup path of the /developer pipeline."
     ]
   }
 }
@@ -196,7 +197,11 @@ same shape with the `glab` equivalents):
   stating that *you* authorized merging (that's also why the rule cites
   `docs/agents/developer-defaults.md`: the committed `merge: auto` line is
   the durable record of that authorization). Keep `"$defaults"` first to
-  preserve the built-in rules.
+  preserve the built-in rules. The cleanup sentence applies on **every**
+  host and merge mode (it's the one rule a local repo still needs): the
+  wrap-up's `--sweep` is a pattern-matched worktree removal — exactly the
+  shape the classifier flags — and without the rule the final sweep gets
+  denied.
 
 Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
 blast radius small; the other three are gh-subcommand-scoped and safe to allow
@@ -235,11 +240,11 @@ best-effort outside Claude Code.
 ## Usage
 
 ```
-/developer <prd-issue>            # deliver every open sub-issue (repo defaults)
-/developer <prd-issue> --sequential --auto-merge
+/developer <spec-issue>           # deliver every open sub-issue (repo defaults)
+/developer <spec-issue> --sequential --auto-merge
                                   # per-run overrides of the repo defaults
 /developer <issue>                # plain issue (no sub-issues) → deliver just it
-/developer <prd> <subissue>       # deliver one specific sub-issue
+/developer <spec> <subissue>      # deliver one specific sub-issue
 /implement-issue 42               # manual: issue → branch → TDD → draft PR
 /review-pr 42                     # manual: review a PR, post inline comments
 /fix-pr 42                        # manual: address unresolved review threads
@@ -248,7 +253,14 @@ best-effort outside Claude Code.
 The intended loop: write specs with `/grill-with-docs` (or `/wayfinder` when
 the plan is too big for one session) + `/to-spec` + `/to-tickets`, then hand
 each spec to `/developer` and go write the next one.
-(Not sure which skill fits? `/ask-matt`.)
+
+The division of labour: Matt's skills **plan** (grilling → spec → tickets,
+with you in the loop) and offer a hands-on endpoint (`/implement` +
+`/code-review` on your current branch). This pipeline is the **AFK
+counterpart** of that endpoint: `/developer` launches isolated agents in
+clean contexts to build (`implement-issue`), review (`review-pr`) and
+validate each ticket unattended, gated by the CLEAN verdict instead of by
+you. (Not sure which skill fits? `/ask-matt`.)
 
 ## What's in the box
 
@@ -261,7 +273,7 @@ agents/                     # subagents, auto-loaded by the plugin route
   code-author.md            # builder/fixer — model chosen per sub-issue
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
-  developer/                # orchestrator: PRD loop, fix cycles, merge policy
+  developer/                # orchestrator: spec loop, fix cycles, merge policy
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply

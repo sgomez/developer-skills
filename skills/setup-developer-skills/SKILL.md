@@ -1,6 +1,6 @@
 ---
 name: setup-developer-skills
-description: Configure this repo for the /developer unattended PRD-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md (GitHub, GitLab or local first-class; anything else as freeform), installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults written to docs/agents/developer-defaults.md. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
+description: Configure this repo for the /developer unattended spec-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md (GitHub, GitLab or local first-class; anything else as freeform), installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults written to docs/agents/developer-defaults.md. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
 disable-model-invocation: true
 ---
 
@@ -202,7 +202,8 @@ content).
   "autoMode": {
     "allow": [
       "$defaults",
-      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN."
+      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN.",
+      "Running the developer-skills cleanup-worktrees.sh script (including --sweep) is allowed: it only removes the pipeline's own linked worktrees and agent/* branches, refuses to touch the primary checkout, and is the sanctioned cleanup path of the /developer pipeline."
     ]
   }
 }
@@ -217,7 +218,10 @@ project path substituted.
 
 **Local / Other**: no merge rules apply (local never auto-merges; for other
 hosts derive the allowlist from the commands recorded in
-`docs/agents/code-host.md`).
+`docs/agents/code-host.md`) — but **still offer the cleanup-worktrees
+`autoMode.allow` sentence**: the wrap-up's `--sweep` is a pattern-matched
+worktree removal, exactly the shape the auto-mode classifier denies, and
+local runs hit it like any other.
 
 The `autoMode.allow` sentence matters as much as the allowlist: auto mode
 double-checks outward-facing actions like merges in natural language even
@@ -235,7 +239,7 @@ the user of the flow:
 2. `/to-tickets <spec>` breaks it into child issues discoverable by the
    pipeline (native sub-issues on GitHub; the tracker doc's equivalent
    elsewhere) with `Blocked by` ordering.
-3. `/developer <prd>` delivers them all unattended — triage → build → review
+3. `/developer <spec>` delivers them all unattended — triage → build → review
    → fix cycles → merge per the chosen policy — and sends a push
    notification when done.
 

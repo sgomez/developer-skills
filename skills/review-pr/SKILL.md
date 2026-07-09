@@ -68,18 +68,37 @@ gh pr view --comments   # existing comments
 gh pr diff              # rendered diff with context
 ```
 
+Then locate the **originating spec**: the issue(s) the PR body's
+`Closes #N` references (the /developer pipeline guarantees one;
+interactively, fall back to issue refs in the branch name or commit
+messages). Read each with its comments per the tracker doc — GitHub
+default `gh issue view <N> --comments` — including the parent spec/PRD
+when the issue's `Parent` section names one. If no spec can be found, say
+so in the review summary and skip the spec-fidelity checks below.
+
 ### 3. Review
 
 Check for:
 - **Correctness bugs** — logic errors, off-by-ones, null/undefined, wrong types
+- **Spec fidelity** — requirements or acceptance criteria from the
+  originating issue that are missing, partial, or implemented wrong;
+  behaviour the issue never asked for (scope creep)
 - **Missing tests** — acceptance criteria from issue not covered
 - **Security** — injection, unvalidated input, exposed secrets
 - **Simplification** — dead code, duplication, over-engineering
+- **Refactoring smells** (never blocking) — Fowler's catalogue: mysterious
+  name, duplicated code, feature envy, data clumps, primitive obsession,
+  repeated switches, shotgun surgery, divergent change, speculative
+  generality, message chains, middle man, refused bequest. Each is a
+  judgement call — label it as one ("possible Feature Envy"), and skip
+  anything a documented repo standard endorses or tooling already enforces
 - **Checks** — run the project's typecheck and test commands (see `AGENTS.md` / `CLAUDE.md`); failures are blocking
 
-Separate findings into **actionable** (require a code change: bugs, failing
-checks, missing acceptance criteria, security) and **notes** (style
-preferences, questions, nice-to-haves). Only actionable findings block.
+Separate findings into **actionable** (require a code change: bugs, spec
+violations — missing/wrong requirements, scope creep — failing checks,
+missing acceptance criteria, security) and **notes** (style preferences,
+questions, nice-to-haves, refactoring smells). Only actionable findings
+block.
 
 ### 4. Post the review
 

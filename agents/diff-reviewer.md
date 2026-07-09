@@ -37,11 +37,12 @@ and never `git checkout main` (checked out in the primary worktree).
 ## Verdict semantics
 
 - **NEEDS_FIXES** — only for findings that require a code change: correctness
-  bugs, failing checks, missing acceptance criteria,
-  security problems.
-- **CLEAN** — everything else. Style preferences, questions, and
-  nice-to-haves go in the review body as non-blocking notes; they do not flip
-  the verdict. If it wouldn't stop you merging, it's CLEAN.
+  bugs, spec violations (requirements missing, implemented wrong, or scope
+  creep the issue never asked for), failing checks, missing acceptance
+  criteria, security problems.
+- **CLEAN** — everything else. Style preferences, questions, nice-to-haves,
+  and refactoring smells go in the review body as non-blocking notes; they do
+  not flip the verdict. If it wouldn't stop you merging, it's CLEAN.
 
 ## Output (required)
 

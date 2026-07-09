@@ -5,6 +5,82 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Second round of alignment with mattpocock/skills v1.1 (see 0.11.0): the
+review gate adopts the Spec axis and the Fowler smell baseline from Matt's
+new `/code-review`, and TDD matches the v1.1 loop (refactor deferred to
+review).
+
+### Added
+- `review-pr` now reads the **originating spec** (the issue behind the PR's
+  `Closes #N`, plus its parent spec/PRD) and checks **spec fidelity**:
+  requirements missing, partial, or implemented wrong, and scope creep are
+  actionable findings. Previously the CLEAN gate never fetched the issue, so
+  a PR implementing the wrong thing could pass.
+- `review-pr` carries Fowler's refactoring-smell catalogue (mysterious name,
+  feature envy, data clumps, …) as **non-blocking notes** — judgement calls
+  that never flip the verdict.
+- `diff-reviewer` verdict semantics updated to match: spec violations are
+  NEEDS_FIXES; refactoring smells are notes under CLEAN.
+
+- `delivery-ops-gitlab.md`: "Discover a sub-issue's blockers" operation for
+  parity with GitHub — body sections stay canonical; native blocking links
+  (GitLab Premium) are cross-checked when present.
+
+### Changed
+- `implement-issue` TDD loop aligned with mattpocock/skills v1.1: red →
+  green only; refactor-level cleanups are deferred to the review phase
+  (the diff-reviewer flags them).
+- `implement-issue` now explicitly follows the parent spec's Implementation
+  Decisions and Testing Decisions (pre-agreed seams, prior-art tests) —
+  `/to-spec` agrees those with the user precisely so the implementing agent
+  honours them.
+- **Terminology: "PRD" → "spec"** across the whole surface (skill
+  descriptions, orchestrator prose and prompts, agent definitions, README,
+  plugin manifest), matching `/to-spec`'s vocabulary. Placeholders renamed
+  too (`<prd>` → `<spec>`, `<PRD_NUMBER>` → `<SPEC_NUMBER>` — the
+  orchestrator↔worker prompts changed in lockstep). "PRD" remains only where
+  it aids recognition, mirroring Matt's own usage: first-contact alias in the
+  README and the `/developer` trigger, "spec/PRD" where a skill must locate
+  documents older repos still name PRD (review-pr's originating spec, the
+  delivery-ops parent markers), and the local tracker's `PRD.md` filename,
+  which Matt's local seed still writes.
+
+### Fixed
+
+Findings from the first real local-host run (local tracker + local code
+host, three sub-issues):
+
+- `/developer`: on a local code host the review of a fresh change
+  dead-ended on git's "branch already used by worktree" — the build
+  worker's worktree outlives it and holds the change branch. The
+  after-every-worker cleanup is now a structural part of the delivery
+  pipeline (not a prose aside), and the orchestrator recovers from a
+  branch-held blocked report with a one-shot Cleanup + re-spawn instead of
+  escalating.
+- `/developer` wrap-up: the final `--sweep` can be denied by the auto-mode
+  permission classifier (pattern-matched worktree removal). The wrap-up now
+  falls back to targeted `--branch` passes after checking
+  `git worktree list`, and README + setup offer an `autoMode.allow`
+  sentence for `cleanup-worktrees.sh` — needed on every host, including
+  local.
+- `merge: manual` runs left the user asking "and now what?": the
+  orchestrator now states the exact merge commands (per the code-host doc)
+  the moment a sub-issue becomes ready-to-merge and again in the wrap-up
+  merge queue, including the close-issue step where the host has no
+  auto-close.
+- Merge conflicts are never resolved in the main context (new rule): the
+  merge-fix job now also serves `merge: manual` — the human aborts the
+  half-merge and the orchestrator dispatches a worker to make the branch
+  mergeable in its own worktree.
+
+### Documentation
+- README: division-of-labour paragraph — Matt's skills plan (grilling →
+  spec → tickets) and offer the HITL endpoint (`/implement` +
+  `/code-review`); `/developer` is its AFK counterpart, building, reviewing
+  and validating each ticket with isolated clean-context agents.
+
 ## [0.11.0] - 2026-07-08
 
 Integration with [mattpocock/skills v1.1](https://www.aihero.dev/skills/skills-changelog-v1-1-wayfinder-to-spec-to-tickets-grilling-improvements),
@@ -133,6 +209,7 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
 [0.10.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.9.0

@@ -1,29 +1,29 @@
 ---
 name: developer
-description: Orchestrates unattended PRD delivery — loops over a PRD's child issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this PRD", "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended spec delivery — loops over a spec's child issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this spec" (or "deliver this PRD"), "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
 
 Drives the triage → build → review → fix → merge pipeline across isolated
-subagent workers, looping over every sub-issue of a PRD unattended. Each
+subagent workers, looping over every sub-issue of a spec unattended. Each
 worker gets a **clean context** — the only thing it knows is the arguments you
 pass in its prompt. You (the orchestrator) hold the state between steps.
 
 ## Invoke
 
 ```
-/developer <issue>              # PRD with sub-issues → deliver them all
+/developer <issue>              # spec with sub-issues → deliver them all
                                 # plain issue → deliver just that one
-/developer <prd> <subissue>     # deliver a single specific sub-issue
+/developer <spec> <subissue>    # deliver a single specific sub-issue
 
 Flags (override the repo defaults — see Run configuration):
-  --parallel | --sequential     # PRD mode: waves vs one-at-a-time
+  --parallel | --sequential     # spec mode: waves vs one-at-a-time
   --auto-merge | --no-auto-merge  # merge CLEAN PRs vs leave them ready
 ```
 
 If no issue number is given, ask for it and stop. Do not guess issue numbers.
-The execution flags only change PRD mode; in single mode they are a no-op.
+The execution flags only change spec mode; in single mode they are a no-op.
 Accept the bare words `parallel` / `sequential` as synonyms for the flags.
 
 > **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
@@ -128,7 +128,7 @@ The loop may cover many sub-issues; your context must survive all of them.
 ## Step 0 — Publish context docs before anything else
 
 Workers branch from `origin/main`, so any domain-context file that is not
-committed **and pushed** is invisible to them. Grilling/PRD sessions edit
+committed **and pushed** is invisible to them. Grilling/spec sessions edit
 these files but do not commit them. Before dispatching any worker (add
 `.scratch` to the paths when the tracker or code host is local):
 
@@ -174,13 +174,13 @@ gh api graphql -f query='
 own format — a number on GitHub/GitLab, a file path on a local tracker —
 and `#<PR>` for the change ref in the code host's format.)
 
-- **Open sub-issues exist → PRD mode**: loop over all of them (below).
+- **Open sub-issues exist → spec mode**: loop over all of them (below).
 - **No sub-issues → single mode**: run the delivery pipeline once on the given
-  issue, with the issue itself as spec (no separate PRD number).
+  issue, with the issue itself as spec (no separate parent spec).
 - **Two arguments given**: run the delivery pipeline once on `<subissue>` with
-  `<prd>` as the PRD. Skip the loop.
+  `<spec>` as the spec. Skip the loop.
 
-## Progress board (PRD mode — not optional)
+## Progress board (spec mode — not optional)
 
 The user follows the run through the harness task list. Keep it faithful at
 every transition; a stale board defeats its purpose.
@@ -208,7 +208,7 @@ every transition; a stale board defeats its purpose.
 
 Single mode (no sub-issues) skips the board.
 
-## PRD loop
+## Spec loop
 
 Repeat while open sub-issues remain:
 
@@ -256,7 +256,7 @@ so parallel costs nothing extra.
 Work in **waves**:
 
 1. **Wave = every open sub-issue whose blockers are all closed** (same check
-   as step 1 of the PRD loop), minus sub-issues already escalated this run.
+   as step 1 of the spec loop), minus sub-issues already escalated this run.
 2. Run the delivery pipeline on each wave member concurrently: spawn all
    `dispatcher`s in one batch, then the `code-author` BUILD jobs in parallel
    (each in its own worktree, `run_in_background: true`). As each build
@@ -277,6 +277,16 @@ Everything else — context economy, escalation, wrap-up, rules — is unchanged
 
 ## Delivery pipeline (per sub-issue)
 
+**Local code host — branch discipline (structural, not optional).** On a
+local host every worker checks out the change branch itself, and git allows
+a branch in only **one** worktree — but a worker's worktree outlives it
+whenever it holds changes, which a build or fix worktree always does. So run
+**Cleanup** (step 6, always `--keep-branches`) after **every** worker
+reports and before spawning the next one: build → cleanup → review →
+cleanup → fix → cleanup → re-review. Skipping one makes the next worker
+report blocked on "branch already used by worktree". (Remote hosts are
+immune: reviewers fetch the PR head from the remote instead.)
+
 ### 1. Triage
 
 Spawn `dispatcher`:
@@ -290,8 +300,8 @@ Parse `model=<tier>`. On any malformed result, default to `opus`.
 
 Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
-> BUILD job. PRD issue #`<prd>`, sub-issue #`<subissue>`.
-> Read the PRD for context, then run the implement-issue skill on the
+> BUILD job. Spec issue #`<spec>`, sub-issue #`<subissue>`.
+> Read the spec for context, then run the implement-issue skill on the
 > sub-issue. End with the `RESULT pr=… url=…` line.
 
 - `RESULT blocked …` → **escalate** (see below) and move to the next
@@ -311,7 +321,12 @@ Spawn `diff-reviewer` with `isolation: "worktree"`:
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
-- `RESULT blocked` or anything malformed → **escalate**, next sub-issue.
+- `RESULT blocked` because the change branch is held by another worktree
+  (the worker quotes git's "already used by worktree" error) → a previous
+  worker's worktree wasn't cleaned: run **Cleanup** (step 6) and re-spawn
+  the reviewer, **once per sub-issue** — if it blocks again, escalate.
+- Any other `RESULT blocked` or malformed result → **escalate**, next
+  sub-issue.
 
 ### 4. Fix cycle (max 3)
 
@@ -327,7 +342,8 @@ For cycle `c` = 1, 2, 3:
    > memory. Pushing the fixes and replying to the review threads are part
    > of your delegated task. End with the `RESULT pr=… url=…` line.
 
-   `RESULT blocked …` → **escalate**, next sub-issue.
+   `RESULT blocked …` → **escalate**, next sub-issue (a branch-held-by-
+   worktree blocked gets the same one-shot Cleanup + re-spawn as in step 3).
 3. Re-review: spawn `diff-reviewer` again (same prompt as step 3, mention it
    is a re-review after a fix pass).
    - `CLEAN` → **Merge**.
@@ -341,6 +357,16 @@ the reviewer already marked the PR ready, so record the sub-issue as
 **ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
 run **Cleanup** (step 6), and move on. The sub-issue stays open until the
 human merges, so its dependents remain blocked this run.
+
+Say **how** to merge the moment a sub-issue becomes ready-to-merge — a bare
+"ready to merge" leaves the user asking what to do, especially off GitHub.
+State the code-host doc's merge operation concretely; local default:
+
+```bash
+git merge --no-ff <branch>
+git branch -d <branch>
+# then close the issue per the tracker ops (no auto-close on a local host)
+```
 
 **With `merge: auto`**: this merge is pre-authorized — the user opted into
 `merge: auto` in `docs/agents/developer-defaults.md` (or passed
@@ -390,6 +416,15 @@ cycle — the **merge-fix job**: spawn a `code-author` with model `opus` and
 Then merge again. If it still fails, **escalate**. In parallel mode this job
 is routine, not exceptional: budget one merge-fix per conflicting PR before
 escalating.
+
+The merge-fix job also serves **`merge: manual`**: when the human's own
+merge hits a conflict (mid-run or after wrap-up) and they bring it to you,
+never resolve it in the main context — that fills the context this pipeline
+exists to protect. Have them abort the half-merge (`git merge --abort`),
+dispatch this same job on the conflicting PR (on a local host the worker
+merges local `main` into the branch in its worktree — committing is
+publishing, nothing to push), run Cleanup when it reports, and tell them to
+retry the merge, which is now conflict-free.
 
 ### 6. Cleanup
 
@@ -447,13 +482,13 @@ local state goes.
 
 When a sub-issue is blocked, non-convergent after 3 fix cycles, or
 unmergeable, apply the `ready-for-human` triage label to the sub-issue and
-comment on both the sub-issue and the PRD, per the tracker ops. GitHub
+comment on both the sub-issue and the spec, per the tracker ops. GitHub
 default:
 
 ```bash
 gh issue edit <subissue> --add-label "ready-for-human"
 gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url or none>."
-gh issue comment <prd> --body "Sub-issue #<subissue> escalated: <one-line reason>."
+gh issue comment <spec> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
 Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
@@ -476,18 +511,18 @@ continue the loop with the next unblocked sub-issue.
    > everything under `docs/agents/`). Promote only entries that repeat
    > across PRs, correct a doc the code has outgrown, or would clearly have
    > saved another worker real work; drop one-off trivia. If nothing
-   > qualifies, change nothing. Otherwise create branch `agent/harvest-<prd>`
+   > qualifies, change nothing. Otherwise create branch `agent/harvest-<spec>`
    > from origin/main, fold the entries into the right doc (update the
    > existing recipe/pattern doc;
    > create a new `docs/agents/` doc only if none fits), commit as
-   > `docs(agents): harvest discoveries from PRD #<prd> run`, and push with
+   > `docs(agents): harvest discoveries from spec #<spec> run`, and push with
    > `git push origin HEAD:main` — never check out main. If the push is
    > rejected, fetch and rebase once, then push again; if it still fails,
    > stop and report it. End with the `RESULT docs=<updated|none>` line.
 
    With a **local code host** there is no remote to push through and `main`
    may never be moved unattended: instruct the harvest worker to leave its
-   commit on the `agent/harvest-<prd>` branch instead, and list that branch
+   commit on the `agent/harvest-<spec>` branch instead, and list that branch
    in the wrap-up as one more item in the human's merge queue.
 
    This job is best-effort: if it reports blocked, note it in the summary
@@ -505,15 +540,29 @@ continue the loop with the next unblocked sub-issue.
    If it prints a `WARN` line (primary checkout in detached HEAD), include
    it verbatim in the chat summary — never repair the primary checkout
    yourself.
+
+   If the permission system **denies the sweep** (its pattern-matched
+   removal can trip the auto-mode classifier), do not retry it: check
+   `git worktree list`, and if leftovers remain run targeted
+   `--branch`/`--sha` passes for the sub-issues this run delivered —
+   the same shape already used in step 6. Nothing left → just note the
+   denial and move on.
 4. **Push notification** (PushNotification tool):
-   `PRD #<prd>: <N> merged, <M> escalated, <K> still blocked.` — with
+   `Spec #<spec>: <N> merged, <M> escalated, <K> still blocked.` — with
    `merge: manual`, use
-   `PRD #<prd>: <N> ready to merge, <M> escalated, <K> still blocked.`
+   `Spec #<spec>: <N> ready to merge, <M> escalated, <K> still blocked.`
 5. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
    (parallel mode), outcome. List escalated sub-issues with reasons so the
    user can pick them up. With `merge: manual`, list the ready-to-merge PRs
    **in dependency order** — that is the human's merge queue, and merging in
-   that order minimizes conflicts. Note whether the harvest updated docs.
+   that order minimizes conflicts — and give the **exact commands** per the
+   code-host doc's merge operation (local default: `git merge --no-ff
+   <branch> && git branch -d <branch>`, then close each issue per the
+   tracker ops). Sibling PRs branched from the same `main` may conflict on
+   merge — say so, and point at the escape hatch: abort the half-merge and
+   ask you to run the **merge-fix job** on that PR (a worker resolves it in
+   its own worktree; never in the main context). Note whether the harvest
+   updated docs.
 6. **Execution report** — how the run actually unfolded. In parallel
    mode, one line per wave listing the jobs that ran concurrently and their
    outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
@@ -543,6 +592,9 @@ continue the loop with the next unblocked sub-issue.
   script warns that the primary checkout is detached, report it — never
   repair it.
 - Only spawn the fix worker when the review said `NEEDS_FIXES`.
+- Never resolve merge conflicts in the main context — not even when the
+  user hands you one interactively. That is always the merge-fix job's
+  work, in its own worktree.
 - If a worker reports that a permission was denied (posting the review,
   marking the PR ready, merging, …), never re-run the denied command yourself —
   that is tunneling around the denial and will also be blocked. Treat the

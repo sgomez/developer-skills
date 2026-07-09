@@ -6,7 +6,7 @@ The unattended delivery pipeline (`/developer` and its workers) drives this
 tracker through the operations below. The `gh` commands shown inline in the
 delivery skills are the GitHub factory defaults — **these file conventions
 override them.** They build on this tracker's layout: one feature per
-`.scratch/<feature-slug>/` directory, the PRD at `PRD.md`, child issues at
+`.scratch/<feature-slug>/` directory, the spec at `PRD.md`, child issues at
 `issues/<NN>-<slug>.md`.
 
 - **Issue ref**: the issue file's repo-relative path
@@ -33,7 +33,7 @@ override them.** They build on this tracker's layout: one feature per
 
 ### Tickets are per-issue files, never a root `tickets.md`
 
-When a skill breaks a spec/PRD into tickets — e.g. `/to-tickets`, whose
+When a skill breaks a spec into tickets — e.g. `/to-tickets`, whose
 local-files default is a single `tickets.md` in the repo root — this
 tracker's layout **overrides that default**: publish one file per ticket at
 `.scratch/<feature>/issues/<NN>-<slug>.md` next to the parent `PRD.md`,

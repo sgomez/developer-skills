@@ -22,8 +22,8 @@ codebase, then report one machine-readable line. You never write code.
    ```bash
    gh issue view <N> --comments
    ```
-   If it references a parent PRD (native sub-issue or a "Parent" section),
-   skim the PRD body too — Implementation Decisions there often reveal hidden
+   If it references a parent spec (native sub-issue or a "Parent" section),
+   skim the spec body too — Implementation Decisions there often reveal hidden
    complexity.
 
 2. Glance at the codebase only as much as needed to score — check whether the
