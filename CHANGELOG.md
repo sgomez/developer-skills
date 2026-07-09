@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.0] - 2026-07-09
 
 Second round of alignment with mattpocock/skills v1.1 (see 0.11.0): the
 review gate adopts the Spec axis and the Fowler smell baseline from Matt's
@@ -209,7 +209,7 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.11.0...HEAD
+[0.12.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.12.0
 [0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
 [0.10.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.9.0
