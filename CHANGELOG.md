@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Added
+- **Spec auto-close**. The `/developer` wrap-up now closes the spec/PRD issue
+  itself when every sub-issue is verified CLOSED against the tracker (with a
+  comment naming the delivery), instead of leaving it open forever. With
+  `merge: manual` the spec stays open and the human merge queue gains an
+  explicit final step — close the spec after the last sub-issue; the
+  two-argument mode (`/developer <spec> <subissue>`) runs the same check
+  when the delivered sub-issue was the spec's last open one.
 - **Delivery ledger + dispatcher calibration** (report F1). The wrap-up harvest
   job now also records the run in `docs/agents/delivery-ledger.md` — one
   `## Run log` row per delivered sub-issue (date, model, PR, verdict, fix

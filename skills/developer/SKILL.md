@@ -180,7 +180,9 @@ and `#<PR>` for the change ref in the code host's format.)
 - **No sub-issues → single mode**: run the delivery pipeline once on the given
   issue, with the issue itself as spec (no separate parent spec).
 - **Two arguments given**: run the delivery pipeline once on `<subissue>` with
-  `<spec>` as the spec. Skip the loop.
+  `<spec>` as the spec. Skip the loop. If the sub-issue ends **merged**
+  (verified CLOSED), run the wrap-up's **Close the spec** check afterwards —
+  it may have been the spec's last open sub-issue.
 
 ## Progress board (spec mode — not optional)
 
@@ -586,23 +588,42 @@ continue the loop with the next unblocked sub-issue.
    `--branch`/`--sha` passes for the sub-issues this run delivered —
    the same shape already used in step 6. Nothing left → just note the
    denial and move on.
-4. **Push notification** (PushNotification tool):
+4. **Close the spec** — a spec whose sub-issues are all delivered is itself
+   done; leaving it open makes the tracker lie. Re-enumerate the spec's
+   children per the tracker ops (the same operation as Mode detection —
+   never trust the run's own bookkeeping alone: sub-issues may have been
+   closed before this run or outside it). If **every** sub-issue is CLOSED,
+   close the spec per the tracker ops with a comment. GitHub default:
+
+   ```bash
+   gh issue close <spec> --comment "Closed by /developer: all <N> sub-issues delivered and merged."
+   ```
+
+   If any sub-issue is still open (ready-to-merge under `merge: manual`,
+   escalated, or blocked), leave the spec open and say why in the chat
+   summary. Skip this step in single mode when the issue itself was the
+   spec — it already closed on merge.
+5. **Push notification** (PushNotification tool):
    `Spec #<spec>: <N> merged, <M> escalated, <K> still blocked.` — with
    `merge: manual`, use
    `Spec #<spec>: <N> ready to merge, <M> escalated, <K> still blocked.`
-5. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
+   If step 4 closed the spec, use
+   `Spec #<spec> completed and closed: <N> sub-issues merged.`
+6. **Chat summary** — one table: sub-issue, model used, PR, fix cycles, wave
    (parallel mode), outcome. List escalated sub-issues with reasons so the
    user can pick them up. With `merge: manual`, list the ready-to-merge PRs
    **in dependency order** — that is the human's merge queue, and merging in
    that order minimizes conflicts — and give the **exact commands** per the
    code-host doc's merge operation (local default: `git merge --no-ff
    <branch> && git branch -d <branch>`, then close each issue per the
-   tracker ops). Sibling PRs branched from the same `main` may conflict on
-   merge — say so, and point at the escape hatch: abort the half-merge and
-   ask you to run the **merge-fix job** on that PR (a worker resolves it in
-   its own worktree; never in the main context). Note whether the harvest
-   updated docs.
-6. **Execution report** — how the run actually unfolded. In parallel
+   tracker ops). End the queue with its final step: once the last sub-issue
+   is closed, close the spec itself per the tracker ops (`gh issue close
+   <spec>` on GitHub). Sibling PRs branched from the same `main` may
+   conflict on merge — say so, and point at the escape hatch: abort the
+   half-merge and ask you to run the **merge-fix job** on that PR (a worker
+   resolves it in its own worktree; never in the main context). Note whether
+   the harvest updated docs.
+7. **Execution report** — how the run actually unfolded. In parallel
    mode, one line per wave listing the jobs that ran concurrently and their
    outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
    merge-fix on #14`. In sequential mode, the delivery order with any
