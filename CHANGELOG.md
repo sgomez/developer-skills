@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.13.0] - 2026-07-10
+
+The `/developer` pipeline learns across runs and finishes what it starts: the
+dispatcher calibrates its triage from a per-repo delivery ledger, forwards
+its exploration as build hints, and the wrap-up closes the spec/PRD itself
+once every sub-issue is delivered.
+
 ### Added
 - **Spec auto-close**. The `/developer` wrap-up now closes the spec/PRD issue
   itself when every sub-issue is verified CLOSED against the tracker (with a
@@ -236,7 +243,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.12.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.13.0...next
+[0.13.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.13.0
 [0.12.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.12.0
 [0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
 [0.10.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.10.0
