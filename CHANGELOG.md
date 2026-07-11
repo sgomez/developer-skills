@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.14.0] - 2026-07-11
+
 The review gate sheds every trace of approval authority, unblocking the
 pipeline under Claude Code's **auto mode**: its classifier denied the old
 reviewer spawn as Self-Approval — a sub-agent with delegated review-posting
@@ -274,7 +276,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.13.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.14.0...next
+[0.14.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.14.0
 [0.13.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.13.0
 [0.12.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.12.0
 [0.11.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.11.0
