@@ -181,13 +181,34 @@ the first line, set the two values in the fenced block).
 the two questions with the current values as the recommended options, and
 rewrite the file.
 
-**If the user chose `merge: auto`**, the merge (and the other code-host
-writes) will hit permission prompts — and with nobody at the keyboard a
-single denial escalates the sub-issue instead of merging it. Offer to add
-the host's block to the repo's `.claude/settings.json` (merge with existing
-content).
+**Regardless of the merge choice**, the pipeline's code-host writes will
+hit permission prompts — and with nobody at the keyboard a single denial
+escalates the sub-issue instead of delivering it. Offer to add the
+allowlist and the auto-mode context, split across two files because they
+are read from different scopes (merge with existing content in both):
 
-**GitHub** (replace OWNER/REPO from `git remote -v`):
+- **`.claude/settings.json`** (shared, committable) — the
+  `permissions.allow` rules for the host CLI. Explicit allow rules resolve
+  **before** the auto-mode classifier runs, and narrow rules (fixed
+  subcommands) carry over into auto mode, so allowlisted writes are never
+  classified.
+- **`.claude/settings.local.json`** (per-project too, but gitignored) —
+  the allow rule for the bundled cleanup script: it embeds this machine's
+  absolute plugin path, which would break for teammates if committed. A
+  user who prefers configuring once may put it in `~/.claude/settings.json`
+  instead (the plugin path is the same for all their projects).
+
+Write `permissions` rules only — never an `autoMode` block.
+
+**Expect a permission prompt on these writes.** `.claude/` settings files
+are protected paths: no allow rule pre-approves writing them. Show the
+user the exact JSON before writing; their approval at the prompt is the
+authorization. If the write is denied, do **not** retry or route around
+it — print the blocks and the target file paths and have the user paste
+them in.
+
+**GitHub** (replace OWNER/REPO from `git remote -v`) — in
+`.claude/settings.json`:
 
 ```json
 {
@@ -198,37 +219,39 @@ content).
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
     ]
-  },
-  "autoMode": {
+  }
+}
+```
+
+and in `.claude/settings.local.json`, with `<plugin-root>` resolved to this
+plugin's installed location (the directory two levels above this SKILL.md):
+
+```json
+{
+  "permissions": {
     "allow": [
-      "$defaults",
-      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN.",
-      "Running the developer-skills cleanup-worktrees.sh script (including --sweep) is allowed: it only removes the pipeline's own linked worktrees and agent/* branches, refuses to touch the primary checkout, and is the sanctioned cleanup path of the /developer pipeline."
+      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)"
     ]
   }
 }
 ```
 
-**GitLab**: the analogous block —
+Drop the merge rule when the user chose `merge: manual` (the
+ready/comment/review rules still save prompts during review and fix
+cycles).
+
+**GitLab**: the analogous rules —
 `"Bash(glab mr update:*)"`, `"Bash(glab mr note:*)"`,
 `"Bash(glab mr merge:*)"`,
-`"Bash(glab api projects/*/merge_requests/*)"`, and the same
-`autoMode.allow` sentence with "merge requests", `glab mr merge`, and the
-project path substituted.
+`"Bash(glab api projects/*/merge_requests/*)"` — plus the same
+cleanup-worktrees.sh rule in `.claude/settings.local.json`.
 
-**Local / Other**: no merge rules apply (local never auto-merges; for other
-hosts derive the allowlist from the commands recorded in
-`docs/agents/code-host.md`) — but **still offer the cleanup-worktrees
-`autoMode.allow` sentence**: the wrap-up's `--sweep` is a pattern-matched
-worktree removal, exactly the shape the auto-mode classifier denies, and
-local runs hit it like any other.
-
-The `autoMode.allow` sentence matters as much as the allowlist: auto mode
-double-checks outward-facing actions like merges in natural language even
-when the command is allowlisted, so it needs the plain-English record that
-the user authorized merging. With `merge: manual`, offer the same block
-minus the merge rules (the ready/comment/review rules still save prompts
-during review and fix cycles).
+**Local / Other**: no merge or review-posting rules apply (local never
+auto-merges and its review is a committed file; for other hosts derive the
+allowlist from the commands recorded in `docs/agents/code-host.md`) — but
+**still offer the cleanup-worktrees.sh rule**: the wrap-up's `--sweep` is a
+pattern-matched worktree removal, exactly the shape the auto-mode
+classifier denies, and local runs hit it like any other.
 
 ### 7. Report
 

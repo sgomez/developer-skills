@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+The review gate sheds every trace of approval authority, unblocking the
+pipeline under Claude Code's **auto mode**: its classifier denied the old
+reviewer spawn as Self-Approval — a sub-agent with delegated review-posting
+*and* mark-ready authority over a PR authored by a sibling sub-agent of the
+same session.
+
+### Changed
+- **Marking the PR ready moves from the reviewer to the orchestrator.**
+  The `diff-reviewer` still posts the review itself — always a single
+  COMMENT submission, never an approval event and never `gh pr ready` —
+  and the `/developer` orchestrator runs the code-host doc's mark-ready
+  operation after the verdict. Local hosts unchanged: `Status: ready`
+  travels in the reviewer's change-file commit. The reviewer spawn prompt
+  drops the self-attested authorization wording ("you are authorized to
+  perform these code-host writes") that the classifier read as delegated
+  self-approval.
+- `/developer`'s permission-denial rule now also covers the orchestrator's
+  own code-host writes (marking ready, merging): a denied action is never
+  re-run or re-shaped into a different command — the sub-issue escalates.
+
+### Fixed
+- `/setup-developer-skills` no longer writes any `autoMode` block. The old
+  one was doubly wrong: it went into the shared `.claude/settings.json` — a
+  scope the auto-mode classifier deliberately ignores (a checked-in repo
+  must not grant itself trust), so it was dead config — and it is
+  unnecessary anyway, because explicit `permissions.allow` rules resolve
+  *before* the classifier and narrow rules carry over into auto mode, so
+  the pipeline's allowlisted writes are never classified. The `gh`/`glab`
+  rules stay in the shared file; the machine-specific cleanup-worktrees.sh
+  rule goes to `.claude/settings.local.json`.
+
 ## [0.13.0] - 2026-07-10
 
 The `/developer` pipeline learns across runs and finishes what it starts: the

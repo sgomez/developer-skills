@@ -127,7 +127,11 @@ approval signal.
 
 ### 5. Mark ready
 
-Per the code-host doc — GitHub default:
+As a `/developer` worker, skip this step — marking the PR ready is the
+orchestrator's job (on a local code host it stays yours: `Status: ready`
+goes in the same change-file commit as the review).
+
+Interactively, per the code-host doc — GitHub default:
 
 ```bash
 gh pr ready <PR>

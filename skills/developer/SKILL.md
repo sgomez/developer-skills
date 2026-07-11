@@ -92,8 +92,9 @@ What `merge` means:
   (Merge step; `gh pr merge` on GitHub). The
   committed `merge: auto` line in `docs/agents/developer-defaults.md` is the
   user's standing authorization for these merges.
-- **`manual`** — the pipeline stops at CLEAN: the PR is already marked ready
-  by the reviewer, so record the sub-issue as **ready-to-merge** and leave
+- **`manual`** — the pipeline stops at CLEAN: you already marked the PR
+  ready after the review, so record the sub-issue as **ready-to-merge**
+  and leave
   the merge to the human. Because sub-issues only close on merge
   (`Closes #N`), anything `Blocked by` a ready-to-merge sub-issue stays
   blocked for the rest of the run — expected, not an error; it lands in the
@@ -264,9 +265,10 @@ Work in **waves**:
 2. Run the delivery pipeline on each wave member concurrently: spawn all
    `dispatcher`s in one batch, then the `code-author` BUILD jobs in parallel
    (each in its own worktree, `run_in_background: true`). As each build
-   reports its PR, spawn its `diff-reviewer`; fix cycles run per PR exactly
-   as in the sequential pipeline. Cap concurrent build/review/fix workers at
-   **3**; queue the rest of the wave.
+   reports its PR, spawn its `diff-reviewer`; as each reviewer reports,
+   mark that PR ready (step 3 of the pipeline); fix cycles run per PR
+   exactly as in the sequential pipeline. Cap concurrent build/review/fix
+   workers at **3**; queue the rest of the wave.
 3. **Merges stay strictly serial** — never merge two PRs concurrently. With
    `merge: auto`, merge each PR as it reaches CLEAN. Every PR in the wave
    branched from the same `main`, so any PR merged after the first may
@@ -323,10 +325,20 @@ Spawn `diff-reviewer` with `isolation: "worktree"`:
 
 > Review PR #`<PR>` by running the review-pr skill on it — its step 1 plus
 > the repo's `docs/agents/code-host.md` give the exact checkout procedure
-> for your worktree; follow them, not memory. Posting the review (inline
-> comments + summary) on the PR and marking it ready are part of your
-> delegated task — you are authorized to perform these code-host writes.
-> End with the `RESULT verdict=…` line.
+> for your worktree; follow them, not memory. Post the review (inline
+> comments + summary) as a single COMMENT submission — never an approval
+> event — and do not mark the PR ready or merge; those are orchestrator
+> steps. End with the `RESULT verdict=…` line.
+
+Then **mark the PR ready yourself**, whatever the verdict — per the
+code-host doc's mark-ready operation. GitHub default:
+
+```bash
+gh pr ready <PR>
+```
+
+Skip this on a local code host (the reviewer's change-file commit already
+carries `Status: ready`) and on a re-review (the PR is already ready).
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
@@ -362,8 +374,8 @@ For cycle `c` = 1, 2, 3:
 ### 5. Merge
 
 **With `merge: manual`** (the factory default) there is nothing to merge:
-the reviewer already marked the PR ready, so record the sub-issue as
-**ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
+you already marked the PR ready after the review, so record the sub-issue
+as **ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
 run **Cleanup** (step 6), and move on. The sub-issue stays open until the
 human merges, so its dependents remain blocked this run.
 
@@ -655,7 +667,12 @@ continue the loop with the next unblocked sub-issue.
 - Never resolve merge conflicts in the main context — not even when the
   user hands you one interactively. That is always the merge-fix job's
   work, in its own worktree.
-- If a worker reports that a permission was denied (posting the review,
-  marking the PR ready, merging, …), never re-run the denied command yourself —
-  that is tunneling around the denial and will also be blocked. Treat the
-  sub-issue as blocked: **escalate** it and continue the loop.
+- Marking ready and merging are yours, never a worker's; posting the review
+  is the reviewer's, never yours. Never author, edit, or amend review
+  content in the main context.
+- If a permission is denied — a worker reports one (posting the review,
+  pushing, commenting), or your own code-host write is denied (marking
+  ready, merging, …) — never re-run the denied action yourself or re-shape
+  it into a different command: that is tunneling around the denial and will
+  also be blocked. Treat the sub-issue as blocked: **escalate** it and
+  continue the loop.

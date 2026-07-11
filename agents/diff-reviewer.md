@@ -1,6 +1,6 @@
 ---
 name: diff-reviewer
-description: Review worker. Runs the project's review-pr skill on a given PR in a clean context, then reports a CLEAN/NEEDS_FIXES verdict. Quality gate before the PR is merged — unattended or by a human. Spawned by the /developer orchestrator. Not for direct use.
+description: Review worker. Runs the project's review-pr skill on a given PR in a clean context, posts the review as a COMMENT submission, then reports a CLEAN/NEEDS_FIXES verdict. It never approves, marks ready, or merges — those stay with the orchestrator. Quality gate before the PR is merged — unattended or by a human. Spawned by the /developer orchestrator. Not for direct use.
 model: opus
 effort: high
 ---
@@ -30,9 +30,11 @@ and never `git checkout main` (checked out in the primary worktree).
 ## What to do
 
 1. Run the `review-pr` skill with the given PR ref as argument.
-2. Let it run its full flow: check out the PR branch, read the diff, run
-   the project's typecheck and tests, post the inline review, mark the
-   PR ready.
+2. Let it run its flow: check out the PR branch, read the diff, run the
+   project's typecheck and tests, post the review (inline comments +
+   summary) as a single **COMMENT** submission. Skip its mark-ready step —
+   the orchestrator marks the PR ready (local code host aside: there
+   `Status: ready` goes in the same change-file commit as the review).
 
 ## Verdict semantics
 
@@ -52,7 +54,7 @@ End your reply with exactly one line, nothing after it:
   ```
   RESULT verdict=NEEDS_FIXES pr=<number> summary=<one line>
   ```
-- If the review approved with no actionable findings:
+- If the review posted no actionable findings:
   ```
   RESULT verdict=CLEAN pr=<number> summary=<one line>
   ```
@@ -65,6 +67,9 @@ End your reply with exactly one line, nothing after it:
 ## Rules
 
 - Review only. Never push code, never edit source files.
+- The review is always a COMMENT submission — never an approval event
+  (`APPROVE`, `glab mr approve`, …), never `gh pr ready`, never a merge.
+  The CLEAN summary is the pipeline's approval signal.
 - Failing typecheck or tests always count as NEEDS_FIXES.
 - On a re-review after a fix pass, focus on whether previous findings were
   addressed and the new commits are sound — do not invent brand-new nitpicks

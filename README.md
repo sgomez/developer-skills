@@ -43,6 +43,10 @@ triage → build → review → fix → merge — and pings you when it's done.
   moves on. Push notification with the tally at the end.
 - **Isolated** — every worker runs in its own git worktree; the orchestrator
   never touches your checkout.
+- **Two-party by construction** — the `diff-reviewer` posts COMMENT
+  reviews only (the CLEAN summary is the pipeline's approval signal), and
+  marking ready and merging stay with the orchestrator. No agent holds
+  approval authority over agent-authored code.
 
 > By default `/developer` does **not** merge: a CLEAN PR is marked ready and
 > handed to you, with the wrap-up listing the merge queue in dependency
@@ -162,9 +166,15 @@ default. With nobody at the keyboard, one denial means the worker reports
 blocked and the sub-issue gets escalated instead of merged.
 `/setup-developer-skills` offers to write this configuration for you (the
 merge rules only when you chose `merge: auto`), adapted to your code host —
-the GitHub version by hand means pre-approving these `gh` calls in the
-target repo's `.claude/settings.json` (replace `OWNER/REPO`; GitLab is the
-same shape with the `glab` equivalents):
+split across two files because they are read from different scopes.
+Expect a permission prompt when it writes them — `.claude/` settings are
+protected paths, so your approval at that prompt is the authorization (on
+a denial, the skill prints the blocks for you to paste by hand). The
+GitHub version by hand (replace `OWNER/REPO`; GitLab is the same shape
+with the `glab` equivalents):
+
+**`.claude/settings.json`** (shared, committable — pre-approves the `gh`
+calls; explicit allow rules resolve *before* the auto-mode classifier runs):
 
 ```json
 {
@@ -175,37 +185,36 @@ same shape with the `glab` equivalents):
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
     ]
-  },
-  "autoMode": {
+  }
+}
+```
+
+**`.claude/settings.local.json`** (still per-project, but gitignored —
+this rule embeds `<plugin-root>`, the plugin's install path on *this*
+machine, which would break for teammates if committed; put it in
+`~/.claude/settings.json` instead if you'd rather allow the bundled script
+once for every project):
+
+```json
+{
+  "permissions": {
     "allow": [
-      "$defaults",
-      "Merging pull requests in the OWNER/REPO repository (gh pr merge, or the equivalent gh api merge endpoint) is allowed: the user opted into merge: auto in docs/agents/developer-defaults.md, so the /developer pipeline auto-merges PRs after the diff-reviewer reports CLEAN.",
-      "Running the developer-skills cleanup-worktrees.sh script (including --sweep) is allowed: it only removes the pipeline's own linked worktrees and agent/* branches, refuses to touch the primary checkout, and is the sanctioned cleanup path of the /developer pipeline."
+      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)"
     ]
   }
 }
 ```
 
 - **`permissions.allow`** pre-approves exactly the writes the pipeline needs:
-  `gh pr ready` and the reviews API (diff-reviewer posts the inline review and
-  flips the PR out of draft), `gh pr comment` (fix-pr replies to threads,
-  escalation comments), `gh pr merge` (the orchestrator's auto-merge).
-- **`autoMode.allow`** only matters if you run with `"defaultMode": "auto"`:
-  auto mode double-checks outward-facing actions in natural language even when
-  the command is allowlisted — merging an agent-authored PR is exactly the
-  kind of action it is suspicious of — so it needs a plain-English rule
-  stating that *you* authorized merging (that's also why the rule cites
-  `docs/agents/developer-defaults.md`: the committed `merge: auto` line is
-  the durable record of that authorization). Keep `"$defaults"` first to
-  preserve the built-in rules. The cleanup sentence applies on **every**
-  host and merge mode (it's the one rule a local repo still needs): the
-  wrap-up's `--sweep` is a pattern-matched worktree removal — exactly the
-  shape the classifier flags — and without the rule the final sweep gets
-  denied.
+  the reviews API (the diff-reviewer posts the inline review) and
+  `gh pr ready` (the orchestrator flips the PR out of draft),
+  `gh pr comment` (fix-pr replies to threads, escalation comments),
+  `gh pr merge` (the orchestrator's auto-merge), and `cleanup-worktrees.sh`
+  (the wrap-up sweep).
 
 Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
-blast radius small; the other three are gh-subcommand-scoped and safe to allow
-globally in `~/.claude/settings.json` if you prefer.
+blast radius small; the ready/comment/merge rules are gh-subcommand-scoped
+and safe to allow globally in `~/.claude/settings.json` if you prefer.
 
 ## Antigravity
 
