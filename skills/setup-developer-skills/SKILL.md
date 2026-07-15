@@ -188,10 +188,17 @@ allowlist and the auto-mode context, split across two files because they
 are read from different scopes (merge with existing content in both):
 
 - **`.claude/settings.json`** (shared, committable) — the
-  `permissions.allow` rules for the host CLI. Explicit allow rules resolve
-  **before** the auto-mode classifier runs, and narrow rules (fixed
-  subcommands) carry over into auto mode, so allowlisted writes are never
-  classified.
+  `permissions.allow` rules for the host CLI. Narrow allow rules (fixed
+  subcommands) resolve **before** the auto-mode classifier and keep the
+  review / mark-ready / comment writes from being classified. The **merge is
+  the exception**: in auto mode the classifier re-evaluates the pipeline's
+  unattended `gh pr merge` as a "merge without human approval" pattern and
+  denies it *even when* `gh pr merge` is allow-listed. That single command is
+  handled deterministically by this plugin's PreToolUse hook
+  (`hooks/approve-merge.sh`) — it grants a PreToolUse `allow`, which runs
+  before the classifier, and fires only in `merge: auto` repos. The
+  `gh pr merge` allow rule below still spares a prompt when the pipeline runs
+  outside auto mode.
 - **`.claude/settings.local.json`** (per-project too, but gitignored) —
   the allow rule for the bundled cleanup script: it embeds this machine's
   absolute plugin path, which would break for teammates if committed. A
