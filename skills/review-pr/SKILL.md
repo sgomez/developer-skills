@@ -43,10 +43,15 @@ If both paths are equal you are in the **primary checkout** — detaching or
 switching it would hijack the user's working state. Never do it: as a
 /developer worker end with `RESULT blocked reason=escaped worktree —
 refusing to touch the primary checkout`; interactively, stop and tell the
-user. In a linked worktree, check out the change head detached, per the
-code-host doc's read-only checkout. GitHub default:
+user. Then check out the change head detached, per the code-host doc's
+read-only checkout — but **gate the checkout on the worktree check in the
+same command**, so that if your cwd ever drifts to the primary checkout the
+`git checkout` simply does not run (you get a clean blocked report instead of
+hijacking the user's working state). GitHub default:
 
 ```bash
+[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] \
+  || { echo "escaped worktree — refusing to touch the primary checkout"; exit 1; }
 git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
 ```
 

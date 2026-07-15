@@ -23,6 +23,17 @@ Changes staged on the `next` branch, published as a new version once ready.
   chained commands, `--admin`, any non-merge Bash, and `merge: manual` repos
   never get the `allow`, so nothing is widened beyond that single command.
 
+### Fixed
+- **A review worker can no longer detach the primary checkout.** The
+  `review-pr` checkout step was a two-part advisory — "confirm you are in a
+  linked worktree, *then* check out the change head detached" — that a worker
+  could skip, running `git checkout --detach FETCH_HEAD` in the primary
+  checkout and leaving it in detached HEAD at the PR head. The worktree check
+  is now folded into the checkout command itself
+  (`[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] || exit 1`),
+  so a drifted cwd yields a clean `blocked` report instead of hijacking the
+  user's working state. Mirrored in both `diff-reviewer` agent copies.
+
 ## [0.14.0] - 2026-07-11
 
 The review gate sheds every trace of approval authority, unblocking the
