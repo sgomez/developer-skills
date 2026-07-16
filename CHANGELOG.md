@@ -9,10 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.15.0] - 2026-07-16
+
+`merge: auto` finally delivers unattended under Claude Code's **auto mode**.
+The classifier had been denying the orchestrator's merge as an unreviewed
+one — correctly, on the facts: under this pipeline's design nobody ever
+approves the PR. An allow-list rule never exempted it (observed with
+`Bash(gh pr merge:*)` in place for days while merges were still denied); a
+PreToolUse `allow` does, because it resolves before the classifier runs.
+
 ### Added
 - **PreToolUse hook that auto-approves the pipeline's one sanctioned merge.**
-  A new plugin hook (`hooks/approve-merge.sh`, wired through `hooks/hooks.json`
-  and `plugin.json`) grants a PreToolUse `allow` decision to exactly
+  A new plugin hook (`hooks/approve-merge.sh`, registered by `hooks/hooks.json`,
+  which Claude Code auto-loads from the standard path — the manifest must not
+  name it too) grants a PreToolUse `allow` decision to exactly
   `gh pr merge <PR> --merge|--squash|--rebase`, and only in repos whose
   `docs/agents/developer-defaults.md` carries `merge: auto`. This is the
   deterministic path the allow-list alone could not provide: in auto mode the
@@ -301,7 +311,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.14.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.15.0...next
+[0.15.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.15.0
 [0.14.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.14.0
 [0.13.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.13.0
 [0.12.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.12.0
