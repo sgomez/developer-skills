@@ -8,11 +8,18 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
   `review-pr`, `setup-developer-skills`), each with its own `SKILL.md`.
 - `agents/` — worker agent definitions as top-level `.md` files
   (`code-author.md`, `diff-reviewer.md`, `dispatcher.md`).
+- `hooks/` — `hooks.json` plus the hook scripts it registers. Claude Code
+  auto-loads `hooks/hooks.json` from this standard path, so **do not** also
+  name it in `plugin.json`'s `hooks` key: that registers the same file twice
+  and the whole plugin fails to load. The manifest key is only for hook files
+  kept somewhere else.
 - `.claude-plugin/plugin.json` — the plugin manifest and **canonical version**.
 - `.claude-plugin/marketplace.json` — marketplace entry; points at `./`. The
   schema *allows* a per-plugin `version`, but we deliberately omit it so
   `plugin.json` stays the single source of truth — **do not add one here**.
 - `CHANGELOG.md` — user-facing history (see release process below).
+- `BACKLOG.md` — unscheduled ideas, with what blocks each one. Not a roadmap;
+  entries leave when they ship or stop being good ideas.
 
 ## Conventions
 
@@ -59,8 +66,12 @@ promotes that section to the new version.
    ```
    Keep it a fast-forward so `main` lands the exact bump commit (rebase `next`
    onto `main` first if it has diverged).
-5. **Tag** the version-bump commit on `main`: `git tag vX.Y.Z`.
-6. **Push** `main` and the tag: `git push origin main --follow-tags`.
+5. **Tag** the version-bump commit on `main` with an **annotated** tag:
+   `git tag -a vX.Y.Z -m vX.Y.Z`. It must be annotated — `--follow-tags` in
+   the next step pushes annotated tags only, and silently ignores lightweight
+   ones.
+6. **Push** `main` and the tag: `git push origin main --follow-tags`. Confirm
+   the tag actually landed: `git ls-remote --tags origin vX.Y.Z`.
 7. **Publish the GitHub release**, using that version's changelog section as the
    body and marking it as a pre-release while on `0.x`:
    ```sh
