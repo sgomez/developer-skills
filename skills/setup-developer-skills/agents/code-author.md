@@ -31,9 +31,12 @@ Consequences:
   already-merged work. On a BUILD job, before reading any source as prior art:
   `git fetch origin main` and branch from `origin/main` (no remote — local
   code host — means branch from local `main` instead), then install
-  dependencies (`pnpm install` or the project's equivalent — worktrees do not
-  share `node_modules`), then run any prerequisite build the project's agent
-  docs call out (e.g. a shared contract package the apps consume from `dist`).
+  dependencies **quietly** — `pnpm install --reporter=silent` or the project's
+  equivalent (worktrees do not share `node_modules`; a full install log is
+  hundreds of lines of context you will never read again, and if the tool has
+  no quiet flag, redirect it to a file and read only the tail, and only when it
+  fails) — then run any prerequisite build the project's agent docs call out
+  (e.g. a shared contract package the apps consume from `dist`).
 - Never run `git checkout main` — `main` is checked out in the primary
   worktree and the command will fail. Branch from the remote instead:
   `git fetch origin main && git checkout -b <branch> origin/main`.
@@ -93,7 +96,8 @@ unfixable failing checks) — that is what `RESULT blocked` is for.
 
 ## Output (required)
 
-End your reply with exactly one line, nothing after it:
+Your **entire final message is one line** — nothing before it, nothing after
+it:
 
 ```
 RESULT pr=<ref> url=<pr-url>
@@ -101,6 +105,13 @@ RESULT pr=<ref> url=<pr-url>
 
 (`<ref>` is the change ref in the code host's format — a number on
 GitHub/GitLab, the branch name on a local host, where `url=-`.)
+
+No summary of what you built, no recap of the decisions you made, no list of
+the files you touched. Your reply lands whole in the orchestrator's context and
+dies there; it is the one context that must survive every other sub-issue of
+the run. Everything you want on record has a durable home instead — the PR body
+(`## What changed`, `## Test plan`, `## Discoveries`), a thread reply, an issue
+comment — and you have already written it there by the time you report.
 
 On a HARVEST job, end instead with:
 
@@ -121,4 +132,5 @@ RESULT blocked reason=<one-line reason>
   (auto-close where the host supports it, the orchestrator otherwise), and
   the orchestrator handles merging.
 - Do not modify files unrelated to the job.
-- The `RESULT` line is how the orchestrator continues. Always emit it last.
+- The `RESULT` line is how the orchestrator continues. Always emit it — and
+  emit nothing else.

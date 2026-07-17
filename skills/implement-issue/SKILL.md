@@ -40,13 +40,18 @@ gh api graphql -f query='
 {
   repository(owner:"OWNER", name:"REPO") {
     issue(number: ISSUE_NUM) {
-      subIssues(first: 20) {
-        nodes { number title state body }
+      subIssues(first: 50) {
+        pageInfo { hasNextPage }
+        nodes { number title state }
       }
     }
   }
-}' --jq '.data.repository.issue.subIssues.nodes[] | select(.state == "OPEN") | "#\(.number) \(.title)"'
+}' --jq '.data.repository.issue.subIssues'
 ```
+
+If `hasNextPage` is `true`, **stop and report**: a parent with more than 50
+children should be split, not worked through — and picking from a truncated
+list would silently ignore the rest.
 
 If sub-issues exist, pick the first unblocked one. Blockers may be wired as the tracker's native dependency links, as a "Blocked by" section in the sub-issue body, or both (`/to-tickets` prefers native edges where the tracker has them) — check both, per the tracker doc's blocker-state operation. GitHub default:
 
@@ -109,9 +114,13 @@ missing already-merged work and send you down a stale path.
 
 In a fresh worktree, right after branching:
 
-1. Install dependencies (`pnpm install` or the project's equivalent) —
-   worktrees do not share `node_modules`, and missing deps produce misleading
-   typecheck/test failures in packages you never touched.
+1. Install dependencies (`pnpm install --reporter=silent` or the project's
+   equivalent) — worktrees do not share `node_modules`, and missing deps
+   produce misleading typecheck/test failures in packages you never touched.
+   Install **quietly**: the log is hundreds of lines you will never read, and
+   when the install fails the tail says why. Where the tool has no quiet flag,
+   redirect to a file (`> /tmp/install.log 2>&1`) and read only that tail, only
+   on failure.
 2. Run any prerequisite build the project's agent docs call out (e.g. a shared
    contract package the apps consume from `dist` — check `AGENTS.md` /
    `CLAUDE.md` for the exact command).
@@ -134,12 +143,27 @@ never absolute paths into the primary checkout.
   green). Leave refactor-level cleanups to the review phase — the reviewer
   flags them; don't overload the implementation session
 - Keep change as small as possible — only what the issue requires
-- Run the project's checks (see `AGENTS.md` / `CLAUDE.md` for the exact commands), typically:
+
+**Run the tests you are working on, not all of them.** Each red → green loop
+runs **only the affected test file**, with the project's quietest reporter:
+
+```bash
+pnpm test <path/to/the.test.ts> --reporter=dot   # or --silent, per the project
+```
+
+The full suite runs **once**, at the end of this step, after the last loop is
+green — together with the typecheck:
 
 ```bash
 pnpm typecheck
-pnpm test
+pnpm test --reporter=dot
 ```
+
+(See `AGENTS.md` / `CLAUDE.md` for this project's exact commands and its quiet
+reporter.) The suite printed after every loop is what actually exhausts a
+worker's context — far more than any source file — and it tells you nothing the
+one file didn't. When a run comes back red, re-run **just the failing file or
+test name** for its output; never the suite.
 
 Fix all failures before proceeding. If you cannot fix them, see **Blocked** below.
 

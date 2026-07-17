@@ -22,6 +22,15 @@ operations below override them**.
 - **Publish a change**: push the branch, then
   `glab mr create --draft --source-branch <branch> --target-branch main --title "..." --description "..."`.
   Use a heredoc for multi-line descriptions.
+- **Find the open change for an issue** (the orchestrator's resume check):
+  `glab mr list --state opened --search "Closes #<N>" -F json`, then keep only
+  MRs whose `description` really contains `Closes #<N>` — the search matches
+  titles too. The `draft` field says whether it still needs marking ready.
+- **Count unresolved threads on a change**:
+  ```bash
+  glab api "projects/:id/merge_requests/<MR>/discussions" \
+    --jq '[.[] | select(any(.notes[]; .resolvable and (.resolved | not)))] | length'
+  ```
 - **Change metadata**: `glab mr view <MR> -F json` — fields `iid`, `title`,
   `source_branch`, `sha` (head), `state`, `draft`.
 - **Check out a change in a linked worktree (review, read-only)**: GitLab

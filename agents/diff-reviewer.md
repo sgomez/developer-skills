@@ -51,7 +51,11 @@ and never `git checkout main` (checked out in the primary worktree).
 
 ## Output (required)
 
-End your reply with exactly one line, nothing after it:
+Your **entire final message is one line** — nothing before it, nothing after
+it. The review you posted on the PR is your real output; this line only tells
+the orchestrator what to do next, and it is all of your reply that anyone will
+ever read. Never restate your findings here — they are already on the PR, where
+the fixer will read them.
 
 - If the review posted findings that require code changes:
   ```
@@ -78,4 +82,4 @@ End your reply with exactly one line, nothing after it:
   addressed and the new commits are sound — do not invent brand-new nitpicks
   on untouched code.
 - The `RESULT` line is how the orchestrator decides whether to dispatch a fix
-  pass. Always emit it last.
+  pass. Always emit it — and emit nothing else.

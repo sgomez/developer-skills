@@ -18,6 +18,11 @@
 #   3. The repo opted into unattended merges: docs/agents/developer-defaults.md
 #      carries a `merge: auto` line. Interactive `--auto-merge` overrides on a
 #      `merge: manual` repo are deliberately NOT covered — a prompt there is fine.
+#   4. The call comes from the primary checkout, where the orchestrator runs.
+#      developer-defaults.md is committed, so guard 3 is equally true inside
+#      every worker's linked worktree — a worker that merged on its own would
+#      be auto-approved by guards 1-3 alone. Merging is the orchestrator's
+#      alone, and only it runs where git-dir == git-common-dir.
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -32,6 +37,12 @@ re='^gh pr merge [0-9]+ --(merge|squash|rebase)$'
 cwd="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null)" || exit 0
 [[ -n "$cwd" ]] || cwd="$PWD"
 grep -qE '^merge:[[:space:]]*auto[[:space:]]*$' "$cwd/docs/agents/developer-defaults.md" 2>/dev/null || exit 0
+
+# 4. Only from the primary checkout. In a linked worktree these two paths
+#    differ; outside a repo both are empty, which must not read as a match.
+gitdir="$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)" || exit 0
+commondir="$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null)" || exit 0
+[[ -n "$gitdir" && "$gitdir" == "$commondir" ]] || exit 0
 
 jq -nc '{
   hookSpecificOutput: {

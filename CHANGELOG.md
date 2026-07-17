@@ -9,6 +9,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+Run robustness: a `/developer` run can now be interrupted and re-launched
+without paying for the work it already did, and it stops paying twice for the
+work it will never finish.
+
+### Added
+- **Resume instead of rebuild** (report D1). The delivery pipeline gains a
+  step 0: before triaging a sub-issue it asks the code host whether an open
+  change already references it (`gh pr list --search '"Closes #<N>" in:body'`),
+  and enters at the right stage — Review when the PR has no unresolved threads,
+  the Fix cycle when it has, Triage/Build only when there is no PR at all. A
+  session that died mid-run used to re-enumerate the same open sub-issues and
+  rebuild them from scratch, opening a second PR per sub-issue and paying for a
+  second review of it. Two open changes for one sub-issue escalate rather than
+  guess. The `code-host-{gitlab,local}.md` templates map the two new operations
+  (find the open change for an issue; count its unresolved threads) for the
+  other hosts.
+- **The `ready-for-human` label is now a gate, not just a marker** (report D2).
+  The pick (spec loop step 1 and the parallel wave) skips any sub-issue
+  carrying the escalation label — previously it was applied on escalation and
+  never read again, so "skip what you escalated" lived only in the session's
+  memory and the *next* run happily picked the same sub-issue up and burned
+  three more fix cycles against the same wall. The contract is symmetric and
+  documented in the wrap-up: **removing the label re-queues the sub-issue**,
+  and the re-run resumes its PR (D1) instead of rebuilding it. The GitHub
+  sub-issue enumeration now fetches labels for this.
+- **Ledger rows are written when they happen** (report C6). Each sub-issue
+  appends its row to `.scratch/developer-run-<spec>.log` the moment it goes
+  terminal (new pipeline step 7); the wrap-up reads that file instead of
+  recalling ten sub-issues' worth of tiers, PR numbers and cycle counts through
+  a context compaction. The harvest gets the rows verbatim, and the log is
+  deleted once they are committed to the ledger.
+
+### Changed
+- **A worker's entire final message is its `RESULT` line** (report C1). The old
+  contract ("end your reply with exactly one line, nothing after it") only
+  pinned the *last* line, so a thorough builder prefaced it with a summary that
+  landed whole in the orchestrator's context — 30–50 such reports in a ten
+  sub-issue run, none of which survive the run. All three agents and every
+  spawn prompt now require the line to be the whole message, and point the
+  worker at the durable homes for anything worth keeping: the PR body,
+  `## Discoveries`, thread replies.
+- **Workers run targeted, quiet checks** (report C5). `implement-issue` now
+  prescribes the discipline `/implement` already had: during TDD run **only the
+  affected test file**, with the project's quietest reporter, and the full suite
+  **once**, at the end — on red, re-run just the failing file. `fix-pr` and
+  `review-pr` ask for quiet reporters and targeted re-runs too, and the
+  worktree bootstrap installs silently (`pnpm install --reporter=silent`) in
+  both `implement-issue` and `code-author`. The context eaters inside a worker
+  were never the source files: they were install logs and the same green suite
+  printed five times.
+- **Blockers are parsed by section** (report D5). `grep -A3 -i "blocked by"`
+  read a fixed window by construction — dropping the fourth blocker of a longer
+  list and capturing the head of the next section on a shorter one. Replaced
+  with section extraction (`awk '/^##[#]* *[Bb]locked by/{f=1;next} /^#/{f=0} f'`)
+  in `/developer` and `delivery-ops-github.md`. The sub-issue GraphQL queries
+  (`first: 50`, unchecked — `first: 20` in `implement-issue`) now fetch
+  `pageInfo { hasNextPage }` and **stop the run when it is true**: a spec with
+  more children than one page was silently delivered as complete, and a spec
+  that genuinely has 50+ sub-issues is not sized for this pipeline — it gets
+  reported for splitting, not paginated through.
+
+### Fixed
+- **The merge hook only approves from the primary checkout** (report D6).
+  `approve-merge.sh` keyed on a `merge: auto` line in
+  `docs/agents/developer-defaults.md` under the caller's `cwd` — a committed
+  file, so it is equally present in every worker's worktree, and a worker that
+  ran `gh pr merge` on its own would have been auto-approved. It now also
+  requires `git-dir == git-common-dir`, true only in the primary checkout where
+  the orchestrator runs. Merging was already the orchestrator's alone; now the
+  hook enforces it deterministically instead of trusting the prose.
+
+### Documentation
+- The release process checks the two `agents/` copies are identical
+  (`diff -r agents skills/setup-developer-skills/agents`) before a version goes
+  out, and AGENTS.md states the duplication as a convention (report D7).
+
 ## [0.15.0] - 2026-07-16
 
 `merge: auto` finally delivers unattended under Claude Code's **auto mode**.

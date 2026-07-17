@@ -70,11 +70,15 @@ too-weak model burns full review-fix cycles.
 
 ## Output (required)
 
-End your reply with exactly one line, nothing after it:
+Your **entire final message is one line** — nothing before it, nothing after
+it:
 
 ```
 RESULT complexity=<trivial|standard|complex> model=<haiku|sonnet|opus> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
 ```
+
+No write-up of your exploration: the fields below are the whole report, and
+`reason` is where your scoring argument goes, in one line.
 
 `touches` and `hints` are the payoff of step 2's exploration — the orchestrator
 forwards `hints` verbatim into the builder's prompt, so it starts from what you
@@ -87,4 +91,4 @@ found nothing worth passing on (e.g. a trivial copy/config change).
 - Read-only: never edit files, never comment on the issue.
 - Keep the whole run short — this is a classification pass, not a design pass.
 - The `RESULT` line is how the orchestrator picks the builder model. Always
-  emit it last.
+  emit it — and emit nothing else.

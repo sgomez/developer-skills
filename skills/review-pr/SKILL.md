@@ -97,7 +97,11 @@ Check for:
   generality, message chains, middle man, refused bequest. Each is a
   judgement call — label it as one ("possible Feature Envy"), and skip
   anything a documented repo standard endorses or tooling already enforces
-- **Checks** — run the project's typecheck and test commands (see `AGENTS.md` / `CLAUDE.md`); failures are blocking
+- **Checks** — run the project's typecheck and test commands once (see
+  `AGENTS.md` / `CLAUDE.md`), with its quietest reporter (`--reporter=dot`,
+  `--silent`): a green suite's per-test output is pure context cost. On a red
+  run, re-run **only the failing file or test name** to get the detail you need
+  to write the finding. Failures are blocking
 
 Separate findings into **actionable** (require a code change: bugs, spec
 violations — missing/wrong requirements, scope creep — failing checks,

@@ -37,6 +37,14 @@ defaults — **the operations below override them.**
 - **Change metadata**: branch = the ref itself; head sha =
   `git rev-parse <branch>`; state = `Status:` line in the change file
   (`git show <branch>:.scratch/changes/<file>.md`).
+- **Find the open change for an issue** (the orchestrator's resume check):
+  the change ref *is* the branch, and the branch carries the issue number —
+  `git branch --list "agent/issue-<NN>-*"`. No match: no change. A match whose
+  change file has no `## Review` section yet is a change awaiting review; one
+  with unchecked `- [ ]` findings is awaiting fixes.
+- **Count unresolved threads on a change**: unchecked findings across the
+  change file's reviews —
+  `git show <branch>:.scratch/changes/<file>.md | grep -c '^- \[ \]'`.
 - **Check out a change in a linked worktree (review and fix)**: the
   orchestrator has already cleaned the previous worker's worktree, so the
   branch is free: `git checkout <branch>`. If git refuses because the

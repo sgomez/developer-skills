@@ -14,7 +14,13 @@ this section confirms they apply and adds the sub-issue requirement.
   summary (`gh api repos/{owner}/{repo}/issues/<N> --jq
   '.issue_dependencies_summary.blocked_by // 0'` — the count of *open*
   blockers; 0 or absent = clear) and the `## Blocked by` body section;
-  either being non-clear means blocked.
+  either being non-clear means blocked. Extract that section whole, never a
+  fixed window after the heading:
+
+  ```bash
+  gh issue view <N> --json body --jq '.body' \
+    | awk '/^##[#]* *[Bb]locked by/{f=1;next} /^#/{f=0} f'
+  ```
 - **Check a blocker's state**: `gh issue view <N> --json state --jq .state`
   (`CLOSED` = no longer blocking).
 - **Comment on an issue**: `gh issue comment <N> --body "..."`.
@@ -47,8 +53,15 @@ gh api graphql -f query='
 {
   repository(owner:"{owner}", name:"{repo}") {
     issue(number: <PARENT_NUMBER>) {
-      subIssues(first: 50) { nodes { number title state } }
+      subIssues(first: 50) {
+        pageInfo { hasNextPage }
+        nodes { number title state labels(first: 10) { nodes { name } } }
+      }
     }
   }
-}' --jq '.data.repository.issue.subIssues.nodes'
+}' --jq '.data.repository.issue.subIssues'
 ```
+
+`labels` feeds the pipeline's escalation gate (`ready-for-human` sub-issues are
+skipped). `hasNextPage: true` means the parent has outgrown the pipeline —
+stop and ask the user to split it rather than work from a truncated list.

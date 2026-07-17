@@ -88,14 +88,19 @@ Refuse if nothing to act on — no feedback found.
 - Address every unresolved comment
 - Keep changes minimal — only what feedback requests
 - Do not refactor unrelated code
-- After all fixes are applied: run the project's checks (see `AGENTS.md` / `CLAUDE.md` for the exact commands), typically:
+- While iterating on a fix, run **only the test file covering it**, with the
+  project's quietest reporter: `pnpm test <path/to/the.test.ts> --reporter=dot`
+  (or `--silent`, per the project)
+- After **all** fixes are applied — once, not per comment — run the project's
+  checks (see `AGENTS.md` / `CLAUDE.md` for the exact commands), typically:
 
 ```bash
 pnpm typecheck
-pnpm test
+pnpm test --reporter=dot
 ```
 
-Fix failures before committing.
+Fix failures before committing; re-run just the failing file or test name to
+see why, never the whole suite again.
 
 ### 4. Commit and push
 
