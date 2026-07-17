@@ -35,16 +35,23 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
 
 ## Releasing a new version
 
-Any change that bumps the version **must** update the changelog and publish the
-release. Never bump `version` in `.claude-plugin/plugin.json` without completing
-every step below.
+Any change that puts a **bare** `X.Y.Z` in `.claude-plugin/plugin.json` **must**
+update the changelog and publish the release — never set one without completing
+every step below. Setting a `-next` pre-release (step 10) is the one exception:
+it publishes nothing.
 
 Versioning follows [Semantic Versioning](https://semver.org). While the project
 is `0.x`, every GitHub release is a **pre-release** (there is no stable/`Latest`
 release until `1.0.0`).
 
-Development happens on the **`next` branch** (kept at the same version as the
-last release). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
+Development happens on the **`next` branch**, whose `version` is the release it
+is working **toward**, marked as a semver pre-release: `0.16.0-next` is the
+unreleased run-up to `0.16.0`, and sorts after `0.15.0` but before `0.16.0`.
+The suffix exists so `claude plugin list` and the `/plugin` UI say out loud
+that the loaded build is not the published one. Only the release steps below
+take it off. The target number is a forecast, not a promise — if the cycle's
+scope turns out to be a patch rather than a minor, correct the string when you
+release (step 2). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
 uncommitted edits included — this machine only) or `scripts/plugin-mode.sh
 next` (the pushed `next` branch on GitHub — works the same on any machine).
 `scripts/plugin-mode.sh prod` switches back to the published release.
@@ -57,7 +64,11 @@ promotes that section to the new version.
    skills/setup-developer-skills/agents` must print nothing. Reconcile before
    going any further: a release that ships two different definitions of the
    same agent behaves differently depending on how the user installed it.
-2. **Bump the version** in `.claude-plugin/plugin.json`.
+2. **Set the version** in `.claude-plugin/plugin.json` to the release `X.Y.Z` —
+   a bare number, dropping the `-next` suffix `next` carries between releases.
+   Usually that is just `0.16.0-next` → `0.16.0`, but if the cycle's actual
+   scope no longer matches what the branch was forecasting, set the number the
+   changes earn and ignore the forecast.
 3. **Update `CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com)
    format):
    - Rename the `## [Unreleased]` heading to `## [X.Y.Z] - YYYY-MM-DD`, then add
@@ -88,6 +99,14 @@ promotes that section to the new version.
    ```
 9. **Continue development on `next`**: `git switch next && git merge --ff-only main`
    so both branches share the release commit before the next cycle.
+10. **Reopen the cycle on `next`**: set `version` to the *next* anticipated
+    release with the suffix back on — after `0.15.0` ships, that's
+    `0.16.0-next` — and commit it alone: `git commit -m "chore: reopen next
+    (0.16.0-next)"`. `next` now sits one commit ahead of `main`; the next
+    release's step 5 fast-forwards both this commit and the new bump onto
+    `main`, which is why step 2 sets the version outright rather than
+    incrementing whatever string it finds.
 
-The git tag `vX.Y.Z` must point at the exact commit that set `version` to
-`X.Y.Z` in `.claude-plugin/plugin.json`.
+The git tag `vX.Y.Z` must point at the exact commit that set `version` to the
+bare `X.Y.Z` in `.claude-plugin/plugin.json` — not at the `X.Y.Z-next` reopen
+commit that follows it, and not at the pre-release run-up.

@@ -19,9 +19,12 @@
 # such requirement since it always pulls from GitHub regardless of your
 # local branch.
 #
-# Because "next" (both flavors) carries the same version as the last
-# released build, the copy/ref-keyed installer would skip an update, so
-# dev/next/refresh force uninstall + install.
+# "next" (both flavors) carries one static pre-release version (X.Y.Z-next)
+# for the whole cycle, so the copy/ref-keyed installer sees nothing new and
+# would skip an update: dev/next/refresh force uninstall + install instead.
+# The suffix tells the loaded build apart from the published release in
+# `claude plugin list`; it says nothing about how fresh the copy is, which is
+# what `refresh` is for.
 #
 # The marketplace keeps its name ("sgomez") in every mode, so the plugin id
 # developer-skills@sgomez stays stable: any project-scoped install resolves

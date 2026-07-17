@@ -91,6 +91,35 @@ npx skills add sgomez/developer-skills
 This route cannot install agents — `/setup-developer-skills` copies them into
 `.claude/agents/` for you (they're bundled inside the setup skill).
 
+### Option C — the `next` branch (early access)
+
+Development lands on `next` before it's released. Point the marketplace at the
+branch instead of the default one — no checkout needed, same command on any
+machine:
+
+```
+/plugin marketplace add https://github.com/sgomez/developer-skills.git#next
+/plugin install developer-skills@sgomez
+```
+
+Restart the session afterwards: plugins load at session start.
+
+**`/plugin update` will not update it.** `next` carries one version for the
+whole cycle, so the installer sees nothing new and skips. To pick up new
+commits, uninstall and install again. A `next` build names itself in
+`claude plugin list`: its version is a pre-release of the release it's working
+toward (`0.16.0-next` and the like), never a bare number.
+
+Go back to the published releases by re-adding the marketplace without the ref:
+
+```
+/plugin marketplace add sgomez/developer-skills
+```
+
+Contributors with a checkout have `scripts/plugin-mode.sh` for all of this —
+`dev` (this working tree, uncommitted edits included), `next`, `prod`,
+`refresh`, `status`.
+
 ### Dependencies (both options)
 
 This repo depends on [mattpocock/skills](https://github.com/mattpocock/skills)
