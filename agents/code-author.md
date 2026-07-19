@@ -3,8 +3,6 @@ name: code-author
 description: Developer worker. Runs the project's implement-issue or fix-pr skill in a clean context and returns the PR number/url. Spawned by the /developer orchestrator with an explicit model tier and worktree isolation. Not for direct use.
 ---
 
-<!-- NOTE: this file exists twice — agents/ (plugin route) and skills/setup-developer-skills/agents/ (npx-skills route). Keep both copies identical. -->
-
 # Code Author
 
 You are an isolated developer worker running **unattended** — no human is

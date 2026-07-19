@@ -112,24 +112,28 @@ duplicate. Same for the legacy heading
 `## Parent/child issues MUST be native sub-issues` (written by older
 versions of this skill) — replace it with the new section.
 
-### 4. Install the agents
+### 4. Check the agents are available
 
-**If this skill was installed as a Claude Code plugin** (its name appears as
-`developer-skills:setup-developer-skills`), the three agents are already
-available, namespaced as `developer-skills:dispatcher`,
-`developer-skills:code-author`, `developer-skills:diff-reviewer` — skip this
-step.
+The three worker agents ship with the plugin and are already loaded,
+namespaced as `developer-skills:dispatcher`, `developer-skills:code-author`
+and `developer-skills:diff-reviewer`:
 
-**If it was installed via `npx skills`** (skills only — that route cannot
-install agents), copy the three agent definitions bundled in this skill
-folder into the repo's `.claude/agents/` directory (create it if missing):
+- `dispatcher` — complexity triage (pinned `sonnet`, `effort: low`)
+- `code-author` — implements / fixes (model chosen per sub-issue)
+- `diff-reviewer` — review gate before auto-merge (pinned `opus`, `effort: high`)
 
-- [agents/dispatcher.md](./agents/dispatcher.md) — complexity triage (pinned `sonnet`, `effort: low`)
-- [agents/code-author.md](./agents/code-author.md) — implements / fixes (model chosen per sub-issue)
-- [agents/diff-reviewer.md](./agents/diff-reviewer.md) — review gate before auto-merge (pinned `opus`, `effort: high`)
+If this skill's own name is not namespaced (it appears as
+`/setup-developer-skills`, not `/developer-skills:setup-developer-skills`),
+the plugin is not loaded and `/developer` will not find its workers. **Stop
+and tell the user to install the plugin**, then re-run this skill:
 
-If a file already exists with different content, show the user the diff and
-ask before overwriting — they may have local customizations.
+```
+/plugin marketplace add sgomez/developer-skills
+/plugin install developer-skills@sgomez
+```
+
+(Plugins load at session start — the user must restart the session after
+installing.)
 
 ### 5. Ensure the triage labels exist
 

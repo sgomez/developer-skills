@@ -69,7 +69,7 @@ The worker agents and skills (not the orchestration) also run on
 
 ## Install
 
-### Option A — Claude Code plugin (recommended)
+### The Claude Code plugin
 
 Installs the skills **and the three subagents** in one step:
 
@@ -82,16 +82,9 @@ Plugin components are namespaced: the skills appear as
 `/developer-skills:developer`, `/developer-skills:setup-developer-skills`,
 etc., and the agents as `developer-skills:dispatcher` and friends.
 
-### Option B — `npx skills` (skills only)
+Restart the session afterwards: plugins load at session start.
 
-```bash
-npx skills add sgomez/developer-skills
-```
-
-This route cannot install agents — `/setup-developer-skills` copies them into
-`.claude/agents/` for you (they're bundled inside the setup skill).
-
-### Option C — the `next` branch (early access)
+### The `next` branch (early access)
 
 Development lands on `next` before it's released. Point the marketplace at the
 branch instead of the default one — no checkout needed, same command on any
@@ -120,7 +113,7 @@ Contributors with a checkout have `scripts/plugin-mode.sh` for all of this —
 `dev` (this working tree, uncommitted edits included), `next`, `prod`,
 `refresh`, `status`.
 
-### Dependencies (both options)
+### Dependencies
 
 This repo depends on [mattpocock/skills](https://github.com/mattpocock/skills)
 (v1.1+) for spec authoring and repo configuration. Install the ones the
@@ -170,7 +163,7 @@ Matt's first.
 2. Patch `docs/agents/issue-tracker.md` with the pipeline's **Delivery
    operations** — how `/developer` reads issues, discovers children (native
    sub-issues on GitHub), checks blockers, comments, labels, and closes.
-3. Install three agents into `.claude/agents/`: `dispatcher`, `code-author`,
+3. Check the three plugin agents are loaded: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels (or the tracker's
    equivalent) exist.
@@ -320,11 +313,6 @@ skills/
   review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply
   setup-developer-skills/   # one-time repo setup (incl. run-defaults template)
-    agents/                 # copy of agents/ bundled for the npx-skills route
     code-host-*.md          # code-host templates (github / gitlab / local)
     delivery-ops-*.md       # issue-tracker Delivery operations templates
 ```
-
-Contributor note: `agents/` and `skills/setup-developer-skills/agents/` must
-stay identical — the first serves the plugin route, the second travels with
-the setup skill on the `npx skills` route (which only copies skill folders).

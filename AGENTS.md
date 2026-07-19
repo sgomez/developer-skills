@@ -25,10 +25,8 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
 
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org)
   (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`…).
-- Every agent definition exists **twice** — `agents/` (plugin route) and
-  `skills/setup-developer-skills/agents/` (npx-skills route). An edit to one is
-  an edit to both, in the same commit:
-  `diff -r agents skills/setup-developer-skills/agents` must print nothing.
+- Agent definitions live **only** in `agents/`, at the plugin root, where
+  Claude Code auto-loads them. There is no second copy to keep in sync.
 - **Never** add a `Co-Authored-By: Claude` / Anthropic trailer to commits.
 - The version lives in **one place** (`.claude-plugin/plugin.json`); nothing
   else should hard-code it.
@@ -37,7 +35,7 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
 
 Any change that puts a **bare** `X.Y.Z` in `.claude-plugin/plugin.json` **must**
 update the changelog and publish the release — never set one without completing
-every step below. Setting a `-next` pre-release (step 10) is the one exception:
+every step below. Setting a `-next` pre-release (step 9) is the one exception:
 it publishes nothing.
 
 Versioning follows [Semantic Versioning](https://semver.org). While the project
@@ -51,7 +49,7 @@ The suffix exists so `claude plugin list` and the `/plugin` UI say out loud
 that the loaded build is not the published one. Only the release steps below
 take it off. The target number is a forecast, not a promise — if the cycle's
 scope turns out to be a patch rather than a minor, correct the string when you
-release (step 2). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
+release (step 1). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
 uncommitted edits included — this machine only) or `scripts/plugin-mode.sh
 next` (the pushed `next` branch on GitHub — works the same on any machine).
 `scripts/plugin-mode.sh prod` switches back to the published release.
@@ -60,16 +58,12 @@ promotes that section to the new version.
 
 ### Steps
 
-1. **Check the agent copies are in sync** — `diff -r agents
-   skills/setup-developer-skills/agents` must print nothing. Reconcile before
-   going any further: a release that ships two different definitions of the
-   same agent behaves differently depending on how the user installed it.
-2. **Set the version** in `.claude-plugin/plugin.json` to the release `X.Y.Z` —
+1. **Set the version** in `.claude-plugin/plugin.json` to the release `X.Y.Z` —
    a bare number, dropping the `-next` suffix `next` carries between releases.
    Usually that is just `0.16.0-next` → `0.16.0`, but if the cycle's actual
    scope no longer matches what the branch was forecasting, set the number the
    changes earn and ignore the forecast.
-3. **Update `CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com)
+2. **Update `CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com)
    format):
    - Rename the `## [Unreleased]` heading to `## [X.Y.Z] - YYYY-MM-DD`, then add
      a fresh empty `## [Unreleased]` section above it for the next cycle.
@@ -77,34 +71,34 @@ promotes that section to the new version.
    - Update the link references at the bottom of the file: repoint
      `[Unreleased]` to `.../compare/vX.Y.Z...next` and add the matching
      `[X.Y.Z]: https://github.com/sgomez/developer-skills/releases/tag/vX.Y.Z`
-4. **Commit** the version bump and changelog together on `next`, e.g.
+3. **Commit** the version bump and changelog together on `next`, e.g.
    `git commit -m "feat: <summary> (X.Y.Z)"`.
-5. **Merge `next` into `main`** — publishing always goes through `main`:
+4. **Merge `next` into `main`** — publishing always goes through `main`:
    ```sh
    git switch main && git merge --ff-only next
    ```
    Keep it a fast-forward so `main` lands the exact bump commit (rebase `next`
    onto `main` first if it has diverged).
-6. **Tag** the version-bump commit on `main` with an **annotated** tag:
+5. **Tag** the version-bump commit on `main` with an **annotated** tag:
    `git tag -a vX.Y.Z -m vX.Y.Z`. It must be annotated — `--follow-tags` in
    the next step pushes annotated tags only, and silently ignores lightweight
    ones.
-7. **Push** `main` and the tag: `git push origin main --follow-tags`. Confirm
+6. **Push** `main` and the tag: `git push origin main --follow-tags`. Confirm
    the tag actually landed: `git ls-remote --tags origin vX.Y.Z`.
-8. **Publish the GitHub release**, using that version's changelog section as the
+7. **Publish the GitHub release**, using that version's changelog section as the
    body and marking it as a pre-release while on `0.x`:
    ```sh
    gh release create vX.Y.Z --title vX.Y.Z --notes-file <section.md> \
      --prerelease --latest=false --verify-tag
    ```
-9. **Continue development on `next`**: `git switch next && git merge --ff-only main`
+8. **Continue development on `next`**: `git switch next && git merge --ff-only main`
    so both branches share the release commit before the next cycle.
-10. **Reopen the cycle on `next`**: set `version` to the *next* anticipated
+9. **Reopen the cycle on `next`**: set `version` to the *next* anticipated
     release with the suffix back on — after `0.15.0` ships, that's
     `0.16.0-next` — and commit it alone: `git commit -m "chore: reopen next
     (0.16.0-next)"`. `next` now sits one commit ahead of `main`; the next
-    release's step 5 fast-forwards both this commit and the new bump onto
-    `main`, which is why step 2 sets the version outright rather than
+    release's step 4 fast-forwards both this commit and the new bump onto
+    `main`, which is why step 1 sets the version outright rather than
     incrementing whatever string it finds.
 
 The git tag `vX.Y.Z` must point at the exact commit that set `version` to the

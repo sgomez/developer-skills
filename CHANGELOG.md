@@ -11,7 +11,8 @@ Changes staged on the `next` branch, published as a new version once ready.
 
 Run robustness: a `/developer` run can now be interrupted and re-launched
 without paying for the work it already did, and it stops paying twice for the
-work it will never finish.
+work it will never finish. **Breaking**: the plugin is now the only install
+route — see *Removed*.
 
 ### Added
 - **Resume instead of rebuild** (report D1). The delivery pipeline gains a
@@ -70,6 +71,24 @@ work it will never finish.
   that genuinely has 50+ sub-issues is not sized for this pipeline — it gets
   reported for splitting, not paginated through.
 
+### Removed
+- **The `npx skills add sgomez/developer-skills` install route is gone**
+  — **breaking**. The plugin (`/plugin install developer-skills@sgomez`) is now
+  the only supported way to install. That route copied skill folders but could
+  not install agents, so it delivered a `/developer` that could not run until
+  `/setup-developer-skills` hand-copied `dispatcher`, `code-author` and
+  `diff-reviewer` into `.claude/agents/` — agents that then sat outside
+  `/plugin update` and drifted from the release. It bought no portability
+  either: the pipeline depends on Claude-Code-only primitives (per-spawn model
+  tiers, `effort:`, worktree isolation), so it served the same audience as the
+  plugin route, worse.
+
+  **If you installed that way**: install the plugin, restart the session, and
+  delete the three stale files from your repo's `.claude/agents/` — an
+  un-namespaced `code-author.md` there shadows nothing, but it will rot.
+  `/setup-developer-skills` now refuses to proceed when the plugin is not
+  loaded, and everything it wrote to `docs/agents/` stays valid.
+
 ### Fixed
 - **The merge hook only approves from the primary checkout** (report D6).
   `approve-merge.sh` keyed on a `merge: auto` line in
@@ -96,11 +115,6 @@ work it will never finish.
   now resolves `docs/agents/developer-defaults.md` from the repository root
   rather than from `cwd`, so a `merge: auto` run started from a subdirectory is
   approved as intended.
-
-### Documentation
-- The release process checks the two `agents/` copies are identical
-  (`diff -r agents skills/setup-developer-skills/agents`) before a version goes
-  out, and AGENTS.md states the duplication as a convention (report D7).
 
 ## [0.15.0] - 2026-07-16
 

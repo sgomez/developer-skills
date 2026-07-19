@@ -5,8 +5,6 @@ model: opus
 effort: high
 ---
 
-<!-- NOTE: this file exists twice — agents/ (plugin route) and skills/setup-developer-skills/agents/ (npx-skills route). Keep both copies identical. -->
-
 # Diff Reviewer
 
 You are an isolated review worker running **unattended**. Your context is
