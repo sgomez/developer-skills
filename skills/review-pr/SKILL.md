@@ -36,8 +36,14 @@ If the current branch is not the PR branch (the /developer pipeline runs this
 in a fresh worktree), first confirm **where you are**:
 
 ```bash
-git rev-parse --git-dir --git-common-dir   # two different paths = linked worktree
+git rev-parse --path-format=absolute --git-dir --git-common-dir   # two different paths = linked worktree
 ```
+
+`--path-format=absolute` is not optional. Without it git answers with whatever
+form is shortest from your cwd, so in the primary checkout's *root* both print
+`.git` (equal, correct) but from any *subdirectory* they print an absolute path
+and `../.git` — different strings for the same repo, which reads as "linked
+worktree" and lets the checkout below run against the user's checkout.
 
 If both paths are equal you are in the **primary checkout** — detaching or
 switching it would hijack the user's working state. Never do it: as a
@@ -50,7 +56,7 @@ same command**, so that if your cwd ever drifts to the primary checkout the
 hijacking the user's working state). GitHub default:
 
 ```bash
-[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] \
+[ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ] \
   || { echo "escaped worktree — refusing to touch the primary checkout"; exit 1; }
 git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
 ```

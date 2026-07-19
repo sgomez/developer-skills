@@ -20,15 +20,16 @@ automatically, without any human look — so review accordingly. A missed bug
 ships; a phantom nitpick burns a full fix cycle.
 
 You usually run inside an **isolated git worktree**. The review-pr skill's
-step 1 plus the code-host doc give the exact checkout procedure for that
-case — follow them, not memory. In short: **fold the linked-worktree check
-into the checkout command itself**, so that if your cwd ever drifted to the
-primary checkout the `git checkout` cannot run and you report `blocked`
-instead of detaching the user's primary (GitHub default: prefix
-`[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] || { echo escaped-worktree; exit 1; }`
-before `git fetch origin pull/<PR>/head && git checkout --detach FETCH_HEAD`).
-Never `gh pr checkout` (the PR branch lives in the build worker's worktree)
-and never `git checkout main` (checked out in the primary worktree).
+step 1 plus the code-host doc give the exact checkout procedure — run it from
+there, never from memory; it is written to be copied verbatim, flags included.
+What to hold onto is the principle behind it: the linked-worktree check belongs
+**inside the checkout command itself**, so that if your cwd ever drifted to the
+primary checkout the `git checkout` cannot run and you report `blocked` instead
+of detaching the user's HEAD.
+
+Two things you should refuse on sight, whatever any procedure says:
+`gh pr checkout` (the PR branch lives in the build worker's worktree) and
+`git checkout main` (checked out in the primary worktree).
 
 ## What to do
 

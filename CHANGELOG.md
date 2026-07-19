@@ -79,6 +79,23 @@ work it will never finish.
   requires `git-dir == git-common-dir`, true only in the primary checkout where
   the orchestrator runs. Merging was already the orchestrator's alone; now the
   hook enforces it deterministically instead of trusting the prose.
+- **The linked-worktree check no longer misreads the primary checkout as a
+  worktree.** Every worker guards its checkout by comparing `git rev-parse
+  --git-dir` against `--git-common-dir`, which git prints in whichever form is
+  shortest from the current directory: identical at the repository root, but
+  `/abs/path/.git` versus `../.git` from any subdirectory of it. The guard read
+  that difference as "I am safely inside a worktree" and let the checkout run,
+  detaching the user's HEAD — the exact accident the guard existed to prevent,
+  and the source of the `WARN primary checkout … is in detached HEAD` line the
+  cleanup script reports. All four call sites (`review-pr`, `fix-pr`,
+  `implement-issue` and `approve-merge.sh`) now pass `--path-format=absolute`,
+  so the two paths are comparable — and the `diff-reviewer` agent stopped
+  being a fifth, since it now states the rule the checkout must satisfy and
+  leaves the command to the skill it already tells the worker to follow. In the hook
+  the same defect ran the other way and silently withheld approval: it also
+  now resolves `docs/agents/developer-defaults.md` from the repository root
+  rather than from `cwd`, so a `merge: auto` run started from a subdirectory is
+  approved as intended.
 
 ### Documentation
 - The release process checks the two `agents/` copies are identical

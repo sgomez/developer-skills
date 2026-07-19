@@ -103,10 +103,15 @@ pipeline always does), `main` is checked out in the primary worktree and the
 command fails. Branching straight from `origin/main` works everywhere.
 
 As a /developer worker, confirm you really are in a linked worktree before
-branching: `git rev-parse --git-dir --git-common-dir` prints two different
-paths there. The same path twice means you escaped into the user's primary
-checkout — stop and report blocked instead of branching there. (Interactive
-use in the primary checkout is fine.)
+branching: `git rev-parse --path-format=absolute --git-dir --git-common-dir`
+prints two different paths there. The same path twice means you escaped into
+the user's primary checkout — stop and report blocked instead of branching
+there. (Interactive use in the primary checkout is fine.)
+
+Keep `--path-format=absolute`: without it git prints whichever form is
+shortest from your cwd, so from a subdirectory of the primary checkout you get
+`/abs/path/.git` and `../.git` — two different strings for the same repo, and
+the check silently clears you to touch the user's checkout.
 
 **Branch before you explore.** A linked worktree is created from the *local*
 main, which can lag `origin/main` — source read before this step may be

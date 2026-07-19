@@ -274,6 +274,10 @@ best-effort outside Claude Code.
   as local branches — no remote needed). Other trackers/hosts work as
   freeform configuration.
 - Claude Code with subagents and worktree isolation (any recent version).
+- **git ≥ 2.31.** Workers run in linked worktrees and check they are really in
+  one — via `git rev-parse --path-format=absolute` — before checking anything
+  out. Without that flag the check cannot tell a worktree from a subdirectory
+  of your own checkout, and a worker can detach your HEAD.
 
 ## Usage
 

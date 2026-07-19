@@ -37,8 +37,13 @@ If the current branch is not the PR branch (the /developer pipeline runs this
 in a fresh worktree), first confirm **where you are**:
 
 ```bash
-git rev-parse --git-dir --git-common-dir   # two different paths = linked worktree
+git rev-parse --path-format=absolute --git-dir --git-common-dir   # two different paths = linked worktree
 ```
+
+`--path-format=absolute` is not optional: without it git prints whichever form
+is shortest from your cwd, so from a subdirectory of the primary checkout the
+two answers differ (`/abs/path/.git` vs `../.git`) and the check reads a
+primary checkout as a worktree.
 
 As a /developer worker you must be in a linked worktree; if both paths are
 equal you are in the user's primary checkout — do not check anything out,
