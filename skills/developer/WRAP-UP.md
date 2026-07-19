@@ -87,14 +87,20 @@ on.
 ## 3. Final sweep
 
 One last pass of the cleanup script, catching the harvest worktree and anything
-a half-failed pipeline left behind:
+a half-failed pipeline left behind — including reviewer worktrees detached at
+shas that later fix cycles superseded, and worker branches with improvised
+names: the sweep removes every worker worktree under `.claude/worktrees/` by
+path, branch or detached.
 
 ```bash
 bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
 ```
 
-If it prints a `WARN` line (primary checkout in detached HEAD), include it
-verbatim in the chat summary — never repair the primary checkout yourself.
+Trust the script's final line, not your expectation of it. Claim a clean
+sweep only on `leftover=0`; if it prints `LEFTOVER` lines, those worktrees
+survived the pass — include them verbatim in the chat summary. If it prints
+a `WARN` line (primary checkout in detached HEAD), include it verbatim too —
+never repair the primary checkout yourself.
 
 If the permission system **denies the sweep** (its pattern-matched removal can
 trip the auto-mode classifier), do not retry it: check `git worktree list`, and
@@ -142,6 +148,13 @@ sub-issue escalated as **oversized**, the partition the dispatcher proposed is
 already in its escalation comment — point the human at it: splitting the
 sub-issue is what unblocks it, removing the label alone just re-runs the same
 wall.
+
+When anything escalated, **end the summary with the decisions themselves**:
+one direct question per escalated sub-issue, phrased so a one-line reply
+unblocks it — "close #363 as a duplicate of #349, or narrow it to a remaining
+gap?", "approve the proposed 4-way split of #368?". You already know exactly
+what each escalation is waiting on; do not make the human interview you to
+find out.
 
 With `merge: manual`, list the ready-to-merge changes **in dependency order** —
 that is the human's merge queue, and merging in that order minimizes conflicts

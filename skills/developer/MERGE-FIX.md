@@ -29,7 +29,10 @@ Spawn a `code-author` with model `opus` and `isolation: "worktree"`:
 > fix-that-pushes checkout in `docs/agents/code-host.md` (GitHub default:
 > `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
 > — do not use `gh pr checkout` or check out the branch by name, it is
-> checked out in the build worker's worktree and git will refuse). Merge
+> checked out in the build worker's worktree and git will refuse). If git
+> also refuses `fix/pr-<PR>` — an earlier fix cycle's worktree still holds
+> it — use `fix/pr-<PR>-merge` in both commands; never any other name, the
+> cleanup matches on `fix/pr-<PR>*`. Merge
 > `origin/main` into it, resolve the conflicts — using the
 > `resolving-merge-conflicts` skill if it appears in your available skills —
 > run the project checks, and push with

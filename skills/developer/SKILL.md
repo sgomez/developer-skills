@@ -565,7 +565,7 @@ summary, do not "fix" the checkout).
 BRANCH=$(gh pr view <PR> --json headRefName --jq .headRefName)   # skip if no PR
 HEAD_SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
 bash <skill-dir>/scripts/cleanup-worktrees.sh \
-  --branch "$BRANCH" --branch "fix/pr-<PR>" \
+  --branch "$BRANCH" --branch "fix/pr-<PR>*" \
   --branch "agent/issue-<subissue>-*" --sha "$HEAD_SHA"
 ```
 
@@ -588,6 +588,11 @@ Matching strictly on this sub-issue's branches/sha is what makes this safe in
 parallel mode — other wave members' worktrees never match. On an escalated or
 ready-to-merge sub-issue the remote branch and open PR are untouched; only
 local state goes.
+
+A review that ran before a fix cycle left its worktree detached at a sha the
+fixes have since superseded, so it never matches `--sha` here. That is
+expected: the wrap-up sweep removes those — do not chase them now, and do not
+improvise extra flags for them.
 
 ### 7. Record the row
 

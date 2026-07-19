@@ -61,7 +61,12 @@ PR branch is checked out in the build worker's worktree):
 git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>
 ```
 
-and push later with `git push origin HEAD:<pr-branch>` instead of a plain
+If `fix/pr-<PR>` is refused too — an earlier fix cycle's worktree still
+holds it — use `fix/pr-<PR>-r2` (then `-r3`, and so on) in both commands.
+Never invent a name outside `fix/pr-<PR>*`: it is what the pipeline's
+cleanup matches.
+
+Push later with `git push origin HEAD:<pr-branch>` instead of a plain
 push.
 
 Never `git checkout main` — in a linked worktree it fails because `main` is

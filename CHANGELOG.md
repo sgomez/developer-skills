@@ -12,7 +12,9 @@ Changes staged on the `next` branch, published as a new version once ready.
 Context economy: the orchestrator stops paying for material it will not use,
 the builders stop re-reading the whole spec once per sub-issue, and a ticket
 that cannot fit in one session is now caught before a builder burns three fix
-cycles on it.
+cycles on it. Plus the lessons of the first field run: the pipeline no longer
+leaks worktrees, and a run that escalates ends with the questions that
+unblock it.
 
 ### Added
 - **`oversized` triage verdict** (report C4). The dispatcher's rubric gains a
@@ -77,6 +79,33 @@ cycles on it.
   first conflict) and `WRAP-UP.md` (the seven closing steps including the
   harvest prompt, read once when the loop ends). A GitHub run on a spec that
   merges cleanly no longer pays for any of it.
+- **A wrap-up with escalations ends with the questions that unblock them** —
+  one per escalated sub-issue, phrased so a one-line reply resolves it. The
+  first field run described its two escalations accurately and the human
+  still had to ask "what do you need from me?" — the orchestrator knew the
+  answer all along.
+
+### Fixed
+- **Worker worktrees no longer leak past the run.** The first field run left
+  eleven behind, in three shapes the cleanup could not name: reviewer
+  worktrees detached at a sha a later fix cycle superseded (the per-sub-issue
+  pass names only the final head sha), a merge-fix worker improvising
+  `mergefix/pr-N` because `fix/pr-N` was still held by the first fix cycle's
+  live worktree, and a final sweep blind to both. `cleanup-worktrees.sh
+  --sweep` now also matches by **path** — every worker worktree under
+  `.claude/worktrees/`, branch or detached — and deletes the branches those
+  removals free.
+- **Colliding fix branches get canonical fallback names.** A second fix cycle
+  uses `fix/pr-N-r2` (`-r3`, …) and the merge-fix job `fix/pr-N-merge` when
+  `fix/pr-N` is taken; the per-sub-issue cleanup matches `fix/pr-N*`, so a
+  collision no longer produces a name nothing matches.
+- **The sweep reports what it could not remove instead of an unconditional
+  `OK`.** It re-checks the filesystem after the prune — a failed removal can
+  leave a directory git has already forgotten — prints a `LEFTOVER` line per
+  survivor, and the final line carries a `leftover=` count. The wrap-up
+  claims a clean sweep only on `leftover=0`; the first field run summarized
+  "all worktrees swept" over eleven survivors because the script's `OK` only
+  ever meant "everything I matched".
 
 ## [0.16.0] - 2026-07-19
 
