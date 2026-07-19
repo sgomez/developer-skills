@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.17.0] - 2026-07-19
+
 Context economy: the orchestrator stops paying for material it will not use,
 the builders stop re-reading the whole spec once per sub-issue, and a ticket
 that cannot fit in one session is now caught before a builder burns three fix
@@ -518,7 +520,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.16.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.17.0...next
+[0.17.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.17.0
 [0.16.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.16.0
 [0.15.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.15.0
 [0.14.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.14.0
