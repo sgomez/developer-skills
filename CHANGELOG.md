@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.16.0] - 2026-07-19
+
 Run robustness: a `/developer` run can now be interrupted and re-launched
 without paying for the work it already did, and it stops paying twice for the
 work it will never finish. **Breaking**: the plugin is now the only install
@@ -418,7 +420,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.15.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.16.0...next
+[0.16.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.16.0
 [0.15.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.15.0
 [0.14.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.14.0
 [0.13.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.13.0
