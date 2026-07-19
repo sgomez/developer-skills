@@ -13,8 +13,9 @@
 #             glob, and delete matching local branches (repeatable)
 #   --sha     remove linked worktrees detached at this commit — the
 #             diff-reviewer case (repeatable, full SHA)
-#   --sweep   the final wrap-up pass: adds the worker patterns agent/* and
-#             fix/pr-*, and additionally removes every linked worktree under
+#   --sweep   the final wrap-up pass: adds the worker patterns agent/*,
+#             fix/pr-* and worktree-agent-* (the harness's own worktree
+#             branches), and additionally removes every linked worktree under
 #             the primary checkout's .claude/worktrees/ — branch or detached —
 #             deleting its branch too. That path holds only harness-created
 #             worker worktrees; the sweep assumes no other agent session is
@@ -26,13 +27,14 @@
 # Output contract:
 #   REMOVED / DELETED / KEPT / FAILED lines as work happens; with --sweep, a
 #   LEFTOVER line per worker worktree still present after the pass; WARN if
-#   the primary checkout is in detached HEAD; final line
+#   the primary checkout is in detached HEAD or on a worker branch; final line
 #   `OK removed=<n> branches_deleted=<n> leftover=<n>`.
 #
 # Guarantees:
 #   - never touches the primary checkout (first entry of `git worktree list`)
 #   - never deletes main/master, nor a branch still checked out somewhere
-#   - if the primary checkout is in detached HEAD it prints a WARN line and
+#   - if the primary checkout is in detached HEAD or checked out on a worker
+#     branch (agent/*, fix/pr-*, worktree-agent-*) it prints a WARN line and
 #     leaves it alone — that is the symptom of a worker having escaped its
 #     worktree, and it is for a human to look at
 set -euo pipefail
@@ -44,7 +46,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch) [[ $# -ge 2 ]] || usage; patterns+=("$2"); shift 2 ;;
     --sha)    [[ $# -ge 2 ]] || usage; shas+=("$2");     shift 2 ;;
-    --sweep)  sweep=1; patterns+=("agent/*" "fix/pr-*"); shift ;;
+    --sweep)  sweep=1; patterns+=("agent/*" "fix/pr-*" "worktree-agent-*"); shift ;;
     --keep-branches) keep_branches=1;                    shift ;;
     *) usage ;;
   esac
@@ -52,14 +54,14 @@ done
 (( ${#patterns[@]} + ${#shas[@]} > 0 )) || usage
 
 # --- parse `git worktree list --porcelain` ---------------------------------
-primary="" primary_head="" primary_on_branch=0
+primary="" primary_head="" primary_branch="" primary_on_branch=0
 wt_path=() wt_branch=() wt_head=()
 
 path="" branch="" head=""
 flush() {
   [[ -n "$path" ]] || return 0
   if [[ -z "$primary" ]]; then
-    primary="$path" primary_head="$head"
+    primary="$path" primary_head="$head" primary_branch="$branch"
     [[ -n "$branch" ]] && primary_on_branch=1
   else
     wt_path+=("$path") wt_branch+=("$branch") wt_head+=("$head")
@@ -169,5 +171,7 @@ fi
 
 if (( ! primary_on_branch )); then
   echo "WARN primary checkout $primary is in detached HEAD (${primary_head:0:12}) — a worker likely ran git outside its worktree. Left untouched; restore with: git -C '$primary' checkout main"
+elif [[ "$primary_branch" == agent/* || "$primary_branch" == fix/pr-* || "$primary_branch" == worktree-agent-* ]]; then
+  echo "WARN primary checkout $primary is on worker branch $primary_branch — a worker likely ran git outside its worktree. Left untouched; restore with: git -C '$primary' checkout main"
 fi
 echo "OK removed=$removed branches_deleted=$deleted leftover=$leftover"

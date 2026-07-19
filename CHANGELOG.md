@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **Haiku retired from the build ladder.** `trivial` now builds with sonnet
+  and the fix-cycle escalation is sonnet → opus. Field evidence (spec #308,
+  plus the ledger's earlier haiku rows): on comparable tickets haiku builds
+  cost as much or more than sonnet in tokens and wall-clock, missed domain
+  vocabulary sitting two lines above their edit, and were the run's only
+  workers to escape their worktrees and operate on the primary checkout —
+  the cheap tier wasn't cheap.
+- **Parallel staleness fixed at the source.** After every serial merge the
+  orchestrator refreshes the wave's still-open sibling PRs per the code
+  host's update-branch operation (`gh pr update-branch` on GitHub), and the
+  checks gate re-syncs a red PR that is merely `BEHIND` main — once per PR —
+  before spending a fix cycle. Spec #308 lost three 10–15-minute fix cycles
+  to branches cut from a `main` that predated a sibling's merge; each was
+  one API call's worth of work.
+- **Scoring lessons now reach the ledger.** The dispatcher's rubric scores
+  pattern existence at triage time explicitly — first-of-family up a tier,
+  copy-of-a-merged-pattern down one — and the wrap-up hands the harvest the
+  orchestrator's own calibration notes (the *mechanism* behind a mispriced
+  tier), so run lessons land in the ledger's `## Local calibration` instead
+  of dying in the chat summary.
+
+### Fixed
+- **Sweep warns on a hijacked primary checkout.** `cleanup-worktrees.sh` now
+  prints a `WARN` when the primary checkout sits on a worker branch
+  (`agent/*`, `fix/pr-*`, `worktree-agent-*`), not only when it is in
+  detached HEAD — the on-a-branch escape produced only an easily missed
+  `KEPT` line before. The sweep also deletes stray `worktree-agent-*`
+  branches whose worktree is already gone.
+
 ## [0.17.0] - 2026-07-19
 
 Context economy: the orchestrator stops paying for material it will not use,

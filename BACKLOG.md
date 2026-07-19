@@ -59,10 +59,22 @@ A drifted cwd there would not detach the primary, but it would switch it to
 another branch or create one on it — the same hijack of the user's working
 state, with a different fingerprint.
 
+**Field evidence (spec #308).** The `implement-issue` shape fired exactly as
+predicted: the haiku build for #387 `cd`'d to the primary checkout and ran
+`git checkout -b agent/issue-387-… origin/main` there, then installed,
+tested and committed in it, leaving the user's checkout on a worker branch
+for the rest of the run (the haiku fixer for its PR escaped too). The sweep
+now WARNs on that fingerprint, but nothing yet prevents it.
+
 **Direction.** Same treatment as `review-pr`: gate each destructive checkout
 on `[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]`
 **in the same command**, so a wrong cwd yields a `blocked` report instead of a
-mutated primary.
+mutated primary. A stronger, model-independent variant: a PreToolUse Bash
+hook in the `approve-merge.sh` mold (silent unless every guard holds) that
+**denies** state-changing git (`checkout`/`switch`/`commit`/`branch`) whose
+effective target is the primary checkout root while the payload's `cwd` lies
+under `.claude/worktrees/` — the cwd is what distinguishes a worker from the
+orchestrator, and a deny there turns the prose rule into a mechanism.
 
 ## Independent review identity (bot / GitHub App)
 
@@ -88,7 +100,7 @@ classifier — the hook already handles that.
 
 ## Tier→model map in developer-defaults (report D8)
 
-**Problem.** The `haiku` / `sonnet` / `opus` strings are hard-coded in five
+**Problem.** The `sonnet` / `opus` strings are hard-coded in five
 places (the dispatcher's rubric, its `RESULT` line, the orchestrator's worker
 table, the Build step, the fix cycle's escalation ladder). Retuning a repo's
 tiers means editing skills that ship with the plugin, and a repo cannot say
@@ -99,7 +111,7 @@ template in `skills/setup-developer-skills/`):
 
 ```
 models:
-  trivial:  haiku
+  trivial:  sonnet
   standard: sonnet
   complex:  opus
   reviewer: opus

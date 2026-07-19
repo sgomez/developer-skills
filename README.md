@@ -10,7 +10,7 @@ triage → build → review → fix → merge — and pings you when it's done.
         ▼
    ┌────────────┐  complexity tier    ┌─────────────┐
    │ dispatcher │ ───────────────────▶│ code-author │──▶ draft PR
-   │  (sonnet)  │  haiku/sonnet/opus  │ (worktree)  │
+   │  (sonnet)  │    sonnet/opus      │ (worktree)  │
    └────────────┘                     └─────────────┘
                                             │
                                             ▼
@@ -36,7 +36,7 @@ triage → build → review → fix → merge — and pings you when it's done.
   the next — with auto-merge, each PR then branches from a `main` that
   already contains the previous one, so merges never conflict.
 - **Model-tiered** — a `dispatcher` agent scores each sub-issue
-  (trivial → `haiku`, standard → `sonnet`, complex → `opus`); the fixer
+  (trivial/standard → `sonnet`, complex → `opus`); the fixer
   escalates one tier per fix cycle.
 - **Unattended with an escape hatch** — max 3 review→fix cycles, then the
   sub-issue is labeled `ready-for-human`, commented on the spec, and the loop
@@ -254,7 +254,7 @@ update; `agy plugin list` / `agy plugin uninstall developer-skills` to manage.
 Caveats: all five skills are imported, including the `/developer`
 orchestrator, and Antigravity does have worktree isolation for agents. What
 it lacks is per-spawn model tiers and `effort:` — subagents run on
-Antigravity's own models, so the `dispatcher`'s haiku/sonnet/opus triage
+Antigravity's own models, so the `dispatcher`'s sonnet/opus triage
 doesn't steer which model builds each sub-issue. The unattended loop is
 best-effort outside Claude Code.
 

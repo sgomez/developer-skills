@@ -51,7 +51,7 @@ codebase, then report one machine-readable line. You never write code.
 Local calibration (step 3) wins on any conflict — it is this repo's measured
 evidence, the generic rubric is only the prior.
 
-- **trivial** → `haiku`
+- **trivial** → `sonnet`
   Copy/config/docs change, a rename, or a one-file tweak with an existing
   test to extend. No new schema, no new endpoint, no new UI surface.
 
@@ -87,6 +87,14 @@ evidence, the generic rubric is only the prior.
   not build an `oversized` issue; it escalates it to a human, and your
   `hints` are the entire actionable content of that escalation.
 
+**Score the code, not the prose.** The same ticket text costs a tier more
+when it is the **first of its family** — the helper or pattern it needs does
+not exist yet and the builder must invent it — and a tier less when that
+pattern is already **merged in `main`** and the builder only copies it. Step
+2's glance is what decides this, and it must look at `main` as it is *now*:
+in a parallel run a sibling scored early sees the pattern missing that a
+later wave would find merged.
+
 **Between the three buildable tiers, when in doubt, round up one tier.** A
 too-strong model wastes some tokens; a too-weak model burns full review-fix
 cycles. But do not round *up into* `oversized`: it is not "very complex", it
@@ -99,7 +107,7 @@ Your **entire final message is one line** — nothing before it, nothing after
 it:
 
 ```
-RESULT complexity=<trivial|standard|complex|oversized> model=<haiku|sonnet|opus|none> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
+RESULT complexity=<trivial|standard|complex|oversized> model=<sonnet|opus|none> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
 ```
 
 `complexity=oversized` always pairs with `model=none` (nothing will be built)

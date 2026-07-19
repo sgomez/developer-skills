@@ -31,6 +31,14 @@ own recall has been compacted away. Only if a sub-issue you know went terminal
 has no row — a step 7 that was denied or interrupted — write that one row now,
 from what you still hold, and say so in the chat summary.
 
+Distill your own **calibration notes** before spawning the harvest: one line
+per sub-issue whose tier proved wrong in either direction this run — cost far
+above or below its tier (tokens, tool calls, wall-clock), a pattern the triage
+assumed missing that was already merged (or vice versa), a worker that broke
+worktree discipline. The ledger rows carry outcomes; these lines carry the
+*mechanism*, which the rows cannot express and which is gone once your context
+is. `none` when the run priced cleanly.
+
 Spawn one `code-author` with `model: sonnet` and `isolation: "worktree"`:
 
 > HARVEST job. This run delivered PRs #`<list every PR of the run — merged,
@@ -56,7 +64,15 @@ Spawn one `code-author` with `model: sonnet` and `isolation: "worktree"`:
 > `oversized` from triage. Each bullet names the signal and the corrected
 > tier (the dispatcher reads them on top of its generic rubric). Change
 > nothing there if no pattern is evident yet; never invent a rule from a
-> single row.
+> single row on its own. The orchestrator watched this run and its notes
+> below carry mechanism the rows cannot — a single row **plus** a note
+> naming a structural cause (the pattern did not exist yet; a tier's model
+> broke discipline) is enough for a bullet, statistics need repetition but
+> mechanisms do not:
+>
+> ```
+> <your calibration notes, verbatim, or none>
+> ```
 >
 > **(b) Harvest discoveries.** For each PR read its body and comments per the
 > repo's `docs/agents/code-host.md` (GitHub default:
@@ -99,8 +115,8 @@ bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
 Trust the script's final line, not your expectation of it. Claim a clean
 sweep only on `leftover=0`; if it prints `LEFTOVER` lines, those worktrees
 survived the pass — include them verbatim in the chat summary. If it prints
-a `WARN` line (primary checkout in detached HEAD), include it verbatim too —
-never repair the primary checkout yourself.
+a `WARN` line (primary checkout detached, or sitting on a worker branch),
+include it verbatim too — never repair the primary checkout yourself.
 
 If the permission system **denies the sweep** (its pattern-matched removal can
 trip the auto-mode classifier), do not retry it: check `git worktree list`, and

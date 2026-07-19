@@ -309,11 +309,26 @@ Work in **waves**:
    exactly as in the sequential pipeline. Cap concurrent build/review/fix
    workers at **3**; queue the rest of the wave.
 3. **Merges stay strictly serial** — never merge two PRs concurrently. With
-   `merge: auto`, merge each PR as it reaches CLEAN. Every PR in the wave
-   branched from the same `main`, so any PR merged after the first may
-   conflict: on merge failure **after** the Merge step's checks gate passed,
-   run the merge-fix job (`MERGE-FIX.md`) and retry once. With `merge: manual`
-   there is nothing to serialize — each CLEAN PR just becomes ready-to-merge.
+   `merge: auto`, merge each PR as it reaches CLEAN. **After every successful
+   merge, refresh the wave's still-open PRs** per the code host's
+   update-branch operation — GitHub default, per open sibling:
+
+   ```bash
+   gh pr update-branch <PR>
+   ```
+
+   It is a remote operation — no local git. Each sibling branched from a
+   `main` that did not contain this merge; left stale, its CI goes red for
+   synchronization, not for a bug, and a full fix cycle ends up doing what
+   this one call does. A sibling whose update fails on a conflict is left
+   alone — its own Merge step's conflict path (`MERGE-FIX.md`) already owns
+   that case.
+
+   Every PR in the wave branched from the same `main`, so any PR merged
+   after the first may conflict: on merge failure **after** the Merge step's
+   checks gate passed, run the merge-fix job (`MERGE-FIX.md`) and retry once.
+   With `merge: manual` there is nothing to serialize — each CLEAN PR just
+   becomes ready-to-merge.
 4. When every wave member is delivered (merged, ready-to-merge, or
    escalated), recompute the unblocked set → next wave. None left →
    **wrap-up**.
@@ -446,7 +461,7 @@ whose step 0 found `isDraft: false`.
 For cycle `c` = 1, 2, 3:
 
 1. Fixer model: cycle 1 uses the build tier, each later cycle escalates one
-   tier (haiku → sonnet → opus; opus stays opus). A sub-issue resumed straight
+   tier (sonnet → opus; opus stays opus). A sub-issue resumed straight
    into this step has no build tier — step 0 already set it to `opus`.
 2. Spawn `code-author` with that model and `isolation: "worktree"`:
 
@@ -500,7 +515,18 @@ gh pr checks <PR> --watch --fail-fast    # exits non-zero if any check fails
 ```
 
 - **Green** (or the code-host doc declares no CI) → merge.
-- **Red** → this is **not** a conflict: treat it as one more **fix cycle**
+- **Red** → this is **not** a conflict. First check whether the branch is
+  merely **behind `main`** — a sibling merged after this branch was cut:
+
+  ```bash
+  gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus   # BEHIND?
+  ```
+
+  On `BEHIND`, run the code host's update-branch operation
+  (`gh pr update-branch <PR>` on GitHub) and re-run this gate — **once per
+  PR**; the red was synchronization, not a bug, and no fixer is needed.
+  Otherwise — or still red on an up-to-date branch — treat it as one more
+  **fix cycle**
   (step 4), spawning the fixer with the failing job's URL appended to its
   prompt. The same three-cycle budget applies; exhausted → **escalate**.
   Merging a red PR is the one failure this gate exists to prevent, so never
