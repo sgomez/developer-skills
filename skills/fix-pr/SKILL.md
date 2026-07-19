@@ -1,6 +1,6 @@
 ---
 name: fix-pr
-description: Reads all unresolved review comments and threads on a change (PR/MR), implements the fixes, pushes, and replies to each thread. Tracker- and host-agnostic — GitHub via gh is the factory default; docs/agents/code-host.md overrides. Use when user says "fix pr comments", "address review", "/fix-pr", or wants to respond to PR review feedback.
+description: Reads all unresolved review comments and threads on a change (PR/MR) — and its failing CI checks, which count as feedback too — implements the fixes, pushes, and replies to each thread. Tracker- and host-agnostic — GitHub via gh is the factory default; docs/agents/code-host.md overrides. Use when user says "fix pr comments", "address review", "/fix-pr", or wants to respond to PR review feedback.
 ---
 
 # Fix PR
@@ -86,7 +86,30 @@ gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
 
 Collect: unresolved inline threads, review summary comments, top-level PR comments.
 
-Refuse if nothing to act on — no feedback found.
+**Red CI is feedback too.** The `/developer` pipeline dispatches a fix job for
+a failing build as well as for a review, and a build that broke after a CLEAN
+review has **no threads at all**. So before concluding there is nothing to act
+on:
+
+- If the task prompt named a failing job (`The PR's CI is red: <url>`), that
+  **is** your feedback — the failing checks are the work, whether or not any
+  thread exists.
+- Otherwise, if you found no threads and no comments, read the change's checks
+  per the code-host doc's "read the checks" operation before giving up.
+  GitHub default:
+
+  ```bash
+  gh pr checks <PR> --json name,state,link --jq \
+    '[.[] | select(.state != "SUCCESS" and .state != "SKIPPED")]'
+  ```
+
+Refuse only when **all** of it comes back empty: no threads, no comments, and
+either green checks or no CI. Then there is genuinely nothing to fix.
+
+When the CI is what you are fixing, get the failure's detail from the job
+itself (`gh run view --log-failed`, or the job URL) rather than re-running the
+whole suite locally to reproduce it — you still run the project's checks once
+after the fix, in step 3.
 
 ### 3. Implement fixes
 
@@ -125,6 +148,11 @@ gh api repos/{owner}/{repo}/pulls/<PR>/comments/<COMMENT_ID>/replies \
   --field body="Fixed in <commit-sha>: <one-line description of what changed>."
 ```
 
+A **CI-only** fix job has no threads to reply to — that is normal, not a
+failure. Leave a record on the change instead, per the comment-on-a-change
+operation, so the next reader knows why the commit exists (GitHub default:
+`gh pr comment <PR> --body "Fixed the failing checks in <sha>: <what broke>."`).
+
 ### 6. Report
 
 List each comment addressed and what was done. Flag any comment skipped and why.
@@ -145,7 +173,8 @@ skip the comment entirely then.
 ## Rules
 
 - One commit for all fixes (not one per comment)
-- Reply to every thread you address
+- Reply to every thread you address — but a job with no threads (a red build
+  after a CLEAN review) is a valid job, not a reason to refuse
 - If a comment is unclear: make the most reasonable interpretation, implement
   it, and state your interpretation in the thread reply (unattended — there is
   no one to ask). If a comment is wrong, say why in the reply instead of

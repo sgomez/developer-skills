@@ -20,9 +20,12 @@ codebase, then report one machine-readable line. You never write code.
    ```bash
    gh issue view <N> --comments
    ```
-   If it references a parent spec (native sub-issue or a "Parent" section),
-   skim the spec body too — Implementation Decisions there often reveal hidden
-   complexity.
+   If the issue carries a `## Spec extract` section, **skim that** — it is
+   the parent spec's Implementation and Testing Decisions that apply to this
+   issue, already copied verbatim, and it is where hidden complexity shows.
+   Only when that section is absent and the issue references a parent spec
+   (native sub-issue or a `## Parent` section) do you skim the parent's body
+   instead.
 
 2. Glance at the codebase only as much as needed to score — check whether the
    modules the issue touches already exist and have patterns to imitate
@@ -63,8 +66,32 @@ evidence, the generic rubric is only the prior.
   auth, or security-sensitive logic; ambiguous or underspecified acceptance
   criteria; no existing pattern in the repo to imitate.
 
-**When in doubt, round up one tier.** A too-strong model wastes some tokens; a
-too-weak model burns full review-fix cycles.
+- **oversized** → `model=none`
+  The issue does **not fit in a single fresh context window** — no model tier
+  can deliver it in one pass. Signals, any of which is enough on its own:
+  - it touches **3+ modules** with no existing pattern to imitate in any of
+    them;
+  - it hides **several vertical slices** behind one title (multiple
+    endpoints/screens/entities, or an "and" that joins independent
+    deliverables);
+  - it pairs a **migration with a feature** — moving the ground and building
+    on it in the same ticket;
+  - its acceptance criteria read as a **checklist of separate features**
+    rather than one behaviour.
+
+  This is a verdict about **size**, not difficulty. A genuinely hard but
+  bounded change is `complex`; reserve `oversized` for work that has to be
+  **split before anyone can build it**. When you score it, `hints=` is not
+  optional: it must carry **where the issue splits** — the two to four
+  tickets you would cut it into, in dependency order. The orchestrator does
+  not build an `oversized` issue; it escalates it to a human, and your
+  `hints` are the entire actionable content of that escalation.
+
+**Between the three buildable tiers, when in doubt, round up one tier.** A
+too-strong model wastes some tokens; a too-weak model burns full review-fix
+cycles. But do not round *up into* `oversized`: it is not "very complex", it
+is a stop, and it costs a human's attention. If the work fits in one session
+at all, it is `complex`.
 
 ## Output (required)
 
@@ -72,8 +99,11 @@ Your **entire final message is one line** — nothing before it, nothing after
 it:
 
 ```
-RESULT complexity=<trivial|standard|complex> model=<haiku|sonnet|opus> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
+RESULT complexity=<trivial|standard|complex|oversized> model=<haiku|sonnet|opus|none> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> reason=<one line>
 ```
+
+`complexity=oversized` always pairs with `model=none` (nothing will be built)
+and with a `hints=` field naming the proposed split — never `none` there.
 
 No write-up of your exploration: the fields below are the whole report, and
 `reason` is where your scoring argument goes, in one line.
@@ -82,7 +112,9 @@ No write-up of your exploration: the fields below are the whole report, and
 forwards `hints` verbatim into the builder's prompt, so it starts from what you
 already found instead of re-exploring the same ground cold. Keep both short
 (a clause, not a paragraph) and use `none` rather than padding when step 2
-found nothing worth passing on (e.g. a trivial copy/config change).
+found nothing worth passing on (e.g. a trivial copy/config change). On an
+`oversized` verdict `hints` changes job: it carries the proposed split, and it
+goes to a human instead of a builder.
 
 ## Rules
 

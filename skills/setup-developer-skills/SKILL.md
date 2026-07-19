@@ -67,8 +67,19 @@ Explore first: `git remote -v`.
     describe, in a paragraph, how changes are published, reviewed, and
     merged there; you will record it as freeform prose.
 
+Then ask **one more question, whatever the host: is there CI on changes, and
+how is its status read?** The answer gates two behaviours — the orchestrator
+refuses to merge on red checks, and the reviewer skips its own install and
+test run when CI already reports green — so a wrong answer costs either a
+merged red build or a duplicated suite. Explore before asking (a
+`.github/workflows/` or `.gitlab-ci.yml` in the repo is the answer most of the
+time) and confirm; where there is genuinely no CI on changes, record
+**`CI: none`** and the pipeline behaves exactly as it did before this question
+existed.
+
 Write `docs/agents/code-host.md` from the matching template bundled in this
-skill folder (drop the HTML comment on the first line):
+skill folder (drop the HTML comment on the first line, and fill or delete the
+`CI` bullet per the answer above):
 
 - [code-host-github.md](./code-host-github.md)
 - [code-host-gitlab.md](./code-host-gitlab.md)
@@ -81,7 +92,9 @@ head sha, state) · check out a change in a linked worktree (read-only
 review, and fix-that-pushes) · read the diff · read feedback / unresolved
 threads · post a review (inline + summary, the CLEAN convention) · mark
 ready · reply to a thread · comment on a change · merge (and whether
-unattended merge is supported at all) · issue auto-close on merge (yes/no).
+unattended merge is supported at all) · issue auto-close on merge (yes/no) ·
+CI on changes (none, or how to wait for the checks and how to read the ones
+recorded for a head sha).
 Anything the user's workflow cannot express (e.g. inline comments), record
 the degraded form the skills should use instead.
 
@@ -104,7 +117,12 @@ step 1 (drop the HTML comment on the first line):
 
 For **other** trackers, write the `## Delivery operations` section from
 scratch with the user: same operation list as above, in their tracker's
-terms (issue ref format included).
+terms (issue ref format included). Carry over the two requirements the
+bundled templates place on whatever splits a spec into tickets: children must
+be **discoverable from the parent** by a mechanic the pipeline can query, and
+each child must carry a **`## Spec extract`** section with the parent's
+Implementation and Testing Decisions that apply to it, copied verbatim — that
+section is what lets a builder work from the ticket alone.
 
 **Idempotence**: if a `## Delivery operations` heading already exists in
 `docs/agents/issue-tracker.md`, replace that section instead of appending a

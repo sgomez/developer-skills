@@ -52,22 +52,24 @@ for the same operation, the doc wins.** If a doc is missing, the GitHub
 defaults apply as-is — suggest `/setup-developer-skills` if that looks
 wrong.
 
-Note two capability flags from `docs/agents/code-host.md`:
+Note one capability flag from `docs/agents/code-host.md`: **issue auto-close
+on merge?** If not (e.g. issues on a tracker the code host can't close), the
+orchestrator closes the delivered issue itself per the tracker ops right
+after verifying the merge.
 
-- **Unattended merge supported?** A local code host never merges
-  unattended — if the resolved config says `merge: auto` there, override to
-  `manual` and say so in the run-config line.
-- **Issue auto-close on merge?** If not (e.g. issues on a tracker the code
-  host can't close), the orchestrator closes the delivered issue itself
-  per the tracker ops right after verifying the merge.
+**If either doc says the tracker or the code host is `local` (files in the
+repo, no remote), read `LOCAL-HOST.md` now, before anything else.** It holds
+every standing adjustment a local host or tracker needs — capability
+overrides, tracker writes, branch discipline, cleanup and wrap-up. A run on a
+remote host never loads it.
 
-With a **local** tracker or code host, two extra standing adjustments:
-Step 0 also publishes `.scratch/` (the tracker/change files live there),
-and tracker writes (comments, `Status:` changes) are yours to make in the
-primary checkout, scoped to `.scratch/` paths, committed as
-`chore(tracker): …` — an extension of Step 0's exception. A local code
-host also moves Cleanup earlier: run it (with `--keep-branches`) after
-**every** worker reports, so the change branch is free for the next worker.
+Two more files are read **on demand**, never at the start: `MERGE-FIX.md` at
+the first merge conflict, and `WRAP-UP.md` when the loop ends.
+
+(All three live **next to this SKILL.md**, in the skill's own directory —
+under the plugin root when installed as a plugin, the same place
+`scripts/cleanup-worktrees.sh` comes from. They are part of this skill: a
+step that says to read one is not optional, it is that step's other half.)
 
 ## Run configuration
 
@@ -137,8 +139,7 @@ The loop may cover many sub-issues; your context must survive all of them.
 
 Workers branch from `origin/main`, so any domain-context file that is not
 committed **and pushed** is invisible to them. Grilling/spec sessions edit
-these files but do not commit them. Before dispatching any worker (add
-`.scratch` to the paths when the tracker or code host is local):
+these files but do not commit them. Before dispatching any worker:
 
 ```bash
 git status --porcelain -- CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
@@ -153,9 +154,6 @@ git add CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
 git commit -m "docs(domain): publish context map and ADR updates"
 git push origin main
 ```
-
-(No remote — local code host — means no push: the commit alone publishes,
-since linked worktrees share the repo.)
 
 If the push is rejected, stop and report — do not rebase or force anything.
 This is the flow's start, before going unattended; the user is still there to
@@ -200,8 +198,9 @@ and `#<PR>` for the change ref in the code host's format.)
   issue, with the issue itself as spec (no separate parent spec).
 - **Two arguments given**: run the delivery pipeline once on `<subissue>` with
   `<spec>` as the spec. Skip the loop. If the sub-issue ends **merged**
-  (verified CLOSED), run the wrap-up's **Close the spec** check afterwards —
-  it may have been the spec's last open sub-issue.
+  (verified CLOSED), read `WRAP-UP.md` and run its **Close the spec** step
+  (step 4) afterwards — it may have been the spec's last open sub-issue. That
+  one step is all this mode needs from the wrap-up.
 
 ## Progress board (spec mode — not optional)
 
@@ -301,7 +300,9 @@ Work in **waves**:
    first: the pipeline's **step 0** resolves where each member starts, and only
    the ones with no open change get a `dispatcher` and a build. Spawn those
    `dispatcher`s in one batch, then their `code-author` BUILD jobs in parallel
-   (each in its own worktree, `run_in_background: true`); a resumed member goes
+   (each in its own worktree, `run_in_background: true`) — **minus any member
+   its dispatcher scored `oversized`**, which is escalated instead of built
+   and simply leaves the wave. A resumed member goes
    straight into the review or fix stage alongside them. As each build
    reports its PR, spawn its `diff-reviewer`; as each reviewer reports,
    mark that PR ready (step 3 of the pipeline); fix cycles run per PR
@@ -310,9 +311,9 @@ Work in **waves**:
 3. **Merges stay strictly serial** — never merge two PRs concurrently. With
    `merge: auto`, merge each PR as it reaches CLEAN. Every PR in the wave
    branched from the same `main`, so any PR merged after the first may
-   conflict: on merge failure, run the merge-fix job from the Merge step,
-   then retry once. With `merge: manual` there is nothing to serialize —
-   each CLEAN PR just becomes ready-to-merge.
+   conflict: on merge failure **after** the Merge step's checks gate passed,
+   run the merge-fix job (`MERGE-FIX.md`) and retry once. With `merge: manual`
+   there is nothing to serialize — each CLEAN PR just becomes ready-to-merge.
 4. When every wave member is delivered (merged, ready-to-merge, or
    escalated), recompute the unblocked set → next wave. None left →
    **wrap-up**.
@@ -320,16 +321,6 @@ Work in **waves**:
 Everything else — context economy, escalation, wrap-up, rules — is unchanged.
 
 ## Delivery pipeline (per sub-issue)
-
-**Local code host — branch discipline (structural, not optional).** On a
-local host every worker checks out the change branch itself, and git allows
-a branch in only **one** worktree — but a worker's worktree outlives it
-whenever it holds changes, which a build or fix worktree always does. So run
-**Cleanup** (step 6, always `--keep-branches`) after **every** worker
-reports and before spawning the next one: build → cleanup → review →
-cleanup → fix → cleanup → re-review. Skipping one makes the next worker
-report blocked on "branch already used by worktree". (Remote hosts are
-immune: reviewers fetch the PR head from the remote instead.)
 
 ### 0. Entry point — resume, never rebuild
 
@@ -385,17 +376,31 @@ Spawn `dispatcher`:
 > `RESULT complexity=… model=… touches=… hints=… reason=…` line — nothing
 > before it, nothing after it.
 
-Parse `model=<tier>`. On any malformed result, default to `opus`. Parse
-`touches=` and `hints=` too, defaulting each to `none` if the line predates
-this field or omits it — never block the pipeline on a missing hint.
+Parse `complexity=` first:
+
+- **`complexity=oversized`** → the sub-issue does not fit in a single fresh
+  context window. **Do not build it.** No model tier rescues a ticket that
+  does not fit: the builder runs out of room, the review finds half a
+  feature, and three fix cycles burn against the same wall. Go straight to
+  **Escalation**, quoting the dispatcher's `hints=` — they carry the
+  proposed split — and move to the next sub-issue. No BUILD, no review, no
+  fix cycles are spent on it.
+- Anything else → parse `model=<tier>` and continue to Build.
+
+On any malformed result, default to `opus` and build — a line you cannot
+parse is not an `oversized` verdict. Parse `touches=` and `hints=` too,
+defaulting each to `none` if the line predates these fields or omits them —
+never block the pipeline on a missing hint.
 
 ### 2. Build
 
 Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 > BUILD job. Spec issue #`<spec>`, sub-issue #`<subissue>`.
-> Read the spec for context, then run the implement-issue skill on the
-> sub-issue. Triage found: `<dispatcher's hints, verbatim, or omit this line
+> Run the implement-issue skill on the sub-issue. The sub-issue's
+> `## Spec extract` section carries the spec decisions that apply to it —
+> read the full spec issue only if that section is missing.
+> Triage found: `<dispatcher's hints, verbatim, or omit this line
 > entirely when hints=none>`.
 > Your entire final message must be the `RESULT pr=… url=…` line — no summary
 > before it, nothing after it. Whatever deserves a record goes in the PR body,
@@ -424,9 +429,8 @@ code-host doc's mark-ready operation. GitHub default:
 gh pr ready <PR>
 ```
 
-Skip this on a local code host (the reviewer's change-file commit already
-carries `Status: ready`) and whenever the PR is already ready — a re-review,
-or a resumed run whose step 0 found `isDraft: false`.
+Skip it whenever the PR is already ready — a re-review, or a resumed run
+whose step 0 found `isDraft: false`.
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
@@ -454,6 +458,12 @@ For cycle `c` = 1, 2, 3:
    > `RESULT pr=… url=…` line — what you fixed belongs in the thread replies,
    > not in your reply to me.
 
+   When this cycle was triggered by the **checks gate** (Merge step) rather
+   than by a review verdict, append one line to that prompt naming the
+   failure — `The PR's CI is red: <failing job URL>. Fix the failing checks
+   too; there may be no review threads at all.` — so the fixer does not go
+   looking for threads that do not exist.
+
    `RESULT blocked …` → **escalate**, next sub-issue (a branch-held-by-
    worktree blocked gets the same one-shot Cleanup + re-spawn as in step 3).
 3. Re-review: spawn `diff-reviewer` again (same prompt as step 3, mention it
@@ -472,13 +482,7 @@ stays open until the human merges, so its dependents remain blocked this run.
 
 Say **how** to merge the moment a sub-issue becomes ready-to-merge — a bare
 "ready to merge" leaves the user asking what to do, especially off GitHub.
-State the code-host doc's merge operation concretely; local default:
-
-```bash
-git merge --no-ff <branch>
-git branch -d <branch>
-# then close the issue per the tracker ops (no auto-close on a local host)
-```
+State the code-host doc's merge operation concretely.
 
 **With `merge: auto`**: this merge is pre-authorized — the user opted into
 `merge: auto` in `docs/agents/developer-defaults.md` (or passed
@@ -486,6 +490,27 @@ git branch -d <branch>
 review verdict is CLEAN. If the permission system still asks, say exactly
 that; if it *denies*, follow the denial rule under Rules (escalate, never
 retry).
+
+**Checks gate — never merge on red CI.** If `docs/agents/code-host.md`
+declares a CI system, wait for the PR's checks and read their result before
+merging, per its "check the change's CI status" operation. GitHub default:
+
+```bash
+gh pr checks <PR> --watch --fail-fast    # exits non-zero if any check fails
+```
+
+- **Green** (or the code-host doc declares no CI) → merge.
+- **Red** → this is **not** a conflict: treat it as one more **fix cycle**
+  (step 4), spawning the fixer with the failing job's URL appended to its
+  prompt. The same three-cycle budget applies; exhausted → **escalate**.
+  Merging a red PR is the one failure this gate exists to prevent, so never
+  fall through to the merge command on red — not even when the failing check
+  looks unrelated.
+
+Without this gate a repo with no branch protection merges its own red build,
+and a repo *with* required checks fails the merge for a reason that is not a
+conflict — which is exactly what makes the merge-fix job (`MERGE-FIX.md`, and
+the failure branch further down this step) the wrong answer to it.
 
 Never touch local git state — your checkout may be in use by the user. Merge
 remotely, per the code-host doc's merge operation. GitHub default:
@@ -510,34 +535,11 @@ If there is **no auto-close** (issues on a different tracker than the code
 host, or a local tracker), close the sub-issue yourself per the tracker
 ops, with a comment naming the merged change.
 
-If the merge fails (conflict with a previous merge), treat it as one extra fix
-cycle — the **merge-fix job**: spawn a `code-author` with model `opus` and
-`isolation: "worktree"`:
-
-> MERGE-FIX job. PR #`<PR>` cannot be merged into main (conflict with a
-> previously merged PR). In your worktree get the PR branch per the
-> fix-that-pushes checkout in `docs/agents/code-host.md` (GitHub default:
-> `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
-> — do not use `gh pr checkout` or check out the branch by name, it is
-> checked out in the build worker's worktree and git will refuse). Merge
-> `origin/main` into it, resolve the conflicts — using the
-> `resolving-merge-conflicts` skill if it appears in your available skills —
-> run the project checks, and push with
-> `git push origin HEAD:<pr-branch>`. Your entire final message must be the
-> `RESULT pr=… url=…` line — nothing before it, nothing after it.
-
-Then merge again. If it still fails, **escalate**. In parallel mode this job
-is routine, not exceptional: budget one merge-fix per conflicting PR before
-escalating.
-
-The merge-fix job also serves **`merge: manual`**: when the human's own
-merge hits a conflict (mid-run or after wrap-up) and they bring it to you,
-never resolve it in the main context — that fills the context this pipeline
-exists to protect. Have them abort the half-merge (`git merge --abort`),
-dispatch this same job on the conflicting PR (on a local host the worker
-merges local `main` into the branch in its worktree — committing is
-publishing, nothing to push), run Cleanup when it reports, and tell them to
-retry the merge, which is now conflict-free.
+If the merge fails **after** the checks gate passed, it is a conflict with a
+previously merged change: read `MERGE-FIX.md` and dispatch the job it
+describes, then merge again. That file also covers the conflict a human hits
+on their own merge under `merge: manual` — the answer is the same job, never
+the main context.
 
 ### 6. Cleanup
 
@@ -569,18 +571,14 @@ bash <skill-dir>/scripts/cleanup-worktrees.sh \
 
 (The two `gh pr view` lines are the GitHub default for the change-metadata
 operation — on another host get branch and head sha per
-`docs/agents/code-host.md`; on a local host the change ref *is* the branch
-and `git rev-parse <branch>` gives the sha. With a local code host always
-add `--keep-branches`: the local branch is the only copy of unmerged work,
-so only the worktrees go.)
+`docs/agents/code-host.md`.)
 
 (A blocked build that never opened a PR has no `$BRANCH`/`$HEAD_SHA` — drop
 those flags; the `agent/issue-<subissue>-*` pattern still catches its
 worktree.)
 
 If the sub-issue was **merged**, also delete the remote branch now (the merge
-deliberately skipped `--delete-branch`; skip this on a local host — there is
-no remote branch):
+deliberately skipped `--delete-branch`):
 
 ```bash
 git push origin --delete $BRANCH
@@ -605,7 +603,9 @@ echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> pr=#<PR> verdict=<CLEAN|—
 
 (`verdict=—` / `wave=—` where the field does not apply — an escalated
 sub-issue that never got a CLEAN, sequential mode. `pr=none` for a build that
-never opened one.)
+never opened one, and `model=none pr=none cycles=0` for a sub-issue escalated
+as `oversized`, which never reached a builder at all — that row is what lets
+the harvest notice a spec whose tickets are systematically too big.)
 
 Write it here and the wrap-up reads facts instead of recalling them: a run that
 survives ten sub-issues, a context compaction, and a resume (step 0) still
@@ -619,10 +619,10 @@ context-docs publish (the top-level Step 0) and the local-tracker
 
 ## Escalation
 
-When a sub-issue is blocked, non-convergent after 3 fix cycles, or
-unmergeable, apply the `ready-for-human` triage label to the sub-issue and
-comment on both the sub-issue and the spec, per the tracker ops. GitHub
-default:
+When a sub-issue is blocked, triaged **oversized**, non-convergent after 3
+fix cycles, or unmergeable, apply the `ready-for-human` triage label to the
+sub-issue and comment on both the sub-issue and the spec, per the tracker
+ops. GitHub default:
 
 ```bash
 gh issue edit <subissue> --add-label "ready-for-human"
@@ -630,9 +630,25 @@ gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url 
 gh issue comment <spec> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
+**Escalating an `oversized` sub-issue**, the comment must carry the
+**proposed partition**, not just the verdict: the dispatcher already saw
+where the work splits and said so in `hints=`. Pass those hints through
+verbatim, so the human gets an actionable "split this into A, B, C" instead
+of a bare "too big". Say `PR: none` — nothing was built. GitHub default:
+
+```bash
+gh issue comment <subissue> --body "Escalated by /developer: oversized — does not fit in a single fresh context window. <reason, from the dispatcher>.
+
+Proposed split: <the dispatcher's hints, verbatim>
+
+Split this into separate sub-issues, then remove the \`ready-for-human\` label to put them back in play. PR: none."
+```
+
 Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
 (step 6) — the local worktrees go, the remote branch and PR stay — record the
-row (step 7), then continue the loop with the next unblocked sub-issue.
+row (step 7), then continue the loop with the next unblocked sub-issue. An
+`oversized` sub-issue has no PR and no worktree: record its row with
+`pr=none` and skip Cleanup.
 
 The label is what makes the escalation outlive this session: the pick (spec
 loop step 1) skips a `ready-for-human` sub-issue on every future run, until a
@@ -640,142 +656,11 @@ human removes it.
 
 ## Wrap-up
 
-1. **Reconcile the task board**: every task must be completed or renamed per
-   the Progress board rules — nothing left silently in_progress.
-2. **Harvest discoveries and record the run** — turn what the workers learned
-   into docs, and persist this run's outcome so the dispatcher can calibrate
-   to this repo. Skip only when the run produced no PRs. The harvest worker
-   does both in one branch/commit; the **ledger rows** it needs are already
-   written — read them, do not reconstruct them:
-
-   ```bash
-   cat .scratch/developer-run-<spec>.log
-   ```
-
-   Pass those lines **verbatim**. Each terminal transition wrote its own row
-   (delivery pipeline step 7), so this file is the run's record even where your
-   own recall has been compacted away. Only if a sub-issue you know went
-   terminal has no row — a step 7 that was denied or interrupted — write that
-   one row now, from what you still hold, and say so in the chat summary.
-
-   Spawn one `code-author` with `model: sonnet` and `isolation: "worktree"`:
-
-   > HARVEST job. This run delivered PRs #`<list every PR of the run —
-   > merged, ready-to-merge, or escalated>`. Create branch
-   > `agent/harvest-<spec>` from origin/main, then do two things on it:
-   >
-   > **(a) Record the run in the ledger.** Append these rows verbatim to the
-   > `## Run log` section of `docs/agents/delivery-ledger.md`, creating the
-   > file if it does not exist (with a one-line title, an empty
-   > `## Local calibration` section, and a `## Run log` section):
-   >
-   > ```
-   > <the ledger rows, one per delivered sub-issue>
-   > ```
-   >
-   > Then read the **recent** `## Run log` — the last ~50 rows are plenty
-   > (older rows already left their mark in the calibration; the log is a
-   > rolling window of evidence, not an archive) — and update
-   > `## Local calibration`: add or refine a short bullet **only** when the log
-   > shows a class of issue was consistently mis-tiered — e.g. issues touching
-   > a given area scored `standard` but needed 2+ fix cycles or escalated at
-   > that tier. Each bullet names the signal and the corrected tier (the
-   > dispatcher reads them on top of its generic rubric). Change nothing there
-   > if no pattern is evident yet; never invent a rule from a single row.
-   >
-   > **(b) Harvest discoveries.** For each PR read its body and comments per the
-   > repo's `docs/agents/code-host.md` (GitHub default:
-   > `gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
-   > entries. Compare them against the repo's agent docs (`AGENTS.md` and
-   > everything under `docs/agents/`). Promote only entries that repeat across
-   > PRs, correct a doc the code has outgrown, or would clearly have saved
-   > another worker real work; drop one-off trivia. Fold the survivors into the
-   > right doc (update the existing recipe/pattern doc; create a new
-   > `docs/agents/` doc only if none fits). If nothing qualifies, leave the
-   > docs untouched — the ledger append from (a) still stands.
-   >
-   > Commit as `docs(agents): record spec #<spec> run and harvest discoveries`
-   > and push with `git push origin HEAD:main` — never check out main. If the
-   > push is rejected, fetch and rebase once, then push again; if it still
-   > fails, stop and report it. Your entire final message must be the
-   > `RESULT docs=<updated|none> ledger=<appended|failed>` line — nothing
-   > before it, nothing after it.
-
-   On `ledger=appended`, delete the run log (`rm .scratch/developer-run-<spec>.log`):
-   its rows now live in the committed ledger, and a stale log would re-append
-   them the next time this spec runs. On any other result, leave it — it is
-   the only copy.
-
-   With a **local code host** there is no remote to push through and `main`
-   may never be moved unattended: instruct the harvest worker to leave its
-   commit on the `agent/harvest-<spec>` branch instead, and list that branch
-   in the wrap-up as one more item in the human's merge queue.
-
-   This job is best-effort: if it reports blocked, note it in the summary
-   and move on.
-3. **Final sweep** — one last pass of the cleanup script, catching the
-   harvest worktree and anything a half-failed pipeline left behind:
-
-   ```bash
-   bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
-   ```
-
-   (With a local code host: `--sweep --keep-branches` — unmerged local
-   branches are the only copy of the work.)
-
-   If it prints a `WARN` line (primary checkout in detached HEAD), include
-   it verbatim in the chat summary — never repair the primary checkout
-   yourself.
-
-   If the permission system **denies the sweep** (its pattern-matched
-   removal can trip the auto-mode classifier), do not retry it: check
-   `git worktree list`, and if leftovers remain run targeted
-   `--branch`/`--sha` passes for the sub-issues this run delivered —
-   the same shape already used in step 6. Nothing left → just note the
-   denial and move on.
-4. **Close the spec** — a spec whose sub-issues are all delivered is itself
-   done; leaving it open makes the tracker lie. Re-enumerate the spec's
-   children per the tracker ops (the same operation as Mode detection —
-   never trust the run's own bookkeeping alone: sub-issues may have been
-   closed before this run or outside it). If **every** sub-issue is CLOSED,
-   close the spec per the tracker ops with a comment. GitHub default:
-
-   ```bash
-   gh issue close <spec> --comment "Closed by /developer: all <N> sub-issues delivered and merged."
-   ```
-
-   If any sub-issue is still open (ready-to-merge under `merge: manual`,
-   escalated, or blocked), leave the spec open and say why in the chat
-   summary. Skip this step in single mode when the issue itself was the
-   spec — it already closed on merge.
-5. **Push notification** (PushNotification tool):
-   `Spec #<spec>: <N> merged, <M> escalated, <K> still blocked.` — with
-   `merge: manual`, use
-   `Spec #<spec>: <N> ready to merge, <M> escalated, <K> still blocked.`
-   If step 4 closed the spec, use
-   `Spec #<spec> completed and closed: <N> sub-issues merged.`
-6. **Chat summary** — one table, built from the run log's rows: sub-issue,
-   model used, PR, fix cycles, wave (parallel mode), outcome. List escalated
-   sub-issues with reasons, and say how to put one back in play: **remove its
-   `ready-for-human` label and re-run `/developer <spec>`** — the label is the
-   only thing holding it out of the pick, and the re-run resumes whatever PR
-   it already has instead of building a second one. With `merge: manual`, list the ready-to-merge PRs
-   **in dependency order** — that is the human's merge queue, and merging in
-   that order minimizes conflicts — and give the **exact commands** per the
-   code-host doc's merge operation (local default: `git merge --no-ff
-   <branch> && git branch -d <branch>`, then close each issue per the
-   tracker ops). End the queue with its final step: once the last sub-issue
-   is closed, close the spec itself per the tracker ops (`gh issue close
-   <spec>` on GitHub). Sibling PRs branched from the same `main` may
-   conflict on merge — say so, and point at the escape hatch: abort the
-   half-merge and ask you to run the **merge-fix job** on that PR (a worker
-   resolves it in its own worktree; never in the main context). Note whether
-   the harvest updated docs.
-7. **Execution report** — how the run actually unfolded. In parallel
-   mode, one line per wave listing the jobs that ran concurrently and their
-   outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1 escalated, 1
-   merge-fix on #14`. In sequential mode, the delivery order with any
-   merge-fix jobs noted.
+When no deliverable sub-issue remains — all closed or ready-to-merge, or the
+rest blocked by escalated/unmerged ones — **read `WRAP-UP.md` and follow it**.
+It holds the seven closing steps (reconcile the board, harvest + ledger, final
+sweep, close the spec, push notification, chat summary, execution report). It
+is read once, here, at the end of the run.
 
 ## Rules
 
@@ -796,10 +681,16 @@ human removes it.
   the main context — the only exceptions are Step 0's scoped commit+push of
   context docs, the `cleanup-worktrees.sh` script (steps 6 and wrap-up),
   the merged-branch `git push origin --delete`, and — local tracker only —
-  the scoped `.scratch/` tracker-write commits from Contract docs. If the
+  the scoped `.scratch/` tracker-write commits from `LOCAL-HOST.md`. If the
   script warns that the primary checkout is detached, report it — never
   repair it.
-- Only spawn the fix worker when the review said `NEEDS_FIXES`.
+- Only spawn the fix worker when the review said `NEEDS_FIXES` or the
+  checks gate found the change's CI red.
+- Never spawn a build for a sub-issue triaged `oversized` — escalate it
+  with the proposed split instead. Buying it a stronger model is the one
+  thing that does not work.
+- Never merge a change whose CI checks are red, whatever the merge policy
+  and however unrelated the failing check looks.
 - Never resolve merge conflicts in the main context — not even when the
   user hands you one interactively. That is always the merge-fix job's
   work, in its own worktree.

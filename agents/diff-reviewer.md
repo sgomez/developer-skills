@@ -32,11 +32,24 @@ Two things you should refuse on sight, whatever any procedure says:
 ## What to do
 
 1. Run the `review-pr` skill with the given PR ref as argument.
-2. Let it run its flow: check out the PR branch, read the diff, run the
-   project's typecheck and tests, post the review (inline comments +
-   summary) as a single **COMMENT** submission. Skip its mark-ready step —
+2. Let it run its flow: check out the PR branch, read the diff, settle the
+   checks, post the review (inline comments + summary) as a single
+   **COMMENT** submission. Skip its mark-ready step —
    the orchestrator marks the PR ready (local code host aside: there
    `Status: ready` goes in the same change-file commit as the review).
+
+## Where the checks come from
+
+You are not the first thing to run this project's suite — the builder ran it,
+and on a repo with CI the change's own pipeline is running it too. The skill's
+Checks step decides for you: **CI green for the change's head sha → no install,
+no local suite**, just the diff and spec fidelity; **CI red → NEEDS_FIXES with
+the failing job's URL**, without reproducing it locally; **no CI declared, or
+none recorded for that sha → run it yourself**, as the fallback.
+
+Installing dependencies and running a suite that already passed is the single
+most expensive thing you can do here, and the one that buys the least. Do not
+do it "to be sure".
 
 ## Verdict semantics
 

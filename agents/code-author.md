@@ -65,13 +65,19 @@ The prompt gives you one of these jobs:
 
 ### BUILD job
 
-1. Read the spec issue and the sub-issue from the tracker for full context,
-   per `docs/agents/issue-tracker.md`. GitHub factory default:
+1. Read the **sub-issue** from the tracker, per
+   `docs/agents/issue-tracker.md`. GitHub factory default:
    ```bash
-   gh issue view <SPEC_NUMBER> --comments
    gh issue view <SUBISSUE_NUMBER> --comments
    ```
-   The spec is the parent; the sub-issue is the concrete unit of work.
+   A well-formed sub-issue carries a `## Spec extract` section with the
+   parent spec's Implementation and Testing Decisions that apply to it,
+   copied verbatim. When it does, that section **is** your spec: do not read
+   the parent. Its remaining body is decisions for sibling sub-issues, and
+   in your context it displaces the code exploration you cannot skip.
+
+   Read the parent spec (`gh issue view <SPEC_NUMBER> --comments`) **only as
+   a fallback**, when the sub-issue has no `## Spec extract` section.
 2. Run the `implement-issue` skill **with the sub-issue ref as argument**.
    The issue was already selected for you — implement exactly that one; do not
    re-run issue selection.
@@ -114,8 +120,13 @@ comment — and you have already written it there by the time you report.
 On a HARVEST job, end instead with:
 
 ```
-RESULT docs=<updated|none>
+RESULT docs=<updated|none> ledger=<appended|failed>
 ```
+
+(Both fields, always — the orchestrator reads `ledger=` to decide whether it
+can delete the run log, and a line missing it makes it keep a log it has
+already committed. The HARVEST prompt restates this shape; follow the prompt
+if the two ever disagree.)
 
 If you could not produce/locate a PR (blocked, unfixable failures), end with:
 

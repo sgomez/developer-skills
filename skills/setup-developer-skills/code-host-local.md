@@ -23,6 +23,11 @@ defaults — **the operations below override them.**
   in the primary worktree, and no unattended process may move it under the
   user's feet. A CLEAN change is recorded ready-to-merge; the human merges
   with `git merge --no-ff <branch>` and then deletes the branch.
+- **CI**: none. There is no remote and no change surface for a CI system to
+  report on, so the pipeline's checks gate does not apply: the builder's and
+  the reviewer's local typecheck/test runs **are** the checks. <!-- If this
+  repo grows a local pre-merge check the pipeline should honour, name the
+  command here. -->
 - **Worktree/branch discipline (orchestrator)**: the branch is the **only
   copy** of unmerged work — always pass `--keep-branches` to
   `cleanup-worktrees.sh`, and run that cleanup **after every worker

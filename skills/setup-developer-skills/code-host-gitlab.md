@@ -16,6 +16,9 @@ operations below override them**.
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/mr-<MR>` branch: `git push origin HEAD:<source-branch>`).
+- **CI**: GitLab CI runs a pipeline per MR. <!-- Set to "none" if this project
+  has no CI on MRs; the pipeline then skips the checks operations below and
+  behaves exactly as it did before they existed. -->
 
 ## Operations
 
@@ -66,6 +69,19 @@ operations below override them**.
   Then post the overall summary (including non-blocking notes) as a plain
   note: `glab mr note <MR> --message "..."`. Never use `glab mr approve` —
   the summary note starting with "CLEAN" is the approval signal.
+- **Wait for the change's CI and gate the merge** (the orchestrator, before
+  merging): `glab ci status --branch <source-branch> --live` — or poll
+  `glab api "projects/:id/merge_requests/<MR>" --jq .head_pipeline.status`
+  until it leaves `running`/`pending`. Anything other than `success` (or
+  `skipped`) is a **red build**, not a merge conflict: the answer is another
+  fix cycle, never a merge-fix job.
+- **Read the checks recorded for the head sha** (the reviewer, before deciding
+  whether to run the suite locally):
+  ```bash
+  glab api "projects/:id/pipelines?sha=<head_sha>" --jq '.[0] | {status, web_url}'
+  ```
+  `status: "success"` = green; anything else names the pipeline to quote via
+  its `web_url`.
 - **Mark ready**: `glab mr update <MR> --ready`.
 - **Reply to a thread**:
   `glab api "projects/:id/merge_requests/<MR>/discussions/<DISCUSSION_ID>/notes" --method POST -f body="..."`,

@@ -9,6 +9,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+Context economy: the orchestrator stops paying for material it will not use,
+the builders stop re-reading the whole spec once per sub-issue, and a ticket
+that cannot fit in one session is now caught before a builder burns three fix
+cycles on it.
+
+### Added
+- **`oversized` triage verdict** (report C4). The dispatcher's rubric gains a
+  fourth verdict for issues that do not fit in a single fresh context window —
+  3+ modules with no pattern to imitate, several vertical slices behind one
+  title, a migration paired with a feature. The orchestrator does not build
+  them: it escalates straight to a human, spending no build, review or fix
+  cycle, and the escalation comment carries the **proposed split** the
+  dispatcher already worked out (its `hints=` field changes job for this
+  verdict). Until now the strongest signal triage could send was
+  `complex → opus`, and a stronger model does not make an oversized ticket
+  fit — it just fails more expensively. A malformed `RESULT` still falls back
+  to `opus` **and builds**: an unparseable line is not an `oversized` verdict.
+- **CI gate before merge** (report D3). With `merge: auto`, the Merge step now
+  waits for the change's checks (`gh pr checks --watch --fail-fast`) and
+  refuses to merge on red. Red checks are routed to a **fix cycle** with the
+  failing job's URL, not to the merge-fix job: previously every merge failure
+  was read as a conflict, so a repo with required checks answered a red build
+  by dispatching an opus worker to resolve conflicts that did not exist, then
+  escalated with the wrong diagnosis. A repo with no branch protection could
+  merge its own red build outright. The `code-host-*.md` templates gained a
+  `CI` declaration and the operations to read it, and
+  `/setup-developer-skills` now asks for it; `CI: none` reproduces the old
+  behaviour exactly.
+  - `approve-merge.sh` enforces the same gate deterministically: the hook now
+    checks the change's `statusCheckRollup` and approves only on green.
+    Otherwise it stays silent — it never emits a `deny` — so a red or pending
+    build falls back to the normal permission flow instead of being waved past
+    the auto-mode classifier. A repo with **no** checks at all is still
+    approved, unchanged; an unreachable or unauthenticated `gh` counts as
+    unknown, and unknown is not green.
+  - `fix-pr` accepts a **CI-only** job: failing checks count as feedback, so a
+    change whose build broke after a CLEAN review no longer hits the skill's
+    "nothing to act on" refusal — which would have escalated every red build
+    the new gate caught, the exact opposite of the gate's purpose. Such a job
+    has no threads to reply to; it records what it fixed as a comment on the
+    change instead.
+- **`## Spec extract` in every ticket** (report C3). The three delivery-ops
+  templates now require whatever splits a spec — `/to-tickets` — to copy the
+  parent's applicable Implementation and Testing Decisions verbatim into each
+  child. A ticket carrying that section is self-sufficient, and the default
+  inverts: `implement-issue`, the code-author BUILD job and the dispatcher
+  read the ticket, falling back to the full parent spec only when the section
+  is missing. A ten-child spec used to have its whole body read ten times,
+  competing with the code exploration a builder cannot cut.
+
+### Changed
+- **The reviewer trusts green CI** (report C8). `review-pr` now reads the
+  checks recorded for the change's head sha before doing anything expensive:
+  green means no dependency install and no local suite — the diff and spec
+  fidelity are the review; red is an automatic NEEDS_FIXES quoting the failing
+  job's URL, with no attempt to reproduce it. Running the suite was the most
+  expensive part of every review, in the most expensive model, and on a repo
+  with CI it was the third run of the same commands on the same commit. Repos
+  that declare no CI keep running it locally, unchanged.
+- **`/developer` loads its conditional material on demand** (report C2). The
+  orchestrator skill was one 814-line block mixing the common path with
+  material most runs never reach; it now keeps the common path and reads three
+  siblings when the step needs them: `LOCAL-HOST.md` (every local-host and
+  local-tracker adjustment, read at the start only when a contract doc says
+  the host or tracker is local), `MERGE-FIX.md` (the merge-fix job, read at the
+  first conflict) and `WRAP-UP.md` (the seven closing steps including the
+  harvest prompt, read once when the loop ends). A GitHub run on a spec that
+  merges cleanly no longer pays for any of it.
+
 ## [0.16.0] - 2026-07-19
 
 Run robustness: a `/developer` run can now be interrupted and re-launched

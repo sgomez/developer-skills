@@ -309,6 +309,9 @@ agents/                     # subagents, auto-loaded by the plugin route
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
   developer/                # orchestrator: spec loop, fix cycles, merge policy
+    LOCAL-HOST.md           # read only when the host/tracker is local
+    MERGE-FIX.md            # read at the first merge conflict
+    WRAP-UP.md              # read once, when the loop ends
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply

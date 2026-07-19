@@ -40,6 +40,36 @@ tracker's layout **overrides that default**: publish one file per ticket at
 each with its own `Status:` line and `Blocked by: NN, NN` line. A single
 root `tickets.md` is invisible to the pipeline.
 
+### Every issue file MUST carry a `## Spec extract` section
+
+An issue file is read by a builder with a **clean context**: that file is all
+it gets for free. If the decisions it must honour live only in the parent
+`PRD.md`, every builder re-reads the whole PRD — a spec with ten issues pays
+for its own body ten times, competing with the code exploration the builder
+cannot cut.
+
+So `/to-tickets` (or whatever splits the PRD) **must** give each issue file a
+`## Spec extract` section holding the PRD's **Implementation Decisions** and
+**Testing Decisions that apply to this issue**, copied **verbatim** — not
+summarised, not rewritten. Two or three of them is the normal size; an issue
+that seems to need all of them is a sign the split is wrong.
+
+```markdown
+## Spec extract
+
+Implementation Decisions (from PRD.md):
+- <decision, verbatim>
+- <decision, verbatim>
+
+Testing Decisions (from PRD.md):
+- <decision, verbatim>
+```
+
+The bar is the same one that makes any agent brief work: durable and
+behavioural, with verifiable criteria, and no file paths that go stale. An
+issue file with this section is **self-sufficient** — the pipeline reads
+`PRD.md` only as a fallback, when the section is missing.
+
 Issue files live on `main` in the primary checkout. Workers in linked
 worktrees read them via their own checkout; **writes** (comments, `Status:`
 changes) that must survive the run are made by the orchestrator in the

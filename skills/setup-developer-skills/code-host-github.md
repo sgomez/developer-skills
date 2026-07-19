@@ -27,3 +27,31 @@ Repo-specific facts:
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/pr-<PR>` branch: `git push origin HEAD:<pr-branch>`).
+- **CI**: GitHub Actions runs on pull requests. <!-- Set to "none" if this
+  repo has no CI on PRs; the pipeline then skips both checks below and
+  behaves exactly as it did before they existed. -->
+
+## Checking the change's CI status
+
+Two operations read the same checks, for two different readers.
+
+- **Wait for the checks and gate the merge** (the orchestrator, before
+  merging):
+
+  ```bash
+  gh pr checks <PR> --watch --fail-fast   # exits non-zero if any check fails
+  ```
+
+  A non-zero exit is **not** a merge conflict: it is a red build, and the
+  answer is another fix cycle, never a merge-fix job.
+
+- **Read the checks already recorded for the head sha** (the reviewer, before
+  deciding whether to run the suite locally):
+
+  ```bash
+  gh pr checks <PR> --json name,state,link --jq \
+    '[.[] | select(.state != "SUCCESS" and .state != "SKIPPED")]'
+  ```
+
+  Empty output with at least one check present = green. Any entry is a
+  failing or still-running check; its `link` is the job URL to quote.

@@ -85,3 +85,104 @@ at its root instead of routing around it.
 and deciding which side of the exchange the bot sits on. Worth it only if the
 independent approval is wanted for its own sake, not merely to satisfy the
 classifier — the hook already handles that.
+
+## Tier→model map in developer-defaults (report D8)
+
+**Problem.** The `haiku` / `sonnet` / `opus` strings are hard-coded in five
+places (the dispatcher's rubric, its `RESULT` line, the orchestrator's worker
+table, the Build step, the fix cycle's escalation ladder). Retuning a repo's
+tiers means editing skills that ship with the plugin, and a repo cannot say
+"here, standard needs opus" at all.
+
+**Direction.** Move the map into `docs/agents/developer-defaults.md` (and its
+template in `skills/setup-developer-skills/`):
+
+```
+models:
+  trivial:  haiku
+  standard: sonnet
+  complex:  opus
+  reviewer: opus
+```
+
+The dispatcher then emits only `complexity=` (semantics) and the orchestrator
+resolves `model=` against the map (mechanics), falling back to the factory
+values when the file or a key is absent.
+
+**What blocks it.** The `oversized` verdict (0.17.0) has no model at all —
+`complexity=oversized` pairs with `model=none` — so the map is not a total
+function from complexity to model, and the resolution step has to special-case
+it. Worth doing together with whatever V2 handles oversized tickets, so the
+two shapes are designed once.
+
+## Re-reviews with a declared focus (report C7)
+
+**Problem.** On fix cycles 2 and 3 the diff-reviewer re-reads the whole change
+from scratch. It already has a rule against inventing new nitpicks on untouched
+code, but nothing tells it *where* the new work is, so it pays for the full
+diff every cycle.
+
+**Direction.** Have the orchestrator narrow the re-review prompt: the threads
+that were outstanding, and `the commits since <sha>` — it knows the previous
+review's head sha without reading any bodies, so this costs it nothing.
+
+**What blocks it.** Nothing structural; it was cut from the 0.17.0 context
+pass for scope. The care needed is in the wording: a reviewer told to look only
+at new commits can miss a fix that broke something outside them, so the prompt
+has to narrow attention without narrowing responsibility for the verdict.
+
+## Cheaper worktree bootstrap (report D9)
+
+**Problem.** Every build, fix and review worktree installs dependencies from
+scratch; nothing tells workers which install command this project prefers.
+
+**Direction.** Record the recommended bootstrap command in the code-host
+templates (e.g. `pnpm install --prefer-offline --reporter=silent`) so workers
+copy it rather than guessing.
+
+**What blocks it.** Mostly that the payoff shrank: the review path stopped
+installing at all when CI is green (0.17.0), and the quiet-install rules
+already removed the log cost. What is left is wall-clock time on build and fix
+worktrees — real, but no longer a context problem, so it needs a different
+justification than the one it was parked with.
+
+## Plan-then-build for the complex tier (report O3)
+
+**Problem.** A `complex` sub-issue sends its builder straight into
+implementation with only the dispatcher's one-line `hints` for orientation.
+The expensive thinking (seams, ordering, which pattern to imitate) happens
+inside the same context that then has to hold the whole implementation.
+
+**Direction.** For `complexity=complex` only, have a plan step leave the plan
+as a comment on the issue, and start the builder from it. Standard and trivial
+tickets would only pay overhead.
+
+**What blocks it.** It overlaps with the `oversized` verdict from the other
+end: both are answers to "this ticket is too much for one pass", one by
+splitting the ticket and one by splitting the *work* on it. Deciding which
+applies where is the design question, and doing O3 without answering it risks
+two mechanisms that fire on the same tickets.
+
+## Red CI is invisible in the `merge: manual` queue
+
+**Problem.** The Merge step's checks gate (0.17.0) only guards the merge the
+orchestrator performs, so it sits on the `merge: auto` branch. Under
+`merge: manual` the step returns early — the sub-issue is recorded
+ready-to-merge and handed to the human — and nothing looks at the checks after
+that point.
+
+The reviewer already treats red checks as NEEDS_FIXES, so the gap is narrow but
+real: a build that goes red **after** a CLEAN verdict (a flaky job, a
+dependency change, a sibling PR merged in between) reaches the human's merge
+queue marked ready, with no signal. They find out by merging it.
+
+**Direction.** Read the checks when the wrap-up builds the merge queue and flag
+the red ones there. That is where the human actually reads the list, it costs
+one call per queued change, and it leaves the meaning of `merge: manual`
+untouched.
+
+**What blocks it.** Nothing technical — it was cut from 0.17.0 for scope. The
+alternative considered and rejected was moving the gate above the
+manual/auto split: cleaner on paper, but it would make `manual` spend fix
+cycles, which is precisely what that policy says it does not do. Anyone
+picking this up should not quietly re-open that decision.

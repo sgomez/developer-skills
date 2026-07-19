@@ -83,7 +83,18 @@ Read the issue with its comments per the tracker doc — GitHub default:
 gh issue view <N> --comments
 ```
 
-Read the full body, acceptance criteria, and all comments. Pull the parent spec if referenced (the "Parent" section in the issue body).
+Read the full body, acceptance criteria, and all comments.
+
+**The issue is the spec — the parent is the fallback.** A well-formed ticket
+carries a `## Spec extract` section with the parent's Implementation and
+Testing Decisions that apply to it, copied verbatim (the tracker doc requires
+it of `/to-tickets`). When that section is there, build from it and **do not
+read the parent**: the rest of the parent's body is decisions for *other*
+tickets, and it competes for context with the code you still have to explore.
+
+Read the full parent spec only when the section is **missing** (an older
+ticket, or one written by hand) — then pull it per the `## Parent` section in
+the issue body, and treat that as the exception it is.
 
 ### 3. Create branch
 

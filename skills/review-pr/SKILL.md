@@ -103,11 +103,41 @@ Check for:
   generality, message chains, middle man, refused bequest. Each is a
   judgement call — label it as one ("possible Feature Envy"), and skip
   anything a documented repo standard endorses or tooling already enforces
-- **Checks** — run the project's typecheck and test commands once (see
-  `AGENTS.md` / `CLAUDE.md`), with its quietest reporter (`--reporter=dot`,
-  `--silent`): a green suite's per-test output is pure context cost. On a red
-  run, re-run **only the failing file or test name** to get the detail you need
-  to write the finding. Failures are blocking
+- **Checks** — see below; failures are always blocking
+
+#### Checks — let CI answer where it can
+
+The typecheck and the test suite are the most expensive part of this review,
+and on a repo with CI they are the *third* time the same commands run on the
+same commit: the builder ran them, the change's CI is running them, and you
+would run them again.
+
+So, **before installing anything**: if `docs/agents/code-host.md` declares a
+CI system, read the checks recorded for the change's **head sha**, per its
+"read the checks" operation. GitHub default:
+
+```bash
+gh pr checks <PR> --json name,state,link --jq \
+  '[.[] | select(.state != "SUCCESS" and .state != "SKIPPED")]'
+```
+
+- **Green** (empty output, at least one check present) → **skip the install
+  and the local suite entirely.** Review the diff and spec fidelity only, and
+  say in the summary that checks were taken from CI (name the head sha). The
+  suite has already answered; re-running it buys nothing and costs the most
+  context of anything you do.
+- **Red** → **NEEDS_FIXES**, with the failing job's **URL** in the finding.
+  Do not try to reproduce it locally and do not review around it: the fixer
+  needs the job, not your re-run.
+- **Still running** → do not wait for it. Fall back to the local run below.
+- **No CI declared** (or no checks recorded for the head sha) → the local run
+  below, exactly as before.
+
+**Local run** (the fallback): install dependencies quietly, then run the
+project's typecheck and test commands once (see `AGENTS.md` / `CLAUDE.md`)
+with its quietest reporter (`--reporter=dot`, `--silent`) — a green suite's
+per-test output is pure context cost. On a red run, re-run **only** the
+failing file or test name to get the detail you need to write the finding.
 
 Separate findings into **actionable** (require a code change: bugs, spec
 violations — missing/wrong requirements, scope creep — failing checks,
@@ -158,6 +188,9 @@ gh pr ready <PR>
 - Never push code changes — review only (exception: a local code host's
   review lives in the change file; committing that one file is the review)
 - One review submission, not comment-by-comment (where the host can batch)
-- Flag typecheck / test failures as blocking
+- Flag typecheck / test failures as blocking, whether they came from CI or
+  from your own run — a red check is never a note
+- Never run the suite locally when the change's CI already reports green for
+  its head sha
 - Unattended: never ask the user anything; when unsure whether a finding
   blocks, ask "would this stop me merging?" — if not, it's a note
