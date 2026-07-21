@@ -18,7 +18,20 @@ Changes staged on the `next` branch, published as a new version once ready.
   `medium` is the value every ledgered run actually built with, so the pin
   changes nothing today; it stops the variable drifting tomorrow. The run
   log row gains `effort=` next to `model=` so each row is self-contained
-  when comparing runs (older rows without the field parse as before). `trivial` now builds with sonnet
+  when comparing runs (older rows without the field parse as before).
+- **A red the CI never ran is no longer a fix cycle.** All three CI readers
+  now classify a red before spending on it, via the code-host docs' new
+  classify-a-red operation (on GitHub: a failed job with zero executed
+  steps, or a `startup_failure` run, never exercised the code): the merge
+  gate escalates and ends the run instead of dispatching a fixer — an
+  un-startable CI reds every later PR identically — the reviewer treats it
+  as "no checks recorded" and falls back to its local run, and a CI-only
+  fix job reports `blocked reason=ci-infra` instead of waiting for a green
+  that cannot come. Field evidence (spec #397): a repo out of Actions
+  minutes cost a full fix cycle — a worker polling a job with zero steps —
+  plus an escalation, for a red that said nothing about the code. The
+  GitLab template maps the same split via `failure_reason`; a code-host doc
+  without the operation keeps the old behaviour (every red is code-red). `trivial` now builds with sonnet
   and the fix-cycle escalation is sonnet → opus. Field evidence (spec #308,
   plus the ledger's earlier haiku rows): on comparable tickets haiku builds
   cost as much or more than sonnet in tokens and wall-clock, missed domain

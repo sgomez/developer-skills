@@ -126,9 +126,15 @@ gh pr checks <PR> --json name,state,link --jq \
   say in the summary that checks were taken from CI (name the head sha). The
   suite has already answered; re-running it buys nothing and costs the most
   context of anything you do.
-- **Red** → **NEEDS_FIXES**, with the failing job's **URL** in the finding.
-  Do not try to reproduce it locally and do not review around it: the fixer
-  needs the job, not your re-run.
+- **Red** → check the failing job **actually executed**, per the code-host
+  doc's classify-a-red operation (GitHub default: `gh run view <run-id>
+  --json jobs`, `<run-id>` from the check's `link` — a failed job with zero
+  steps never started). Never started (runner offline, CI minutes
+  exhausted) → the red recorded nothing about this change: treat it as **no
+  checks recorded** and fall back to the local run below. Executed →
+  **NEEDS_FIXES**, with the failing job's **URL** in the finding. Do not
+  try to reproduce it locally and do not review around it: the fixer needs
+  the job, not your re-run.
 - **Still running** → do not wait for it. Fall back to the local run below.
 - **No CI declared** (or no checks recorded for the head sha) → the local run
   below, exactly as before.

@@ -28,12 +28,12 @@ Repo-specific facts:
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/pr-<PR>` branch: `git push origin HEAD:<pr-branch>`).
 - **CI**: GitHub Actions runs on pull requests. <!-- Set to "none" if this
-  repo has no CI on PRs; the pipeline then skips both checks below and
+  repo has no CI on PRs; the pipeline then skips the CI operations below and
   behaves exactly as it did before they existed. -->
 
 ## Checking the change's CI status
 
-Two operations read the same checks, for two different readers.
+Three operations read the same checks, for different readers.
 
 - **Wait for the checks and gate the merge** (the orchestrator, before
   merging):
@@ -55,3 +55,19 @@ Two operations read the same checks, for two different readers.
 
   Empty output with at least one check present = green. Any entry is a
   failing or still-running check; its `link` is the job URL to quote.
+
+- **Classify a red — did the failing job actually execute?** (any reader,
+  before spending a fix cycle on it): take `<run-id>` from the failing
+  check's `link` (`…/actions/runs/<run-id>/job/<job-id>`), then
+
+  ```bash
+  gh run view <run-id> --json conclusion,jobs --jq '{run: .conclusion,
+    failed: [.jobs[] | select(.conclusion != "success" and .conclusion != "skipped")
+    | {name, steps: (.steps | length)}]}'
+  ```
+
+  A failed job with `steps > 0` ran against the change: **code-red** — a
+  fix cycle. Every failed job at `steps: 0`, a run conclusion of
+  `startup_failure`, or a job no runner ever picked up: **infra-red** —
+  the job never started (runner offline, Actions minutes exhausted) and
+  the red says nothing about the code.

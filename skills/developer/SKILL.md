@@ -525,10 +525,32 @@ gh pr checks <PR> --watch --fail-fast    # exits non-zero if any check fails
   On `BEHIND`, run the code host's update-branch operation
   (`gh pr update-branch <PR>` on GitHub) and re-run this gate — **once per
   PR**; the red was synchronization, not a bug, and no fixer is needed.
-  Otherwise — or still red on an up-to-date branch — treat it as one more
-  **fix cycle**
-  (step 4), spawning the fixer with the failing job's URL appended to its
-  prompt. The same three-cycle budget applies; exhausted → **escalate**.
+
+  Still red on an up-to-date branch → **classify the red** before paying
+  for a fixer, per the code-host doc's classify-a-red operation. GitHub
+  default (`<run-id>` comes from the failing check's `link`):
+
+  ```bash
+  gh run view <run-id> --json conclusion,jobs --jq '{run: .conclusion,
+    failed: [.jobs[] | select(.conclusion != "success" and .conclusion != "skipped")
+    | {name, steps: (.steps | length)}]}'
+  ```
+
+  - **Code-red** — a failed job executed steps (`steps > 0`): the change
+    was exercised and failed. Treat it as one more **fix cycle** (step 4),
+    spawning the fixer with the failing job's URL appended to its prompt.
+    The same three-cycle budget applies; exhausted → **escalate**.
+  - **Infra-red** — every failed job sits at `steps: 0`, the run concluded
+    `startup_failure`, or no runner ever picked the job up: the code was
+    never exercised, so there is nothing a fixer can fix. Spawn none.
+    **Escalate** the sub-issue naming the cause (runner offline, CI
+    minutes exhausted) and go to **wrap-up**: a CI that cannot start reds
+    every later PR's gate identically, so continuing burns builds that
+    cannot merge. The wrap-up's unblock question is one line: restore the
+    CI (minutes, runner), then re-run `/developer <spec>`.
+  - The code-host doc defines no classify operation (or the host cannot
+    tell) → every red is code-red, as before.
+
   Merging a red PR is the one failure this gate exists to prevent, so never
   fall through to the merge command on red — not even when the failing check
   looks unrelated.
@@ -719,7 +741,8 @@ is read once, here, at the end of the run.
   script warns that the primary checkout is detached, report it — never
   repair it.
 - Only spawn the fix worker when the review said `NEEDS_FIXES` or the
-  checks gate found the change's CI red.
+  checks gate found the change's CI **code-red** — an infra-red (the
+  failing job never executed) escalates and ends the run instead.
 - Never spawn a build for a sub-issue triaged `oversized` — escalate it
   with the proposed split instead. Buying it a stronger model is the one
   thing that does not work.

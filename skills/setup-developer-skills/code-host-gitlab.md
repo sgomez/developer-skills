@@ -82,6 +82,17 @@ operations below override them**.
   ```
   `status: "success"` = green; anything else names the pipeline to quote via
   its `web_url`.
+- **Classify a red — did the failing job actually execute?** (any reader,
+  before spending a fix cycle on it):
+  ```bash
+  glab api "projects/:id/pipelines/<pipeline_id>/jobs?scope[]=failed" \
+    --jq '.[] | {name, status, failure_reason}'
+  ```
+  `failure_reason: "script_failure"` means the job ran the change's code:
+  **code-red** — a fix cycle. `runner_system_failure`,
+  `stuck_or_timeout_failure` or `scheduler_failure` — or a pipeline whose
+  jobs sit `pending` with no runner — is **infra-red**: the job never ran
+  and the red says nothing about the code.
 - **Mark ready**: `glab mr update <MR> --ready`.
 - **Reply to a thread**:
   `glab api "projects/:id/merge_requests/<MR>/discussions/<DISCUSSION_ID>/notes" --method POST -f body="..."`,

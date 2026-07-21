@@ -111,10 +111,16 @@ on:
 Refuse only when **all** of it comes back empty: no threads, no comments, and
 either green checks or no CI. Then there is genuinely nothing to fix.
 
-When the CI is what you are fixing, get the failure's detail from the job
-itself (`gh run view --log-failed`, or the job URL) rather than re-running the
-whole suite locally to reproduce it — you still run the project's checks once
-after the fix, in step 3.
+When the CI is what you are fixing, first check the failing job **actually
+executed**, per the code-host doc's classify-a-red operation (GitHub default:
+`gh run view <run-id> --json jobs` — a failed job with zero steps never
+started). A job the CI could not start (runner offline, minutes exhausted) is
+not fixable from a worktree, and no amount of waiting turns it green: stop
+and report `RESULT blocked reason=ci-infra <one line naming the cause>`
+instead of waiting for it or re-running it. Otherwise, get the failure's
+detail from the job itself (`gh run view --log-failed`, or the job URL)
+rather than re-running the whole suite locally to reproduce it — you still
+run the project's checks once after the fix, in step 3.
 
 ### 3. Implement fixes
 

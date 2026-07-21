@@ -198,3 +198,20 @@ alternative considered and rejected was moving the gate above the
 manual/auto split: cleaner on paper, but it would make `manual` spend fix
 cycles, which is precisely what that policy says it does not do. Anyone
 picking this up should not quietly re-open that decision.
+
+## One free re-run for a suspected CI flake
+
+**Problem.** The checks gate treats every code-red as a fix cycle, including
+a flaky test a re-run would clear. In spec #397's run, PR #411's review
+carried a red the reviewer itself judged an unrelated mobile flake — but red
+is automatically NEEDS_FIXES, so it rode along into a fix cycle.
+
+**Direction.** Gate-side, once per PR — mirroring the once-per-PR `BEHIND`
+resync — and only after the classify-a-red operation says the failing job
+really executed: `gh run rerun <run-id> --failed`; green after the re-run
+merges, still red spends the fix cycle.
+
+**What blocks it.** One data point, and that cycle was not wasted — the same
+verdict carried a real finding (a wall-clock time bomb), so the fixer had
+genuine work. Worth its complexity only when a run shows a cycle whose
+*sole* cause was a flake.
