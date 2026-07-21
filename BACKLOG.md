@@ -175,6 +175,28 @@ splitting the ticket and one by splitting the *work* on it. Deciding which
 applies where is the design question, and doing O3 without answering it risks
 two mechanisms that fire on the same tickets.
 
+## Pinned-tier split proposal for `oversized` tickets
+
+**Problem.** The `hints=` on an `oversized` verdict are produced by the
+dispatcher at its pinned `effort: low` — the pipeline's only design-shaped
+output, from its cheapest pass. The escalation now frames them as fault
+lines and routes the real cut to `/to-tickets` in a fresh high-tier
+session, but that routing is advisory: skills inherit the operator's
+session model and effort, and nothing enforces the tier the re-cut
+actually runs at.
+
+**Direction.** A dedicated worker with `model` and `effort` pinned high in
+its definition, spawned only on an `oversized` verdict, to draft the split
+properly. It must write its proposal **directly into the escalation
+comment** (its durable home) and return only a `RESULT` line — the
+orchestrator's context never carries the design.
+
+**What blocks it.** No field evidence yet: no run has shown a bad partition
+being approved off the dispatcher's hints. It also overlaps with the
+`oversized` special-case in the tier→model map entry and with
+plan-then-build (O3) — whatever V2 handles oversized tickets should design
+the three together.
+
 ## Red CI is invisible in the `merge: manual` queue
 
 **Problem.** The Merge step's checks gate (0.17.0) only guards the merge the

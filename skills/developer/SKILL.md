@@ -398,7 +398,7 @@ Parse `complexity=` first:
   does not fit: the builder runs out of room, the review finds half a
   feature, and three fix cycles burn against the same wall. Go straight to
   **Escalation**, quoting the dispatcher's `hints=` — they carry the
-  proposed split — and move to the next sub-issue. No BUILD, no review, no
+  fault lines — and move to the next sub-issue. No BUILD, no review, no
   fix cycles are spent on it.
 - Anything else → parse `model=<tier>` and continue to Build.
 
@@ -686,18 +686,20 @@ gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url 
 gh issue comment <spec> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
-**Escalating an `oversized` sub-issue**, the comment must carry the
-**proposed partition**, not just the verdict: the dispatcher already saw
-where the work splits and said so in `hints=`. Pass those hints through
-verbatim, so the human gets an actionable "split this into A, B, C" instead
-of a bare "too big". Say `PR: none` — nothing was built. GitHub default:
+**Escalating an `oversized` sub-issue**, the comment must carry the **fault
+lines**, not just the verdict: the dispatcher already saw where the work
+splits and said so in `hints=`. Pass those hints through verbatim — as the
+seed of the re-cut, never as the partition itself: splitting a ticket is
+design work, and the comment routes it to `/to-tickets` in a fresh session
+with a high-tier model and high effort, the conditions the original cut was
+made under. Say `PR: none` — nothing was built. GitHub default:
 
 ```bash
 gh issue comment <subissue> --body "Escalated by /developer: oversized — does not fit in a single fresh context window. <reason, from the dispatcher>.
 
-Proposed split: <the dispatcher's hints, verbatim>
+Fault lines, from triage (a starting point, not the split): <the dispatcher's hints, verbatim>
 
-Split this into separate sub-issues, then remove the \`ready-for-human\` label to put them back in play. PR: none."
+To split it: run /to-tickets on this issue in a fresh session with a high-tier model and high effort, starting from the fault lines above. Then remove the \`ready-for-human\` label to put the new sub-issues in play. PR: none."
 ```
 
 Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
@@ -744,7 +746,7 @@ is read once, here, at the end of the run.
   checks gate found the change's CI **code-red** — an infra-red (the
   failing job never executed) escalates and ends the run instead.
 - Never spawn a build for a sub-issue triaged `oversized` — escalate it
-  with the proposed split instead. Buying it a stronger model is the one
+  with the fault lines instead. Buying it a stronger model is the one
   thing that does not work.
 - Never merge a change whose CI checks are red, whatever the merge policy
   and however unrelated the failing check looks.

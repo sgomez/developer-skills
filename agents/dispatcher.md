@@ -82,10 +82,11 @@ evidence, the generic rubric is only the prior.
   This is a verdict about **size**, not difficulty. A genuinely hard but
   bounded change is `complex`; reserve `oversized` for work that has to be
   **split before anyone can build it**. When you score it, `hints=` is not
-  optional: it must carry **where the issue splits** — the two to four
-  tickets you would cut it into, in dependency order. The orchestrator does
-  not build an `oversized` issue; it escalates it to a human, and your
-  `hints` are the entire actionable content of that escalation.
+  optional: it must carry the **fault lines** — the two to four places where
+  the issue splits, in dependency order. The orchestrator does not build an
+  `oversized` issue; it escalates it to a human, who re-cuts it with
+  `/to-tickets` — your `hints` seed that re-cut, they are not the partition
+  itself. Name the fractures; do not draft the tickets.
 
 **Score the code, not the prose.** The same ticket text costs a tier more
 when it is the **first of its family** — the helper or pattern it needs does
@@ -111,7 +112,7 @@ RESULT complexity=<trivial|standard|complex|oversized> model=<sonnet|opus|none> 
 ```
 
 `complexity=oversized` always pairs with `model=none` (nothing will be built)
-and with a `hints=` field naming the proposed split — never `none` there.
+and with a `hints=` field naming the fault lines — never `none` there.
 
 No write-up of your exploration: the fields below are the whole report, and
 `reason` is where your scoring argument goes, in one line.
@@ -121,7 +122,7 @@ forwards `hints` verbatim into the builder's prompt, so it starts from what you
 already found instead of re-exploring the same ground cold. Keep both short
 (a clause, not a paragraph) and use `none` rather than padding when step 2
 found nothing worth passing on (e.g. a trivial copy/config change). On an
-`oversized` verdict `hints` changes job: it carries the proposed split, and it
+`oversized` verdict `hints` changes job: it carries the fault lines, and it
 goes to a human instead of a builder.
 
 ## Rules

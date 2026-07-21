@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.19.0] - 2026-07-21
+
+The pipeline's cheapest worker stops authoring its only design decision:
+an `oversized` ticket's split is now drafted where the original cut was
+made, not approved off a low-effort triage line.
+
+### Changed
+- **An `oversized` split proposal is a seed, not a decision.** The
+  dispatcher's `hints=` on an `oversized` verdict now name the issue's
+  **fault lines** — where it splits — instead of posing as the finished
+  partition, and the escalation comment and wrap-up route the actual cut to
+  `/to-tickets` in a fresh session with a high-tier model and high effort,
+  the conditions the original spec→tickets cut was made under. The
+  dispatcher runs at pinned `effort: low` — right for classifying, and the
+  `oversized` signals are checklist-shaped — but its hints were the
+  pipeline's only design-shaped output, and the wrap-up used to invite a
+  one-line "approve the proposed split?": an anchor on the cheapest
+  worker's hardest task. The routing is advisory by construction (skills
+  inherit the session's model and effort; only agents pin theirs) — a
+  pinned-tier split worker is parked in the backlog until a run shows a bad
+  partition actually being approved.
+
 ## [0.18.0] - 2026-07-21
 
 Everything the spec #397 field run taught: the build ladder loses its cheap
@@ -579,7 +601,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.18.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.19.0...next
+[0.19.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.0
 [0.18.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.18.0
 [0.17.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.17.0
 [0.16.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.16.0

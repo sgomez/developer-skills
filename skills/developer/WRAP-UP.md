@@ -160,15 +160,17 @@ List escalated sub-issues with reasons, and say how to put one back in play:
 **remove its `ready-for-human` label and re-run `/developer <spec>`** — the
 label is the only thing holding it out of the pick, and the re-run resumes
 whatever change it already has instead of building a second one. For a
-sub-issue escalated as **oversized**, the partition the dispatcher proposed is
-already in its escalation comment — point the human at it: splitting the
+sub-issue escalated as **oversized**, its escalation comment already carries
+the fault lines and the route — `/to-tickets` in a fresh session with a
+high-tier model and high effort — point the human at it: splitting the
 sub-issue is what unblocks it, removing the label alone just re-runs the same
 wall.
 
 When anything escalated, **end the summary with the decisions themselves**:
 one direct question per escalated sub-issue, phrased so a one-line reply
 unblocks it — "close #363 as a duplicate of #349, or narrow it to a remaining
-gap?", "approve the proposed 4-way split of #368?". You already know exactly
+gap?", "re-cut #368 with /to-tickets along the fault lines in its escalation
+comment?". You already know exactly
 what each escalation is waiting on; do not make the human interview you to
 find out.
 
