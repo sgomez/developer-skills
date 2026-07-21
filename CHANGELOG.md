@@ -10,7 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
-- **Haiku retired from the build ladder.** `trivial` now builds with sonnet
+- **Builder effort pinned to `medium`, and recorded per ledger row.**
+  `code-author` was the only worker without an `effort:` in its definition
+  (dispatcher pins `low`, diff-reviewer `high`), so builds ran at whatever
+  the operator's saved session default happened to be — a personal setting
+  the pipeline neither chose nor recorded, changing silently between runs.
+  `medium` is the value every ledgered run actually built with, so the pin
+  changes nothing today; it stops the variable drifting tomorrow. The run
+  log row gains `effort=` next to `model=` so each row is self-contained
+  when comparing runs (older rows without the field parse as before). `trivial` now builds with sonnet
   and the fix-cycle escalation is sonnet → opus. Field evidence (spec #308,
   plus the ledger's earlier haiku rows): on comparable tickets haiku builds
   cost as much or more than sonnet in tokens and wall-clock, missed domain

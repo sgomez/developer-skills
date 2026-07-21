@@ -628,14 +628,17 @@ before touching the next sub-issue:
 
 ```bash
 mkdir -p .scratch
-echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> pr=#<PR> verdict=<CLEAN|—> cycles=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>" \
+echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> effort=<effort> pr=#<PR> verdict=<CLEAN|—> cycles=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>" \
   >> .scratch/developer-run-<spec>.log
 ```
 
-(`verdict=—` / `wave=—` where the field does not apply — an escalated
-sub-issue that never got a CLEAN, sequential mode. `pr=none` for a build that
-never opened one, and `model=none pr=none cycles=0` for a sub-issue escalated
-as `oversized`, which never reached a builder at all — that row is what lets
+(`effort=` is the reasoning effort the build ran at — the `code-author`
+definition pins it (`medium` today), so copy that value; it exists so rows
+stay comparable across runs if the pin ever changes. `verdict=—` / `wave=—`
+where the field does not apply — an escalated sub-issue that never got a
+CLEAN, sequential mode. `pr=none` for a build that never opened one, and
+`model=none effort=none pr=none cycles=0` for a sub-issue escalated as
+`oversized`, which never reached a builder at all — that row is what lets
 the harvest notice a spec whose tickets are systematically too big.)
 
 Write it here and the wrap-up reads facts instead of recalling them: a run that
