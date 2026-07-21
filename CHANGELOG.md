@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.18.0] - 2026-07-21
+
+Everything the spec #397 field run taught: the build ladder loses its cheap
+rung, a red the CI never ran stops costing fix cycles, sibling PRs stay in
+sync after every merge instead of failing behind it, the run's calibration
+lessons reach the ledger, and the builder's reasoning effort stops drifting
+with the operator's session settings.
+
 ### Changed
 - **Builder effort pinned to `medium`, and recorded per ledger row.**
   `code-author` was the only worker without an `effort:` in its definition
@@ -571,7 +579,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.17.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.18.0...next
+[0.18.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.18.0
 [0.17.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.17.0
 [0.16.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.16.0
 [0.15.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.15.0
