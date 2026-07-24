@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.19.1] - 2026-07-24
+
+### Fixed
+- **`cleanup-worktrees.sh` no longer aborts on an empty match list under old
+  bash.** Three loops iterated `"${patterns[@]}"` / `"${shas[@]}"` without the
+  empty-array guard the branch-freeing loop already used, so under `set -u` on
+  bash < 4.4 (notably macOS's default `/bin/bash` 3.2) a run with no matching
+  array — `--sha` only, or `--sweep` over a detached worktree with no `--sha` —
+  raised `unbound variable` and exited. Guarded all three with the existing
+  `${arr[@]+"${arr[@]}"}` idiom; behaviour on bash ≥ 4.4 is unchanged, where the
+  bare expansion was already safe.
+
 ## [0.19.0] - 2026-07-21
 
 The pipeline's cheapest worker stops authoring its only design decision:
@@ -601,7 +613,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.19.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.19.1...next
+[0.19.1]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.1
 [0.19.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.0
 [0.18.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.18.0
 [0.17.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.17.0

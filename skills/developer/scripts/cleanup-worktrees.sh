@@ -89,12 +89,12 @@ extra_branches=()
 for i in "${!wt_path[@]}"; do
   match="" by_path=0
   if [[ -n "${wt_branch[i]}" ]]; then
-    for p in "${patterns[@]}"; do
+    for p in ${patterns[@]+"${patterns[@]}"}; do
       # shellcheck disable=SC2053  # glob match is intentional
       [[ "${wt_branch[i]}" == $p ]] && { match="branch ${wt_branch[i]}"; break; }
     done
   else
-    for s in "${shas[@]}"; do
+    for s in ${shas[@]+"${shas[@]}"}; do
       [[ "${wt_head[i]}" == "$s" ]] && { match="detached ${wt_head[i]:0:12}"; break; }
     done
   fi
@@ -127,7 +127,7 @@ deleted=0
 (( keep_branches )) && { patterns=(); extra_branches=(); }
 while IFS= read -r b; do
   [[ "$b" == main || "$b" == master ]] && continue
-  for p in "${patterns[@]}"; do
+  for p in ${patterns[@]+"${patterns[@]}"}; do
     # shellcheck disable=SC2053
     if [[ "$b" == $p ]]; then
       if git branch -D "$b" >/dev/null 2>&1; then
