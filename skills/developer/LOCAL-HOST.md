@@ -53,6 +53,12 @@ Skipping one makes the next worker report blocked on "branch already used by
 worktree". (Remote hosts are immune: reviewers fetch the change head from the
 remote instead.)
 
+A `KEPT worktree … dirty` line from that cleanup means the worker left
+uncommitted changes behind — the script never removes those, so the branch
+stays held and the next worker on it will report blocked. That is a worker
+discipline failure, not a cleanup failure: escalate the sub-issue rather
+than removing the worktree by hand.
+
 ## Pipeline step 3 — mark ready
 
 Skip the mark-ready call entirely: the reviewer's change-file commit already

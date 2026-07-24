@@ -118,11 +118,15 @@ survived the pass — include them verbatim in the chat summary. If it prints
 a `WARN` line (primary checkout detached, or sitting on a worker branch),
 include it verbatim too — never repair the primary checkout yourself.
 
-The sweep deletes only the branches of the worktrees it removes in this pass;
-it will not reap worker-named branches left over from other runs. If it exits
+The sweep matches worker worktrees by path (`.claude/worktrees/`) only, and
+deletes only the branches of the worktrees it removes in this pass — it will
+not reap worker-named branches left over from other runs, touch a worktree
+elsewhere in the repo, remove a worktree with uncommitted changes, or delete
+a branch whose commits are not on the remote. Those refusals are `KEPT`
+lines with reasons; include them verbatim in the summary. If it exits
 non-zero with an `ABORT` line, its `--max-branches` safety cap tripped: it
-removed the worktrees but deleted **no** branches (nothing was lost — the
-branches still hold their commits). Do not blindly re-run with a higher cap —
+removed the worktrees but deleted **no** branches (nothing was lost — every
+listed branch is on the remote). Do not blindly re-run with a higher cap —
 paste the `WOULD-DELETE` list into the summary and leave the branches for the
 human, unless every one is unmistakably this run's own work.
 

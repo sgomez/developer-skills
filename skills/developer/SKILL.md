@@ -604,7 +604,12 @@ root when installed as a plugin). **Never improvise `git worktree remove`,
 `git branch -D`, or any other repair yourself** — the script is the only
 sanctioned way to touch local git state here. It removes only the linked
 worktrees and local branches matching what you pass, refuses by construction
-to touch the primary checkout, and if it finds the primary in detached HEAD
+to touch the primary checkout, keeps any worktree with uncommitted changes,
+and deletes a branch only when its commits are on a remote — nothing it
+deletes is ever the only copy of work. Every refusal is a `KEPT` line naming
+its reason: treat those like `WARN` lines — carry them into the wrap-up
+summary verbatim, and never re-run with broader flags or improvised git to
+force what the script declined. If it finds the primary in detached HEAD
 it prints a `WARN` line and leaves it alone (that is the fingerprint of a
 worker having escaped its worktree — carry the WARN into your wrap-up
 summary, do not "fix" the checkout).
@@ -623,7 +628,9 @@ operation — on another host get branch and head sha per
 
 (A blocked build that never opened a PR has no `$BRANCH`/`$HEAD_SHA` — drop
 those flags; the `agent/issue-<subissue>-*` pattern still catches its
-worktree.)
+worktree. Its never-pushed branch comes back `KEPT (tip not on any remote)` —
+that is the guard working, not a failure: the branch is the only copy of
+whatever the build did. Leave it and report it.)
 
 If the sub-issue was **merged**, also delete the remote branch now (the merge
 deliberately skipped `--delete-branch`):

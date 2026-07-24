@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Fixed
+- **`cleanup-worktrees.sh` can no longer destroy the only copy of any
+  work.** Two structural guards replace trust in the caller: a worktree with
+  uncommitted changes (staged, unstaged, or untracked) is never removed, and
+  a local branch is deleted only when its tip is contained in a
+  remote-tracking ref — so everything the script deletes is restorable with
+  `git branch <name> <remote>/<name>`. Unpushed branches, dirty worktrees,
+  and checked-out branches all come back as `KEPT` lines naming the reason,
+  and the final `OK` line grows a `kept=<n>` count.
+
+### Changed
+- **`cleanup-worktrees.sh --sweep` matches worker worktrees by path only.**
+  The sweep no longer applies the `agent/*` / `fix/pr-*` / `worktree-agent-*`
+  name globs to worktrees elsewhere in the repo — a checkout of yours that
+  happens to sit on a worker-named branch is out of its reach. Worktrees
+  outside `.claude/worktrees/` are reached only by explicit `--branch`/`--sha`
+  flags, which stay caller-scoped by design.
+- `--max-branches` now counts only branches that already passed the
+  remote-containment gate, so kept branches no longer eat into the cap.
+
+### Added
+- `tests/cleanup-worktrees.test.sh`: self-contained regression tests (bare
+  origin + clone fixtures) pinning the cleanup script's guarantees. Run with
+  `bash tests/cleanup-worktrees.test.sh`.
+
 ## [0.19.2] - 2026-07-24
 
 ### Fixed

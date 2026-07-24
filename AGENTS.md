@@ -13,6 +13,8 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
   name it in `plugin.json`'s `hooks` key: that registers the same file twice
   and the whole plugin fails to load. The manifest key is only for hook files
   kept somewhere else.
+- `tests/` — regression tests for the bundled scripts (plain bash, no
+  framework; run directly, e.g. `bash tests/cleanup-worktrees.test.sh`).
 - `.claude-plugin/plugin.json` — the plugin manifest and **canonical version**.
 - `.claude-plugin/marketplace.json` — marketplace entry; points at `./`. The
   schema *allows* a per-plugin `version`, but we deliberately omit it so
