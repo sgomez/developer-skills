@@ -118,6 +118,14 @@ survived the pass — include them verbatim in the chat summary. If it prints
 a `WARN` line (primary checkout detached, or sitting on a worker branch),
 include it verbatim too — never repair the primary checkout yourself.
 
+The sweep deletes only the branches of the worktrees it removes in this pass;
+it will not reap worker-named branches left over from other runs. If it exits
+non-zero with an `ABORT` line, its `--max-branches` safety cap tripped: it
+removed the worktrees but deleted **no** branches (nothing was lost — the
+branches still hold their commits). Do not blindly re-run with a higher cap —
+paste the `WOULD-DELETE` list into the summary and leave the branches for the
+human, unless every one is unmistakably this run's own work.
+
 If the permission system **denies the sweep** (its pattern-matched removal can
 trip the auto-mode classifier), do not retry it: check `git worktree list`, and
 if leftovers remain run targeted `--branch`/`--sha` passes for the sub-issues

@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.19.2] - 2026-07-24
+
+### Fixed
+- **`cleanup-worktrees.sh --sweep` no longer reaps worker branches from other
+  runs.** The final-sweep branch deletion matched `agent/*`, `fix/pr-*` and
+  `worktree-agent-*` against **every** ref in the repo, so a run launched
+  without `--keep-branches` deleted every worker-named branch ever
+  accumulated — not just its own — including old branches unrelated to the
+  current spec. The sweep now deletes only the branches of the worktrees it
+  removes in this pass; a worker-named branch with no worktree survives and
+  must be targeted with an explicit, run-scoped `--branch` glob. Explicit
+  `--branch` deletion is unchanged (still caller-scoped, repo-wide by design).
+
+### Added
+- **`--max-branches <n>` safety cap on `cleanup-worktrees.sh`.** Any single
+  invocation that would delete more than `<n>` local branches (default 20; `0`
+  disables) now deletes **none** of them: it prints a `WOULD-DELETE` line per
+  candidate and an `ABORT` line, and exits 3. The worktrees are already
+  removed (non-destructive — the branches still hold their commits), leaving
+  the branch list for a human to confirm rather than executing a mass deletion.
+
 ## [0.19.1] - 2026-07-24
 
 ### Fixed
@@ -613,7 +634,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.19.1...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.19.2...next
+[0.19.2]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.2
 [0.19.1]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.1
 [0.19.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.19.0
 [0.18.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.18.0
