@@ -603,8 +603,31 @@ declares a CI system, wait for the PR's checks and read their result before
 merging, per its "check the change's CI status" operation. GitHub default:
 
 ```bash
-gh pr checks <PR> --watch --fail-fast    # exits non-zero if any check fails
+# 1. wait until CI has attached at least one check to the current head sha
+for _ in $(seq 20); do
+  [ "$(gh pr view <PR> --json statusCheckRollup --jq '.statusCheckRollup | length')" -gt 0 ] && break
+  sleep 15
+done
+# 2. then wait for them to finish — non-zero here means a check actually failed
+gh pr checks <PR> --watch --fail-fast
 ```
+
+Step 1 is not optional. `gh pr checks` exits non-zero for **two** different
+reasons — a check failed, and *no check is registered yet* (`no checks reported
+on the '<branch>' branch`) — and nothing downstream can tell them apart: the
+classify step below needs a `<run-id>` that does not exist yet. The window is
+real and you will hit it, because `gh pr update-branch` (the `BEHIND` path
+below, and parallel mode's post-merge refresh) moves the head sha and CI takes
+a few seconds to attach runs to the new one. Waiting for the checks to appear
+turns that into a wait instead of a red.
+
+Still no check after the loop's ~5 minutes, in a repo whose code-host doc
+declares CI → that is **infra-red**: nothing ever picked the change up. Take
+the infra-red branch below.
+
+**Never open a command with a bare `sleep`** — the harness blocks it, here and
+anywhere else in this skill. Wait inside an `until`/`for` loop like the one
+above, or with the **Monitor** tool.
 
 - **Green** (or the code-host doc declares no CI) → merge.
 - **Red** → this is **not** a conflict. First check whether the branch is

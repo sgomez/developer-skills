@@ -26,6 +26,17 @@ Changes staged on the `next` branch, published as a new version once ready.
   `outcome=`, and the wrap-up now filters on that before handing rows to the
   harvest — spawn rows never reach the ledger.
 
+### Fixed
+- **The `/developer` checks gate no longer reads "no checks yet" as red.**
+  `gh pr checks` exits non-zero both when a check fails and when none is
+  registered, and the gate's comment claimed only the first — so the seconds
+  right after a `gh pr update-branch` (which moves the head sha) looked like a
+  red with no run to classify. The gate now waits for CI to attach at least one
+  check before watching them, and treats a branch that never gets one as
+  infra-red. The skill also states that a command may never open with a bare
+  `sleep` — the harness blocks it — and points at `until`/`for` loops or the
+  Monitor tool instead.
+
 ### Changed
 - **Every `/developer` worker spawn is `run_in_background: true`**, in both
   execution modes, dispatchers included. A foreground spawn holds the
