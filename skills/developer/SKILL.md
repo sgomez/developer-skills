@@ -158,6 +158,9 @@ The loop may cover many sub-issues; your context must survive all of them.
 
 - **Never read issue or PR bodies yourself.** Workers read them in their own
   disposable contexts. You only run the cheap listing commands below.
+- **Never read CI logs yourself** either — `gh run view --log-failed` and
+  anything like it. The Merge step's `--json` classification is the whole
+  diagnosis the orchestrator gets; the rest is the fixer's, in its context.
 - A worker's whole final message **is** its `RESULT` line — the agents require
   it and every spawn prompt below restates it. A worker that reports prose
   before its line is spending your context, not its own; nothing it says there
@@ -653,9 +656,25 @@ above, or with the **Monitor** tool.
   ```
 
   - **Code-red** — a failed job executed steps (`steps > 0`): the change
-    was exercised and failed. Treat it as one more **fix cycle** (step 4),
-    spawning the fixer with the failing job's URL appended to its prompt.
-    The same three-cycle budget applies; exhausted → **escalate**.
+    was exercised and failed. Before paying for a fixer, **retry the run
+    once**:
+
+    ```bash
+    gh run rerun <run-id> --failed
+    ```
+
+    then re-enter this gate. Green → merge, and no fix cycle was spent.
+    Red again → the failure is real: treat it as one more **fix cycle**
+    (step 4), spawning the fixer with the failing job's URL appended to its
+    prompt. The same three-cycle budget applies; exhausted → **escalate**.
+
+    **Once per PR, and never twice.** A suite whose infrastructure wobbles —
+    a service the tests dial refusing connections, an unhandled teardown
+    error, a timeout — reds a change that is fine, and a fix cycle against
+    it buys nothing; one retry is the cheapest way to find out, cheaper than
+    a worker plus a review. But a retry *loop* merges a genuinely broken
+    intermittent test by persistence, which is worse than spending the
+    cycle. One retry, then believe it.
   - **Infra-red** — every failed job sits at `steps: 0`, the run concluded
     `startup_failure`, or no runner ever picked the job up: the code was
     never exercised, so there is nothing a fixer can fix. Spawn none.
@@ -666,6 +685,15 @@ above, or with the **Monitor** tool.
     CI (minutes, runner), then re-run `/developer <spec>`.
   - The code-host doc defines no classify operation (or the host cannot
     tell) → every red is code-red, as before.
+
+  **Never read CI logs in the main context.** The `--json` query above is the
+  whole diagnosis you are allowed: `gh run view --log-failed`, `--log`, and
+  any grep over them dump raw job output straight into the context this
+  design exists to protect — the same rule as "never read issue or PR bodies
+  yourself" (Context economy), and the reason the fixer is handed the failing
+  job's URL instead of your reading of it. If the `--json` classification is
+  not enough to decide, the answer is the retry above, then the fixer — never
+  a closer look.
 
   Merging a red PR is the one failure this gate exists to prevent, so never
   fall through to the merge command on red — not even when the failing check
@@ -881,8 +909,11 @@ is read once, here, at the end of the run.
   script warns that the primary checkout is detached, report it — never
   repair it.
 - Only spawn the fix worker when the review said `NEEDS_FIXES` or the
-  checks gate found the change's CI **code-red** — an infra-red (the
-  failing job never executed) escalates and ends the run instead.
+  checks gate found the change's CI **code-red** *and* the one retry it
+  allows came back red too — an infra-red (the failing job never executed)
+  escalates and ends the run instead.
+- Retry a red CI run exactly once per PR, never twice, and never diagnose it
+  by reading its logs in the main context.
 - Never spawn a build for a sub-issue triaged `oversized` — escalate it
   with the fault lines instead. Buying it a stronger model is the one
   thing that does not work.

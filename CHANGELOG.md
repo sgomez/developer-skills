@@ -27,6 +27,18 @@ Changes staged on the `next` branch, published as a new version once ready.
   harvest — spawn rows never reach the ledger.
 
 ### Fixed
+- **A red CI run gets one retry before `/developer` pays for a fix cycle.**
+  `gh run rerun <run-id> --failed`, once per PR and never twice: an
+  intermittent suite reds a change that is fine, and one CI run is far cheaper
+  than a fixer plus a re-review, while a retry *loop* would merge a genuinely
+  broken flaky test by persistence. A field run spent this exact case and only
+  escaped it because the orchestrator improvised the retry.
+- **The orchestrator may not read CI logs.** `gh run view --log-failed` and
+  anything like it dumps raw job output into the context the whole design
+  protects — six such calls compacted a field run's main context. The Merge
+  step's `--json` classification is now stated as the whole diagnosis the
+  orchestrator gets; past it, the answer is the retry and then the fixer, which
+  already receives the failing job's URL.
 - **The `/developer` wrap-up archives the run log instead of deleting it.** It
   now moves to `.scratch/archive/developer-run-<spec>-<timestamp>.log`, which
   stops the next run re-appending its rows just as well as `rm` did, without
