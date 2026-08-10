@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **`/developer` knows how to resume itself.** A new *Resuming the
+  orchestrator* section states that while a run is in flight every prompt
+  reaching the orchestrator is a resume — a bare "continue" included — and
+  never a no-op. It rebuilds the run from the three things that outlive a dead
+  context (the task board, the run log, `ListAgents`), then recovers each
+  unfinished sub-issue in cost order: resume the live worker with
+  **SendMessage**, else re-enter the per-sub-issue pipeline step 0, else start
+  it from triage. Field runs lost a whole build and stalled for over an hour
+  because none of this was written down.
+- **Spawn rows in the run log.** BUILD, FIX and MERGE-FIX/HARVEST spawns now
+  append an `event=spawned … agent=<agentId>` line to
+  `.scratch/developer-run-<spec>.log`, so a sub-issue in flight leaves a trace
+  a resume can read after a compaction. Terminal rows are the ones carrying
+  `outcome=`, and the wrap-up now filters on that before handing rows to the
+  harvest — spawn rows never reach the ledger.
+
+### Changed
+- **Every `/developer` worker spawn is `run_in_background: true`**, in both
+  execution modes, dispatchers included. A foreground spawn holds the
+  orchestrator's turn open for the worker's whole run, so a Ctrl-C or a dropped
+  connection destroys the worker's context, worktree and commits; a background
+  worker survives the same interruption and stays reachable. Sequential mode
+  now means *wait for the result before spawning the next*, not *spawn in the
+  foreground*.
+- **The orchestrator keeps each running worker's `agentId`** (dropped as soon
+  as its `RESULT` arrives) and gives every spawn a `description` naming the job
+  and the sub-issue, so a live worker can be identified and resumed instead of
+  rebuilt.
+
 ## [0.19.3] - 2026-07-24
 
 ### Fixed

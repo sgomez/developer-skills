@@ -22,12 +22,15 @@ changes. The harvest worker does both in one branch/commit; the **ledger rows**
 it needs are already written — read them, do not reconstruct them:
 
 ```bash
-cat .scratch/developer-run-<spec>.log
+grep 'outcome=' .scratch/developer-run-<spec>.log
 ```
 
 Pass those lines **verbatim**. Each terminal transition wrote its own row
 (delivery pipeline step 7), so this file is the run's record even where your
-own recall has been compacted away. Only if a sub-issue you know went terminal
+own recall has been compacted away. The filter is what keeps the
+`event=spawned` rows out: those exist so a resume can find a worker mid-flight
+(SKILL.md, **Resuming the orchestrator**), they say nothing about outcomes and
+they do not belong in the ledger. Only if a sub-issue you know went terminal
 has no row — a step 7 that was denied or interrupted — write that one row now,
 from what you still hold, and say so in the chat summary.
 
@@ -39,7 +42,9 @@ worktree discipline. The ledger rows carry outcomes; these lines carry the
 *mechanism*, which the rows cannot express and which is gone once your context
 is. `none` when the run priced cleanly.
 
-Spawn one `code-author` with `model: sonnet` and `isolation: "worktree"`:
+Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
+`run_in_background: true`, then log the spawn row (SKILL.md, Workers) with
+`job=harvest`:
 
 > HARVEST job. This run delivered PRs #`<list every PR of the run — merged,
 > ready-to-merge, or escalated>`. Create branch `agent/harvest-<spec>` from
@@ -165,8 +170,8 @@ If step 4 closed the spec, use
 
 ## 6. Chat summary
 
-One table, built from the run log's rows: sub-issue, model used, PR, fix
-cycles, wave (parallel mode), outcome.
+One table, built from the run log's terminal (`outcome=`) rows: sub-issue,
+model used, PR, fix cycles, wave (parallel mode), outcome.
 
 List escalated sub-issues with reasons, and say how to put one back in play:
 **remove its `ready-for-human` label and re-run `/developer <spec>`** — the

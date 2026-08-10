@@ -22,7 +22,9 @@ conflict — see the Merge step's checks gate; fix the red checks first.
 
 ## The job
 
-Spawn a `code-author` with model `opus` and `isolation: "worktree"`:
+Spawn a `code-author` with model `opus`, `isolation: "worktree"` and
+`run_in_background: true`, then log the spawn row (SKILL.md, Workers) with
+`job=fix`:
 
 > MERGE-FIX job. PR #`<PR>` cannot be merged into main (conflict with a
 > previously merged PR). In your worktree get the PR branch per the

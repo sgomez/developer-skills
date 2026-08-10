@@ -117,6 +117,41 @@ Spawn each via the **Agent** tool with the matching `subagent_type`. Pass
 `model` explicitly to code-author spawns (triage decides the tier). Never run
 the skills yourself in the main context — the point is isolation.
 
+**Every spawn is `run_in_background: true`**, dispatchers included, in both
+execution modes. A foreground spawn holds your turn open for the worker's whole
+run, and anything that interrupts that turn — a Ctrl-C, a dropped connection —
+takes the worker down with it: its context, its worktree and its commits are
+gone for good. The same interruption leaves a background worker running and
+still reachable. Sequential mode is not an exception to this: it means *wait
+for this worker's result before spawning the next*, not *spawn it in the
+foreground*.
+
+Three things at every spawn, each cheap now and each the difference between a
+resume and a rebuild later:
+
+- Give the Agent tool a `description` that names the job and the sub-issue —
+  `Build #<N>`, `Review PR #<PR>`, `Fix #<N> cycle 2`. It is how the worker is
+  identified in the agent list and in the user's view of the run.
+- **Keep the `agentId`** the tool returns for as long as that worker runs: it
+  is the handle that picks the worker back up instead of starting it over (see
+  **Resuming the orchestrator**). Drop it when its `RESULT` arrives.
+- On a **BUILD, FIX or HARVEST** spawn — the jobs that hold uncommitted work
+  and are expensive to lose — append a spawn row to this run's log as soon as
+  the tool hands you the `agentId`, so the job leaves a trace that outlives
+  your context:
+
+  ```bash
+  mkdir -p .scratch
+  echo "$(date +%F) spec=#<spec> sub=#<N> event=spawned job=<build|fix|harvest> agent=<agentId> model=<tier>" \
+    >> .scratch/developer-run-<spec>.log
+  ```
+
+  (`sub=none` on the harvest, which belongs to the whole run.) Triage and
+  review spawns skip the row entirely: both are cheap to repeat, and pipeline
+  step 0 reconstructs where a PR stands without them. Step 7 writes the other
+  kind of row, the terminal one — a resume reads both, the wrap-up reads only
+  the terminal ones.
+
 ## Context economy
 
 The loop may cover many sub-issues; your context must survive all of them.
@@ -128,12 +163,64 @@ The loop may cover many sub-issues; your context must survive all of them.
   before its line is spending your context, not its own; nothing it says there
   survives the run, so anything worth keeping belongs on the PR or the issue.
 - Track per sub-issue: number, task id, chosen model, PR number, verdict, fix
-  cycles, wave (parallel mode), outcome (merged / ready-to-merge / escalated /
-  blocked) — and write the row to the run log the moment the sub-issue goes
-  terminal (delivery pipeline step 7), so the wrap-up reads facts instead of
-  recalling them. Also keep the dispatcher's `touches`/`hints` just long enough
-  to forward `hints` into that sub-issue's Build step — discard both once the
-  build is spawned, they have no use after that.
+  cycles, wave (parallel mode), the `agentId` of the worker running on it right
+  now (dropped the moment its `RESULT` arrives), outcome (merged /
+  ready-to-merge / escalated / blocked) — and write the row to the run log the
+  moment the sub-issue goes terminal (delivery pipeline step 7), so the wrap-up
+  reads facts instead of recalling them. Also keep the dispatcher's
+  `touches`/`hints` just long enough to forward `hints` into that sub-issue's
+  Build step — discard both once the build is spawned, they have no use after
+  that.
+
+## Resuming the orchestrator
+
+A run outlives your turn: workers keep going in the background, their
+notifications can arrive late, and sessions get interrupted, compacted or
+restarted. So **while a run is in flight, every prompt that reaches you is a
+resume** — including a bare `Continue from where you left off.`, an empty
+continuation, or a notification you believe you have already handled. There is
+no state in which the right answer is "no response requested": either work is
+pending and you take its next step, or nothing is, and you go to **Wrap-up**.
+Silence is the one failure mode this pipeline cannot recover from on its own.
+
+(This is the orchestrator's own resume. Pipeline step 0 is the per-sub-issue
+one — it is what step B below runs.)
+
+On any such prompt:
+
+1. **Rebuild the picture** from the three places that survive a dead context,
+   never from recall:
+   - the progress board (**TaskList**) — which sub-issues are `in_progress`;
+   - `.scratch/developer-run-<spec>.log` — the terminal rows already recorded,
+     and the `event=spawned` rows naming the worker that was running on each
+     sub-issue still in flight;
+   - **ListAgents** — which of those workers are still alive.
+2. **Recover each non-terminal sub-issue** in this order, stopping at the first
+   that works:
+
+   **A. Its worker is still alive** → **SendMessage** to its `agentId` and ask
+   it to report. Its context, its worktree and its commits are all intact, so
+   this continues the job rather than repeating it — by far the cheapest
+   recovery, and the only one that does not throw away work already paid for.
+   A worker that finished while you were not looking answers here too, with the
+   `RESULT` whose notification you missed.
+
+   This works for `code-author`. It usually does not for `diff-reviewer`: a
+   review changes no files, so its worktree is removed when it ends and a
+   reviewer missing from `ListAgents` is missing for good. Try it if it is
+   listed; otherwise go straight to B — a review is cheap to repeat, a build
+   is not.
+
+   **B. Its worker is gone** → run pipeline **step 0** on that sub-issue
+   exactly as written. It asks the code host rather than your memory, and
+   routes the sub-issue to Review, to the Fix cycle, or back to Triage when
+   nothing was ever opened for it.
+
+3. **Re-enter the loop**: recompute the unblocked set (spec loop step 1, or the
+   wave in parallel mode) and carry on. Nothing left → **Wrap-up**.
+
+Say in one line what you recovered and how, before continuing. During an
+unattended run the board and that line are the user's whole window into it.
 
 ## Step 0 — Publish context docs before anything else
 
@@ -339,7 +426,9 @@ Everything else — context economy, escalation, wrap-up, rules — is unchanged
 
 ### 0. Entry point — resume, never rebuild
 
-(Pipeline step 0, not the top-level Step 0 that publishes the context docs.)
+(Pipeline step 0, not the top-level Step 0 that publishes the context docs.
+This is the per-sub-issue resume, reached both on a fresh run and as step B of
+**Resuming the orchestrator**.)
 
 A run can die at any point — a dead session, a compaction, a Ctrl-C — and the
 sub-issues it half-delivered are still open, so re-running `/developer <spec>`
@@ -384,7 +473,7 @@ is what stops a sub-issue looping forever across runs.
 
 ### 1. Triage
 
-Spawn `dispatcher`:
+Spawn `dispatcher` with `run_in_background: true`:
 
 > Triage issue #`<subissue>`. Score its implementation complexity per your
 > rubric. Your entire final message must be the
@@ -409,7 +498,8 @@ never block the pipeline on a missing hint.
 
 ### 2. Build
 
-Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
+Spawn `code-author` with `model: <tier>`, `isolation: "worktree"` and
+`run_in_background: true`, then log the spawn row (Workers):
 
 > BUILD job. Spec issue #`<spec>`, sub-issue #`<subissue>`.
 > Run the implement-issue skill on the sub-issue. The sub-issue's
@@ -427,7 +517,8 @@ Spawn `code-author` with `model: <tier>` and `isolation: "worktree"`:
 
 ### 3. Review
 
-Spawn `diff-reviewer` with `isolation: "worktree"`:
+Spawn `diff-reviewer` with `isolation: "worktree"` and
+`run_in_background: true`:
 
 > Review PR #`<PR>` by running the review-pr skill on it — its step 1 plus
 > the repo's `docs/agents/code-host.md` give the exact checkout procedure
@@ -463,7 +554,8 @@ For cycle `c` = 1, 2, 3:
 1. Fixer model: cycle 1 uses the build tier, each later cycle escalates one
    tier (sonnet → opus; opus stays opus). A sub-issue resumed straight
    into this step has no build tier — step 0 already set it to `opus`.
-2. Spawn `code-author` with that model and `isolation: "worktree"`:
+2. Spawn `code-author` with that model, `isolation: "worktree"` and
+   `run_in_background: true`, then log the spawn row (Workers):
 
    > FIX job. PR #`<PR>`. Run the fix-pr skill to address all review
    > threads — its step 1 plus the repo's `docs/agents/code-host.md` give
@@ -676,6 +768,12 @@ reports the exact tier, PR and cycle count of the first one. The row is the
 same one the wrap-up hands the harvest and the same one the chat summary
 tabulates — write it once, correctly, now.
 
+This row and the `event=spawned` rows from the Workers section share the file,
+and the difference is the `outcome=` field: every row written here carries one,
+no spawn row does. That is what the wrap-up filters on when it hands the
+harvest the run's record, and what a resume filters on when it looks for
+sub-issues still in flight.
+
 The log is a run artifact, not tracked work: **never stage it**. The
 context-docs publish (the top-level Step 0) and the local-tracker
 `chore(tracker):` commits both name their own paths, so neither picks it up.
@@ -740,8 +838,17 @@ is read once, here, at the end of the run.
   state there, even if merging seems convenient.
 - Unattended: never stop to ask the user anything mid-loop. Escalate via
   labels/comments and keep going.
-- Each worker is stateless: pass everything it needs in its prompt; never
-  assume it can see prior steps.
+- Every worker spawn is `run_in_background: true`, in both execution modes.
+  Never hold your turn open waiting for a worker to finish.
+- While a run is in flight, no prompt that reaches you is a no-op — a bare
+  "continue" is a resume, not a question. Reconstruct and take the next step
+  per **Resuming the orchestrator**; never answer that no response is needed.
+- Before rebuilding anything, check whether its worker is still alive
+  (`ListAgents`) and resume it with **SendMessage**. Re-spawning a live
+  worker's job pays twice for work that was never lost.
+- Each worker *starts* stateless: pass everything it needs in its prompt; never
+  assume a fresh spawn can see prior steps. A worker resumed with SendMessage
+  is the one exception — it still holds its own context.
 - Never run `git checkout`, `git pull`, or any state-changing git command in
   the main context — the only exceptions are Step 0's scoped commit+push of
   context docs, the `cleanup-worktrees.sh` script (steps 6 and wrap-up),
