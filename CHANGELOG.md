@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Added
+- **Two `PreToolUse` guards that make `/developer` rules enforceable instead of
+  hopeful.** `hooks/require-background-workers.sh` refuses a spawn of
+  `code-author`, `diff-reviewer` or `dispatcher` with an explicit
+  `run_in_background: false`, and tells the model to re-issue the identical
+  call in the background. `hooks/no-ci-logs-in-orchestrator.sh` refuses
+  `gh run view … --log*` from the primary checkout while a run is in flight —
+  workers, which run in linked worktrees, are exactly who should read those
+  logs and fall through untouched. Both stay silent unless every guard holds,
+  and `tests/developer-hooks.test.sh` pins the silences as tightly as the
+  denials.
 - **`/developer` knows how to resume itself.** A new *Resuming the
   orchestrator* section states that while a run is in flight every prompt
   reaching the orchestrator is a resume — a bare "continue" included — and
