@@ -97,10 +97,22 @@ Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
 > `RESULT docs=<updated|none> ledger=<appended|failed>` line — nothing
 > before it, nothing after it.
 
-On `ledger=appended`, delete the run log (`rm .scratch/developer-run-<spec>.log`):
-its rows now live in the committed ledger, and a stale log would re-append them
-the next time this spec runs. On any other result, leave it — it is the only
-copy.
+On `ledger=appended`, **archive** the run log — never delete it:
+
+```bash
+mkdir -p .scratch/archive
+mv .scratch/developer-run-<spec>.log \
+   ".scratch/archive/developer-run-<spec>-$(date +%Y%m%dT%H%M%S).log"
+```
+
+Its rows now live in the committed ledger, so moving it out of the way is what
+stops the next run re-appending them; deleting it was never what achieved that.
+And reaching this file is **not** proof the run is over: a human can lift an
+escalation minutes later and the loop runs on for hours, at which point those
+rows are gone and the next harvest rebuilds them from recall — the path this
+step calls an exception. The archive costs a few KB and keeps the run
+reconstructible. On any other result, leave the log where it is — it is the
+only copy.
 
 This job is best-effort: if it reports blocked, note it in the summary and move
 on.

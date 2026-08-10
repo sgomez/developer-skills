@@ -193,7 +193,8 @@ On any such prompt:
    - the progress board (**TaskList**) — which sub-issues are `in_progress`;
    - `.scratch/developer-run-<spec>.log` — the terminal rows already recorded,
      and the `event=spawned` rows naming the worker that was running on each
-     sub-issue still in flight;
+     sub-issue still in flight. If a wrap-up already ran this spec, the rows
+     from before it are in `.scratch/archive/developer-run-<spec>-*.log`;
    - **ListAgents** — which of those workers are still alive.
 2. **Recover each non-terminal sub-issue** in this order, stopping at the first
    that works:

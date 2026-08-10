@@ -27,6 +27,14 @@ Changes staged on the `next` branch, published as a new version once ready.
   harvest — spawn rows never reach the ledger.
 
 ### Fixed
+- **The `/developer` wrap-up archives the run log instead of deleting it.** It
+  now moves to `.scratch/archive/developer-run-<spec>-<timestamp>.log`, which
+  stops the next run re-appending its rows just as well as `rm` did, without
+  being destructive. Reaching the wrap-up is not proof the run is over — a
+  human lifting an escalation restarts the loop, and a field run that did
+  exactly that lost the rows of four sub-issues and had the second harvest
+  rebuild them from recall. A resume also reads the archive when a wrap-up
+  already ran this spec.
 - **The `/developer` checks gate no longer reads "no checks yet" as red.**
   `gh pr checks` exits non-zero both when a check fails and when none is
   registered, and the gate's comment claimed only the first — so the seconds
