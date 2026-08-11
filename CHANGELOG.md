@@ -45,6 +45,13 @@ Changes staged on the `next` branch, published as a new version once ready.
   every reported number, and on a 404 resumes the live worker with
   **SendMessage** instead of re-spawning the build: in the field that recovered
   the whole thing in ~29 minutes against ~49 to rebuild it.
+- **The merged-branch delete no longer errors on hosts that delete it for you.**
+  Many hosts remove the head branch on merge, and against one of those the
+  cleanup step's bare `git push origin --delete` failed with `remote ref does
+  not exist` on every single merge of a run — noise indistinguishable from a
+  delete that failed for a reason worth knowing. It is now guarded by
+  `git ls-remote --exit-code --heads`. The delete itself stays: `cleanup-
+  worktrees.sh` only ever deletes *local* branches.
 - **A red CI run gets one retry before `/developer` pays for a fix cycle.**
   `gh run rerun <run-id> --failed`, once per PR and never twice: an
   intermittent suite reds a change that is fine, and one CI run is far cheaper

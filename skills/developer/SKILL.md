@@ -797,11 +797,22 @@ that is the guard working, not a failure: the branch is the only copy of
 whatever the build did. Leave it and report it.)
 
 If the sub-issue was **merged**, also delete the remote branch now (the merge
-deliberately skipped `--delete-branch`):
+deliberately skipped `--delete-branch`, and `cleanup-worktrees.sh` only ever
+deletes *local* branches):
 
 ```bash
-git push origin --delete $BRANCH
+if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  git push origin --delete "$BRANCH"
+else
+  echo "remote branch already gone"
+fi
 ```
+
+Ask before you push: many hosts delete the head branch themselves on merge, and
+against one of those a bare `git push origin --delete` fails with `remote ref
+does not exist` on **every** merge of the run. That noise is indistinguishable
+from a delete that failed for a reason worth knowing, which is the whole cost of
+leaving it unguarded.
 
 Matching strictly on this sub-issue's branches/sha is what makes this safe in
 parallel mode — other wave members' worktrees never match. On an escalated or
