@@ -221,19 +221,23 @@ manual/auto split: cleaner on paper, but it would make `manual` spend fix
 cycles, which is precisely what that policy says it does not do. Anyone
 picking this up should not quietly re-open that decision.
 
-## One free re-run for a suspected CI flake
+## Verify that a fix cycle actually pushed
 
-**Problem.** The checks gate treats every code-red as a fix cycle, including
-a flaky test a re-run would clear. In spec #397's run, PR #411's review
-carried a red the reviewer itself judged an unrelated mobile flake — but red
-is automatically NEEDS_FIXES, so it rode along into a fix cycle.
+**Problem.** The Build step now confirms the PR a `code-author` reports really
+exists, because one reported a number that did not. The fix cycle has exactly
+the same exposure and no check at all: a fixer can report its work pushed
+without having pushed anything, and the checks gate that follows will watch the
+*previous* head sha's checks go green and merge code the review said was wrong.
+The run that produced the fabricated `pr=` had its next fix cycle told to verify
+against the remote — by hand, in the prompt, because the skill does not ask.
 
-**Direction.** Gate-side, once per PR — mirroring the once-per-PR `BEHIND`
-resync — and only after the classify-a-red operation says the failing job
-really executed: `gh run rerun <run-id> --failed`; green after the re-run
-merges, still red spends the fix cycle.
+**Direction.** Read `gh pr view <PR> --json headRefOid` before spawning the
+fixer, and confirm the sha moved once its `RESULT` lands. One cheap read either
+side, the same shape as the PR-exists check, and it also closes the gate's
+stale-sha hole.
 
-**What blocks it.** One data point, and that cycle was not wasted — the same
-verdict carried a real finding (a wall-clock time bomb), so the fixer had
-genuine work. Worth its complexity only when a run shows a cycle whose
-*sole* cause was a flake.
+**What blocks it.** Telling a missing push apart from a fix that legitimately
+changed no files — the review's finding was wrong and the fixer answered in the
+thread instead, which is behaviour the skill explicitly allows. That case leaves
+the sha unmoved and would trip the check. No field run has produced one yet, so
+there is nothing to calibrate the rule against.
