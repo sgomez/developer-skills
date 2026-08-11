@@ -513,11 +513,31 @@ Spawn `code-author` with `model: <tier>`, `isolation: "worktree"` and
 > entirely when hints=none>`.
 > Your entire final message must be the `RESULT pr=… url=…` line — no summary
 > before it, nothing after it. Whatever deserves a record goes in the PR body,
-> not in your reply.
+> not in your reply. Report only a PR number you have confirmed exists.
 
 - `RESULT blocked …` → **escalate** (see below) and move to the next
   sub-issue.
-- `RESULT pr=<PR> url=<URL>` → keep `<PR>`, continue.
+- `RESULT pr=<PR> url=<URL>` → **confirm the PR exists**, then keep `<PR>` and
+  continue:
+
+  ```bash
+  gh pr view <PR> --json number,state,headRefName
+  ```
+
+  Never skip it. A build has reported `pr=<N>` for a number the host 404s on,
+  with its whole implementation sitting uncommitted in its worktree because the
+  publish step never ran at all. A worker's `RESULT` is a claim; this is the one
+  cheap command that turns it into a fact, and the only thing standing between a
+  fabricated line and a reviewer sent after a PR that was never opened. (Change
+  metadata is read per `docs/agents/code-host.md` on another host.)
+
+  On a 404, **do not re-spawn the build** — the work is almost certainly intact
+  in the worker's worktree. Recover the worker per **Resuming the orchestrator**
+  step A: its spawn row holds the `agentId`, `ListAgents` says whether it is
+  still alive, and **SendMessage** tells it what you found and to run its
+  publish step for real, reporting only a number it has verified. If the worker
+  is gone, escalate naming its branch and worktree, so nobody rebuilds on top of
+  work that still exists.
 
 ### 3. Review
 
@@ -898,6 +918,9 @@ is read once, here, at the end of the run.
 - Before rebuilding anything, check whether its worker is still alive
   (`ListAgents`) and resume it with **SendMessage**. Re-spawning a live
   worker's job pays twice for work that was never lost.
+- Never act on a `RESULT pr=…` you have not confirmed exists — one `gh pr view`
+  after every build, before the reviewer is spawned. A worker's report is a
+  claim until you check it, and this is the only claim you can check for free.
 - Each worker *starts* stateless: pass everything it needs in its prompt; never
   assume a fresh spawn can see prior steps. A worker resumed with SendMessage
   is the one exception — it still holds its own context.

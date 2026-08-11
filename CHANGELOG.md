@@ -37,6 +37,14 @@ Changes staged on the `next` branch, published as a new version once ready.
   harvest — spawn rows never reach the ledger.
 
 ### Fixed
+- **`/developer` confirms a build's PR exists before reviewing it.** A field run
+  had a `code-author` report `RESULT pr=<N>` for a number the host 404s on, with
+  the entire implementation still uncommitted in its worktree — the publish step
+  had never run. Nothing in the pipeline was checking, and only the reviewer's
+  incidental failure caught it. The Build step now spends one `gh pr view` on
+  every reported number, and on a 404 resumes the live worker with
+  **SendMessage** instead of re-spawning the build: in the field that recovered
+  the whole thing in ~29 minutes against ~49 to rebuild it.
 - **A red CI run gets one retry before `/developer` pays for a fix cycle.**
   `gh run rerun <run-id> --failed`, once per PR and never twice: an
   intermittent suite reds a change that is fine, and one CI run is far cheaper
