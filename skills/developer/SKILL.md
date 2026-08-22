@@ -20,6 +20,7 @@ pass in its prompt. You (the orchestrator) hold the state between steps.
 Flags (override the repo defaults — see Run configuration):
   --parallel | --sequential     # spec mode: waves vs one-at-a-time
   --auto-merge | --no-auto-merge  # merge CLEAN PRs vs leave them ready
+  --build-oversized             # build `oversized` tickets instead of escalating
 ```
 
 If no issue number is given, ask for it and stop. Do not guess issue numbers.
@@ -73,13 +74,14 @@ step that says to read one is not optional, it is that step's other half.)
 
 ## Run configuration
 
-Two knobs govern a run. Resolve each one **before mode detection**, in this
+Three knobs govern a run. Resolve each one **before mode detection**, in this
 precedence order: CLI flag > repo default > factory default.
 
 | Knob        | Values                    | Factory default |
 |-------------|---------------------------|-----------------|
 | `execution` | `parallel` / `sequential` | `parallel`      |
 | `merge`     | `auto` / `manual`         | `manual`        |
+| `oversized` | `escalate` / `build`      | `escalate`      |
 
 Repo defaults live in `docs/agents/developer-defaults.md`, written by
 `/setup-developer-skills`. Read it once at the start (it is short — this is
@@ -101,6 +103,19 @@ What `merge` means:
   (`Closes #N`), anything `Blocked by` a ready-to-merge sub-issue stays
   blocked for the rest of the run — expected, not an error; it lands in the
   wrap-up as the human's queue.
+
+What `oversized` means — what to do with a sub-issue triage scores
+`oversized` (`--build-oversized` sets it to `build` for the run):
+
+- **`escalate`** — the default and the safe reading: the ticket is handed to
+  a human to re-cut, and nothing is built (Triage step).
+- **`build`** — build it anyway, at `opus`, exactly as if triage had said
+  `complex`. This is the user's standing answer to "the ticket is too big":
+  they have decided the split is not worth the round trip. Note the risk once
+  when you resolve the config, then stop arguing it — the dispatcher's fault
+  lines still go into the builder's prompt as its order of work, and if the
+  builder does come back with half a feature, that PR escalates through the
+  ordinary non-convergent path rather than a second opinion about size.
 
 ## Workers (subagents)
 
@@ -392,8 +407,9 @@ Work in **waves**:
    the ones with no open change get a `dispatcher` and a build. Spawn those
    `dispatcher`s in one batch, then their `code-author` BUILD jobs in parallel
    (each in its own worktree, `run_in_background: true`) — **minus any member
-   its dispatcher scored `oversized`**, which is escalated instead of built
-   and simply leaves the wave. A resumed member goes
+   the Triage step escalates as `oversized`**, which leaves the wave without
+   a build (under `oversized: build`, or against a no-split directive, it is
+   built like any other member). A resumed member goes
    straight into the review or fix stage alongside them. As each build
    reports its PR, spawn its `diff-reviewer`; as each reviewer reports,
    mark that PR ready (step 3 of the pipeline); fix cycles run per PR
@@ -412,15 +428,45 @@ Work in **waves**:
    `main` that did not contain this merge; left stale, its CI goes red for
    synchronization, not for a bug, and a full fix cycle ends up doing what
    this one call does. A sibling whose update fails on a conflict is left
-   alone — its own Merge step's conflict path (`MERGE-FIX.md`) already owns
-   that case.
+   alone — that is the conflict queue's business (step 4), and it is the only
+   place a conflicting PR is worked on.
 
    Every PR in the wave branched from the same `main`, so any PR merged
    after the first may conflict: on merge failure **after** the Merge step's
    checks gate passed, run the merge-fix job (`MERGE-FIX.md`) and retry once.
    With `merge: manual` there is nothing to serialize — each CLEAN PR just
    becomes ready-to-merge.
-4. When every wave member is delivered (merged, ready-to-merge, or
+
+   **The first conflict of the wave closes the parallel phase.** From that
+   moment the wave finishes through a **conflict queue** (below), not
+   concurrently. Conflicts are not independent work: every conflicting PR
+   resolves against the same `main`, and the first one merged invalidates
+   every resolution computed beside it. Two merge-fix workers running at once
+   are one worker and one rewrite waiting to happen.
+4. **Conflict queue.** Once step 3 has seen one conflict, the wave's
+   remaining unmerged PRs form a queue, ordered oldest-PR-first, and it
+   drains **one at a time**:
+
+   - **At most one merge-fix worker is alive in the whole run.** Never spawn
+     a second while one is running, whatever the worker cap allows.
+   - A PR's merge-fix is spawned **only when that PR is at the head of the
+     queue** — i.e. after the previous PR is merged into `main`. Until its
+     turn a queued PR gets **no merge-fix worker**; its conflict is not stale
+     work, it is work not yet started. (Step 3's `gh pr update-branch` refresh
+     still runs on it after every merge — that call is remote, cheap, and
+     often *is* the resolution.)
+   - When the head PR merges, drop it from the queue and try the next one's
+     merge before assuming it still conflicts: the winner's merge, plus the
+     refresh, resolves most of the rest for free. Only a merge that actually
+     fails earns a merge-fix worker.
+   - Everything that is not the merge path — builds, reviews, and review fix
+     cycles, including a queued PR's own — carries on in parallel underneath.
+     The queue serializes conflict resolution, not the wave.
+
+   Say the switch out loud once, in one line, e.g. `#936 conflicts — wave
+   finishing through the conflict queue: #936 → #937 → #938.`
+
+5. When every wave member is delivered (merged, ready-to-merge, or
    escalated), recompute the unblocked set → next wave. None left →
    **wrap-up**.
 
@@ -487,12 +533,26 @@ Spawn `dispatcher` with `run_in_background: true`:
 Parse `complexity=` first:
 
 - **`complexity=oversized`** → the sub-issue does not fit in a single fresh
-  context window. **Do not build it.** No model tier rescues a ticket that
-  does not fit: the builder runs out of room, the review finds half a
-  feature, and three fix cycles burn against the same wall. Go straight to
-  **Escalation**, quoting the dispatcher's `hints=` — they carry the
-  fault lines — and move to the next sub-issue. No BUILD, no review, no
-  fix cycles are spent on it.
+  context window, and what happens next is the `oversized` knob's call (Run
+  configuration):
+  - **`oversized: escalate`** (default) → **Do not build it.** No model tier
+    rescues a ticket that does not fit: the builder runs out of room, the
+    review finds half a feature, and three fix cycles burn against the same
+    wall. Go straight to **Escalation**, quoting the dispatcher's `hints=` —
+    they carry the fault lines — and move to the next sub-issue. No BUILD, no
+    review, no fix cycles are spent on it.
+  - **`oversized: build`** → continue to Build at `opus`, passing the
+    dispatcher's `hints=` through as usual; the fault lines become the
+    builder's order of work. Do not escalate, do not label, and do not
+    re-argue the size — the knob is the answer to that argument.
+
+  Before escalating, check the issue body once for an explicit **no-split
+  directive** ("deliberately indivisible", "no dividir", "ship as one unit").
+  The dispatcher is told to veto its own `oversized` score when it finds one,
+  so an `oversized` line on such a ticket means triage missed it: build it at
+  `opus` as if the knob said `build`. This is the one place you overrule a
+  triage verdict, and only ever in that direction — the author's directive
+  outranks the rubric, never the reverse.
 - Anything else → parse `model=<tier>` and continue to Build.
 
 On any malformed result, default to `opus` and build — a line you cannot
@@ -749,7 +809,10 @@ ops, with a comment naming the merged change.
 
 If the merge fails **after** the checks gate passed, it is a conflict with a
 previously merged change: read `MERGE-FIX.md` and dispatch the job it
-describes, then merge again. That file also covers the conflict a human hits
+describes, then merge again. In parallel mode this conflict is also what
+switches the wave to its **conflict queue** (Parallel mode, step 4) — the job
+below is spawned for one PR at a time, never for every conflicting sibling at
+once. That file also covers the conflict a human hits
 on their own merge under `merge: manual` — the answer is the same job, never
 the main context.
 
@@ -863,7 +926,9 @@ context-docs publish (the top-level Step 0) and the local-tracker
 
 ## Escalation
 
-When a sub-issue is blocked, triaged **oversized**, non-convergent after 3
+When a sub-issue is blocked, triaged **oversized** (under
+`oversized: escalate`, and absent a no-split directive in its body),
+non-convergent after 3
 fix cycles, or unmergeable, apply the `ready-for-human` triage label to the
 sub-issue and comment on both the sub-issue and the spec, per the tracker
 ops. GitHub default:
@@ -948,14 +1013,20 @@ is read once, here, at the end of the run.
   escalates and ends the run instead.
 - Retry a red CI run exactly once per PR, never twice, and never diagnose it
   by reading its logs in the main context.
-- Never spawn a build for a sub-issue triaged `oversized` — escalate it
-  with the fault lines instead. Buying it a stronger model is the one
-  thing that does not work.
+- Never spawn a build for a sub-issue triaged `oversized` **under
+  `oversized: escalate`** — escalate it with the fault lines instead. Buying
+  it a stronger model is the one thing that does not work. Under
+  `oversized: build`, or when the issue body forbids splitting, the ticket is
+  built at `opus` and this rule does not apply.
 - Never merge a change whose CI checks are red, whatever the merge policy
   and however unrelated the failing check looks.
 - Never resolve merge conflicts in the main context — not even when the
   user hands you one interactively. That is always the merge-fix job's
   work, in its own worktree.
+- Never run two merge-fix workers at once. Conflicting PRs drain through the
+  conflict queue one at a time, each one's merge-fix spawned only after the
+  previous PR is in `main` — parallel merge-fixes resolve against a `main`
+  that the winner is about to move, so all but one are rewritten.
 - Marking ready and merging are yours, never a worker's; posting the review
   is the reviewer's, never yours. Never author, edit, or amend review
   content in the main context.

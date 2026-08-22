@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **The `oversized` knob and its `--build-oversized` flag.** A ticket triage
+  scores too big is no longer a dead end that only a mid-run label edit can
+  reopen. The knob joins `execution` and `merge` in
+  `docs/agents/developer-defaults.md` (factory default `escalate`, unchanged
+  behaviour); `oversized: build` — or `--build-oversized` for one run — builds
+  the ticket at `opus` instead, taking triage's fault lines as the builder's
+  order of work. Setup writes the knob at its default without asking a third
+  question.
+- **The author's no-split directive vetoes an `oversized` verdict.** A body
+  that says in so many words that the ticket ships as one unit ("deliberately
+  indivisible", "no dividir") caps the dispatcher at `complex`/`opus`, fault
+  lines still attached, with the veto named in `reason=`. The orchestrator
+  makes the same check before escalating, so a triage that missed the
+  directive does not cost a round trip. It is the one place a triage verdict
+  is overruled, and only in that direction.
+
+### Fixed
+- **Merge conflicts no longer fan out into parallel rewrites.** Merge-fix
+  workers resolve against `main` *as it is now*, so running three at once
+  delivered one PR and queued two rewrites — a run in the field spent two opus
+  workers to redo the same conflict, and O(N²) is the shape of that for N
+  conflicting PRs. The first conflict of a wave now switches it to a
+  **conflict queue**: at most one merge-fix worker alive in the whole run,
+  spawned only for the PR at the head of the queue and only after the previous
+  one is in `main`, with a plain merge retried first (the winner's merge often
+  took the conflict with it). Builds and reviews of non-conflicting members
+  carry on underneath — the queue serializes the merge path, not the wave.
+- **Merge-fix rebases onto fresh `main` instead of merging `main` into the
+  branch**, so the PR's diff stays the PR's own work and the reviewer is not
+  handed the whole of `main` a second time. It falls back to a merge when the
+  branch is the wrong shape for a rebase, and says which it did.
+- **A stale base no longer escalates a healthy PR.** The orchestrator records
+  `main`'s sha before spawning the merge-fix and re-checks it before merging.
+  If `main` moved while the worker ran, the failure is stale-base, not a bad
+  resolution: it costs an `update-branch` and a respawn, and does **not**
+  consume the one-retry budget that used to escalate PRs with nothing wrong
+  with them.
+
 ## [0.20.0] - 2026-08-12
 
 ### Added

@@ -197,11 +197,14 @@ Ask the user two questions (AskUserQuestion, one call, both questions):
 
 Write the answers to `docs/agents/developer-defaults.md` from the template
 [developer-defaults.md](./developer-defaults.md) (drop the HTML comment on
-the first line, set the two values in the fenced block).
+the first line, set the two answered values in the fenced block). The
+template's third knob, `oversized`, is **not** a setup question — write it at
+its `escalate` default and let the user change it in the file if they ever
+want it.
 
 **Idempotence**: if the file already exists, show the current values, ask
 the two questions with the current values as the recommended options, and
-rewrite the file.
+rewrite the file — carrying any non-default `oversized` value through.
 
 **Regardless of the merge choice**, the pipeline's code-host writes will
 hit permission prompts — and with nobody at the keyboard a single denial

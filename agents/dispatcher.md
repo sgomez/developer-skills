@@ -88,6 +88,20 @@ evidence, the generic rubric is only the prior.
   `/to-tickets` — your `hints` seed that re-cut, they are not the partition
   itself. Name the fractures; do not draft the tickets.
 
+  **The author's own directive vetoes this verdict.** If the issue body says
+  in so many words that the ticket must not be split — "deliberately
+  indivisible", "no dividir", "ship as one unit", "atomic", or any equivalent
+  statement about *this ticket's* shape — you may not score it `oversized`,
+  however many size signals it trips. The person who cut the spec already
+  weighed the split and decided against it; re-litigating it costs them a
+  round trip and they will only tell you the same thing again. Score
+  `complex`/`opus` instead, put the fault lines in `hints=` anyway (the
+  builder uses them as its own order of work), and make `reason=` say the
+  veto out loud — e.g. `oversized by size, but the body forbids splitting;
+  building it whole at opus`. A vague aspiration in the body ("should be
+  quick", "small change") is not a directive; only an explicit instruction
+  about splitting is.
+
 **Score the code, not the prose.** The same ticket text costs a tier more
 when it is the **first of its family** — the helper or pattern it needs does
 not exist yet and the builder must invent it — and a tier less when that
@@ -112,7 +126,10 @@ RESULT complexity=<trivial|standard|complex|oversized> model=<sonnet|opus|none> 
 ```
 
 `complexity=oversized` always pairs with `model=none` (nothing will be built)
-and with a `hints=` field naming the fault lines — never `none` there.
+and with a `hints=` field naming the fault lines — never `none` there. When
+the author's no-split directive vetoed an `oversized` score, the line reads
+`complexity=complex model=opus` and carries the fault lines in `hints=` all
+the same — say so in `reason=`.
 
 No write-up of your exploration: the fields below are the whole report, and
 `reason` is where your scoring argument goes, in one line.
@@ -128,6 +145,8 @@ goes to a human instead of a builder.
 ## Rules
 
 - Read-only: never edit files, never comment on the issue.
+- Never score `oversized` against an explicit no-split directive in the issue
+  body — the ceiling there is `complex`.
 - Keep the whole run short — this is a classification pass, not a design pass.
 - The `RESULT` line is how the orchestrator picks the builder model. Always
   emit it — and emit nothing else.
