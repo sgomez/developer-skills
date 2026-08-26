@@ -42,17 +42,21 @@
 #
 # Output contract:
 #   REMOVED / DELETED / KEPT / FAILED lines as work happens — every KEPT
-#   carries its reason (dirty worktree; branch tip not on any remote; branch
-#   checked out elsewhere); with --sweep, a LEFTOVER line per worker worktree
-#   still present after the pass; WARN if the primary checkout is in detached
-#   HEAD or on a worker branch; on a cap trip, WOULD-DELETE lines then an
-#   ABORT line (exit 3); final line
-#   `OK removed=<n> branches_deleted=<n> kept=<n> leftover=<n>`.
+#   carries its reason (dirty worktree; locked by a live agent; branch tip not
+#   on any remote; branch checked out elsewhere); with --sweep, a LEFTOVER
+#   line per worker worktree still present after the pass and a HELD line per
+#   worktree a live agent still holds; WARN if the primary checkout is in
+#   detached HEAD or on a worker branch; on a cap trip, WOULD-DELETE lines
+#   then an ABORT line (exit 3); final line
+#   `OK removed=<n> branches_deleted=<n> kept=<n> held=<n> leftover=<n>`.
 #
 # Guarantees:
 #   - never touches the primary checkout (first entry of `git worktree list`)
 #   - never removes a worktree with uncommitted changes — staged, unstaged,
 #     or untracked files are grounds to keep it and say why
+#   - never removes a worktree locked by a process that is still running, or
+#     one a human locked by hand; a lock whose pid is gone is stale and is
+#     lifted, after which the ordinary gates above still apply
 #   - never deletes main/master, a branch still checked out somewhere, or a
 #     branch whose tip is not contained in a remote-tracking ref — anything
 #     it deletes is restorable from the remote
@@ -85,9 +89,9 @@ done
 
 # --- parse `git worktree list --porcelain` ---------------------------------
 primary="" primary_head="" primary_branch="" primary_on_branch=0
-wt_path=() wt_branch=() wt_head=()
+wt_path=() wt_branch=() wt_head=() wt_locked=() wt_lock_reason=()
 
-path="" branch="" head=""
+path="" branch="" head="" locked="" is_locked=0
 flush() {
   [[ -n "$path" ]] || return 0
   if [[ -z "$primary" ]]; then
@@ -95,14 +99,19 @@ flush() {
     [[ -n "$branch" ]] && primary_on_branch=1
   else
     wt_path+=("$path") wt_branch+=("$branch") wt_head+=("$head")
+    wt_locked+=("$is_locked") wt_lock_reason+=("$locked")
   fi
-  path="" branch="" head=""
+  path="" branch="" head="" locked="" is_locked=0
 }
 while IFS= read -r line; do
   case "$line" in
     "worktree "*)          path="${line#worktree }" ;;
     "HEAD "*)              head="${line#HEAD }" ;;
     "branch refs/heads/"*) branch="${line#branch refs/heads/}" ;;
+    # `locked` alone (no reason given) or `locked <reason>`. A live Claude
+    # worker writes `claude agent <name> (pid <n> start <n>)`.
+    "locked")              is_locked=1; locked="" ;;
+    "locked "*)            is_locked=1; locked="${line#locked }" ;;
     "")                    flush ;;
   esac
 done < <(git worktree list --porcelain)
@@ -124,6 +133,24 @@ dirty_count() { git -C "$1" status --porcelain 2>/dev/null | awk 'END { print NR
 # ref itself. No remotes (local code host) means nothing ever passes.
 on_remote() { [[ -n "$(git branch -r --contains "refs/heads/$1" 2>/dev/null)" ]]; }
 
+# Is a pid still running? /proc is the reliable answer where it exists; `kill
+# -0` elsewhere. Both are asked only to decide whether a *lock* is stale, and
+# an unlocked worktree still has to pass the dirty gate before removal — so
+# the worst case of a wrong answer here is a clean worktree removed a little
+# early, never lost work.
+pid_alive() {
+  [[ "$1" =~ ^[0-9]+$ ]] || return 1
+  if [[ -d /proc ]]; then [[ -d "/proc/$1" ]]; else kill -0 "$1" 2>/dev/null; fi
+}
+
+# The pid a lock reason names, if it names one: `… (pid 120795 start 849839)`.
+# Prints nothing and still succeeds when there is none — under `set -e` a
+# non-zero return here would kill the run at the assignment.
+lock_pid() {
+  [[ "$1" =~ (^|[^a-z])pid[[:space:]]+([0-9]+) ]] && echo "${BASH_REMATCH[2]}"
+  return 0
+}
+
 # --- remove matching linked worktrees ---------------------------------------
 # removed_branches collects the branch of every worktree actually removed —
 # these are this pass's own branches, the only ones the sweep may reap
@@ -131,6 +158,7 @@ on_remote() { [[ -n "$(git branch -r --contains "refs/heads/$1" 2>/dev/null)" ]]
 # explicit --branch globs, and the containment gate below vets every one.
 removed=0 failed=0 kept=0
 removed_branches=()
+held_paths=()
 for i in ${wt_path[@]+"${!wt_path[@]}"}; do
   match=""
   if [[ -n "${wt_branch[i]}" ]]; then
@@ -157,6 +185,30 @@ for i in ${wt_path[@]+"${!wt_path[@]}"}; do
   [[ -n "$match" ]] || continue
   [[ "${wt_path[i]}" == "$primary" ]] && continue        # paranoia guard
   [[ "${wt_branch[i]}" == main || "${wt_branch[i]}" == master ]] && continue
+  # A locked worktree is someone's declared claim on it. When the lock names
+  # a pid that is still running — a live Claude worker — the worktree is not
+  # a leak and `git worktree remove --force` cannot take it anyway: keep it,
+  # say who holds it, and let the run that owns it clean up when it exits.
+  # A lock whose pid is gone is stale (the worker died): unlock and carry on
+  # through the ordinary gates. A lock with no pid to check was placed by a
+  # human — that one is never overridden.
+  if [[ "${wt_locked[i]}" == 1 ]]; then
+    lpid="$(lock_pid "${wt_lock_reason[i]}")"
+    if [[ -n "$lpid" ]] && pid_alive "$lpid"; then
+      echo "KEPT worktree ${wt_path[i]} ($match; locked by a live agent, pid $lpid — it is removed when that worker exits)"
+      kept=$((kept + 1))
+      held_paths+=("${wt_path[i]}")
+      continue
+    fi
+    if [[ -z "$lpid" ]]; then
+      echo "KEPT worktree ${wt_path[i]} ($match; locked${wt_lock_reason[i]:+ — ${wt_lock_reason[i]}}; unlock it by hand to remove)"
+      kept=$((kept + 1))
+      held_paths+=("${wt_path[i]}")
+      continue
+    fi
+    git worktree unlock "${wt_path[i]}" >/dev/null 2>&1 || true
+    match="$match; stale lock from dead pid $lpid"
+  fi
   dirty=$(dirty_count "${wt_path[i]}")
   if [[ "$dirty" != 0 ]]; then
     echo "KEPT worktree ${wt_path[i]} ($match; dirty — $dirty uncommitted path(s); inspect and remove by hand)"
@@ -242,8 +294,20 @@ if (( sweep )); then
   leftover=0
   for d in "$worker_dir"*; do
     [[ -e "$d" ]] || continue
-    echo "LEFTOVER worktree $d"
-    leftover=$((leftover + 1))
+    is_held=0
+    for h in ${held_paths[@]+"${held_paths[@]}"}; do
+      [[ "$d" == "$h" ]] && { is_held=1; break; }
+    done
+    # A worktree a live worker still holds is not a leftover: it is in use,
+    # and it goes away with the process holding it. It is reported as HELD so
+    # the caller can tell "a worker is still running" from "the pass failed
+    # to clean up", which is the whole point of the leftover count.
+    if (( is_held )); then
+      echo "HELD worktree $d (its KEPT line above names the holder)"
+    else
+      echo "LEFTOVER worktree $d"
+      leftover=$((leftover + 1))
+    fi
   done
 fi
 
@@ -252,4 +316,5 @@ if (( ! primary_on_branch )); then
 elif [[ "$primary_branch" == agent/* || "$primary_branch" == fix/pr-* || "$primary_branch" == worktree-agent-* ]]; then
   echo "WARN primary checkout $primary is on worker branch $primary_branch — a worker likely ran git outside its worktree. Left untouched; restore with: git -C '$primary' checkout main"
 fi
-echo "OK removed=$removed branches_deleted=$deleted kept=$kept leftover=$leftover"
+held=${#held_paths[@]}
+echo "OK removed=$removed branches_deleted=$deleted kept=$kept held=$held leftover=$leftover"

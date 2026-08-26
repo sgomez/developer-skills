@@ -90,6 +90,12 @@ the fixer will read them.
   (`APPROVE`, `glab mr approve`, …), never `gh pr ready`, never a merge.
   The CLEAN summary is the pipeline's approval signal.
 - Failing typecheck or tests always count as NEEDS_FIXES.
+- **Never end a turn waiting on something you started in the background.** The
+  orchestrator cannot see your background job; a turn that ends on "waiting for
+  the suite" reads as a reviewer that stopped without a verdict and costs a
+  resume message. Run the suite in the foreground, or poll it to completion in
+  the same turn (an `until` loop — never a bare `sleep`, the harness blocks
+  it), then post the review and report.
 - On a re-review after a fix pass, focus on whether previous findings were
   addressed and the new commits are sound — do not invent brand-new nitpicks
   on untouched code.

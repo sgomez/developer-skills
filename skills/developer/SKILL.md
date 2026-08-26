@@ -428,8 +428,22 @@ Work in **waves**:
    `main` that did not contain this merge; left stale, its CI goes red for
    synchronization, not for a bug, and a full fix cycle ends up doing what
    this one call does. A sibling whose update fails on a conflict is left
-   alone — that is the conflict queue's business (step 4), and it is the only
-   place a conflicting PR is worked on.
+   alone — but note it: that failure is what puts the PR in the conflict
+   queue (step 4), which is the only place a conflicting PR is worked on.
+   Learning it here rather than at the merge gate is most of the point —
+   spec #994 skipped one refresh and met the conflict forty minutes later,
+   with the queue idle in between.
+
+   **Every still-open member, including the ones mid-fix-cycle.** A PR that
+   is being fixed is exactly the one that will still be open in an hour and
+   exactly the one that goes stale; skipping it because "it is not ready yet"
+   defers the conflict to the moment you most want a clean merge.
+
+   **One PR per Bash call.** Issue the refreshes as separate commands, not as
+   a `for` loop over the wave: a loop that writes to the code host reads as a
+   bulk operation to the permission classifier and gets denied wholesale
+   (observed in spec #994 — the same two calls, run singly, went through
+   untouched).
 
    Every PR in the wave branched from the same `main`, so any PR merged
    after the first may conflict: on merge failure **after** the Merge step's
@@ -687,6 +701,8 @@ declares a CI system, wait for the PR's checks and read their result before
 merging, per its "check the change's CI status" operation. GitHub default:
 
 ```bash
+# 0. is the branch even mergeable? a conflicting PR never gets a check
+gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus
 # 1. wait until CI has attached at least one check to the current head sha
 for _ in $(seq 20); do
   [ "$(gh pr view <PR> --json statusCheckRollup --jq '.statusCheckRollup | length')" -gt 0 ] && break
@@ -696,8 +712,20 @@ done
 gh pr checks <PR> --watch --fail-fast
 ```
 
-Step 1 is not optional. `gh pr checks` exits non-zero for **two** different
-reasons — a check failed, and *no check is registered yet* (`no checks reported
+Step 0 comes first and it decides whether the rest runs at all. On **`DIRTY`**
+(GitHub's word for "conflicts with the base") the branch is unmergeable, the
+host will not run checks against it, and steps 1–2 can only spend their five
+minutes to report the absence: leave the gate now and take the conflict path —
+the merge-fix job (`MERGE-FIX.md`), or the conflict queue in parallel mode —
+then re-enter this gate from the top once the resolution is pushed. Field
+evidence (spec #994): two PRs went `DIRTY` after a sibling merged, and each
+burned the full wait to arrive at `no checks reported`, which the infra-red
+rule below then reads as a CI that cannot start. Diagnosing a conflict as
+infra-red escalates a healthy sub-issue and **ends the run** — the most
+expensive misreading this gate can make, from a call that costs one second.
+
+Step 1 is not optional either. `gh pr checks` exits non-zero for **two**
+different reasons — a check failed, and *no check is registered yet* (`no checks reported
 on the '<branch>' branch`) — and nothing downstream can tell them apart: the
 classify step below needs a `<run-id>` that does not exist yet. The window is
 real and you will hit it, because `gh pr update-branch` (the `BEHIND` path
@@ -706,16 +734,19 @@ a few seconds to attach runs to the new one. Waiting for the checks to appear
 turns that into a wait instead of a red.
 
 Still no check after the loop's ~5 minutes, in a repo whose code-host doc
-declares CI → that is **infra-red**: nothing ever picked the change up. Take
-the infra-red branch below.
+declares CI **and on a branch step 0 said was mergeable** → that is
+**infra-red**: nothing ever picked the change up. Take the infra-red branch
+below. A `DIRTY` branch is never infra-red, however long it waits — that is
+step 0's whole job.
 
 **Never open a command with a bare `sleep`** — the harness blocks it, here and
 anywhere else in this skill. Wait inside an `until`/`for` loop like the one
 above, or with the **Monitor** tool.
 
 - **Green** (or the code-host doc declares no CI) → merge.
-- **Red** → this is **not** a conflict. First check whether the branch is
-  merely **behind `main`** — a sibling merged after this branch was cut:
+- **Red** → this is **not** a conflict (step 0 already ruled that out).
+  First check whether the branch is merely **behind `main`** — a sibling
+  merged after this branch was cut:
 
   ```bash
   gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus   # BEHIND?
@@ -895,13 +926,19 @@ before touching the next sub-issue:
 
 ```bash
 mkdir -p .scratch
-echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> effort=<effort> pr=#<PR> verdict=<CLEAN|—> cycles=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>" \
+echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> effort=<effort> pr=#<PR> verdict=<CLEAN|—> cycles=<n> mergefix=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>" \
   >> .scratch/developer-run-<spec>.log
 ```
 
 (`effort=` is the reasoning effort the build ran at — the `code-author`
 definition pins it (`medium` today), so copy that value; it exists so rows
-stay comparable across runs if the pin ever changes. `verdict=—` / `wave=—`
+stay comparable across runs if the pin ever changes. `mergefix=` counts the
+merge-fix workers this PR needed — `0` for a PR that merged on its first
+try. It is a separate number from `cycles=` because it prices a different
+thing: `cycles` is the ticket being hard, `mergefix` is the *wave* being
+expensive, and only that field lets a later calibration say "this spec's
+tickets all rewrite the same files — deliver it sequentially". `verdict=—` /
+`wave=—`
 where the field does not apply — an escalated sub-issue that never got a
 CLEAN, sequential mode. `pr=none` for a build that never opened one, and
 `model=none effort=none pr=none cycles=0` for a sub-issue escalated as

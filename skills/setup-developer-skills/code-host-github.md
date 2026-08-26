@@ -31,6 +31,21 @@ Repo-specific facts:
   repo has no CI on PRs; the pipeline then skips the CI operations below and
   behaves exactly as it did before they existed. -->
 
+## Is the change mergeable?
+
+Read before waiting on anything (the orchestrator, at the top of its checks
+gate):
+
+```bash
+gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus
+```
+
+`DIRTY` = conflicts with the base: GitHub runs **no checks** against it, so
+waiting for one can only time out. It is a conflict, never a red and never an
+un-startable CI — take the merge-fix path. `BEHIND` = mergeable but stale
+(`gh pr update-branch <PR>`). `CLEAN`/`UNSTABLE`/`BLOCKED` = the checks below
+are the question.
+
 ## Checking the change's CI status
 
 Three operations read the same checks, for different readers.

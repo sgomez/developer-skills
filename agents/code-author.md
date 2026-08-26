@@ -90,6 +90,24 @@ The prompt gives you one of these jobs:
 1. Run the `fix-pr` skill with the given PR number as argument.
 2. Let it read unresolved threads, implement fixes, push, and reply.
 
+## Never end a turn waiting
+
+**Nothing you started in the background is a reason to stop.** Ending your turn
+on "waiting for the test run to finish" reads to the orchestrator as a worker
+that finished without reporting: it cannot see your background job, so it
+spends a resume message to ask what happened, and does that again for every
+turn you end the same way. In the field one fixer stopped twice like this with
+its fixes still unpushed, costing two round trips and a stale head sha the
+orchestrator had to catch by hand.
+
+Run project checks in the **foreground** and let them finish, however long they
+take. If something genuinely must run detached, poll it to completion inside
+the same turn (an `until` loop over its output or exit file — never a bare
+`sleep`, the harness blocks it) before you write anything. If it hangs past
+usefulness, kill it, act on what you have, and say so where the job's output
+belongs — the PR body or the thread reply. Then, and only then, emit the
+`RESULT` line.
+
 ## Unattended judgment
 
 Never stop to ask a question — there is no one to answer. When the spec or a

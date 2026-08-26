@@ -18,6 +18,13 @@ Changes staged on the `next` branch, published as a new version once ready.
   the ticket at `opus` instead, taking triage's fault lines as the builder's
   order of work. Setup writes the knob at its default without asking a third
   question.
+- **`mergefix=<n>` in every ledger row.** `cycles=` prices the ticket being
+  hard; the new field prices the *wave* being expensive, and only it lets a
+  later calibration say "this spec's tickets all rewrite the same files —
+  deliver the next one sequentially". Three of six PRs in one field run needed
+  a merge-fix and the row schema had nowhere to say so, so the lesson lived in
+  the chat summary and died there. The wrap-up's table and its
+  parallel-was-expensive line read the same field.
 - **The author's no-split directive vetoes an `oversized` verdict.** A body
   that says in so many words that the ticket ships as one unit ("deliberately
   indivisible", "no dividir") caps the dispatcher at `complex`/`opus`, fault
@@ -27,6 +34,65 @@ Changes staged on the `next` branch, published as a new version once ready.
   is overruled, and only in that direction.
 
 ### Fixed
+- **`scripts/plugin-mode.sh refresh` was dead in `next` mode — a whole
+  cycle's commits never reached the install.** It matched the CLI's rendered
+  `Source:` line (`Git (https://…git@next)`) against the string passed to
+  `marketplace add` (`…git#next`), so next mode classified as prod: `refresh`
+  exited *"Not in dev or next mode"* and `status` reported **PROD** for a
+  correctly configured next install. Mode is now read from the source's
+  substance (repo, plus an `@`/`#` branch marker), never character for
+  character. Field evidence: a 3½-hour `/developer` run on the `0.21.0-next`
+  build was byte-identical to `v0.20.0` — every change below and above it in
+  this section was tested by nothing.
+- **`plugin-mode.sh` now says what is actually loaded.** `dev`, `next`,
+  `refresh` and `status` diff the installed copy against the tree it should
+  mirror (this checkout, or `origin/<branch>`) and print `STALE` with the
+  differing files, and next mode warns when local `next` is ahead of origin —
+  what it installs comes from GitHub, so an unpushed commit is not in it. The
+  static `X.Y.Z-next` version could never carry this: it is the same string
+  all cycle, which is exactly why a stale install looked healthy.
+- **A conflicting PR is no longer diagnosed as a CI that cannot start.** The
+  Merge step's checks gate now reads `mergeStateStatus` *before* waiting for
+  checks: a `DIRTY` branch gets no checks from the host, so the wait could
+  only spend its five minutes and arrive at `no checks reported` — which the
+  infra-red rule reads as an un-startable CI, escalating the sub-issue and
+  **ending the run**. Two PRs hit it in one field run (spec #994) and only the
+  orchestrator improvising past its own instructions saved them. The
+  mergeability read is now a declared code-host operation (GitHub and GitLab
+  templates), and infra-red applies only to a branch the gate confirmed was
+  mergeable.
+- **`cleanup-worktrees.sh` understands a locked worktree.** A worktree held by
+  a live worker was reported `FAILED` and counted as a `leftover` — the wrap-up
+  reads that as a leak, and the run that produced it summarized one live fixer
+  as a leaked worktree. The script now parses the `locked` line: a lock naming
+  a **running** pid is `KEPT` with the holder named and reported as `HELD`
+  (a new `held=` count in the `OK` line, out of `leftover=`); a lock naming a
+  **dead** pid is stale and is lifted, after which the ordinary dirty and
+  remote-containment gates still decide; a lock placed by hand is never
+  overridden. Pinned by three new cases in `tests/cleanup-worktrees.test.sh`.
+- **A worker may not end its turn waiting on a background command.** The
+  orchestrator cannot see a worker's background job, so a turn ending on
+  "waiting for the test run to finish" is indistinguishable from a worker that
+  died without reporting — in the field one fixer did it twice, with its fixes
+  unpushed, costing two resume round trips and a stale head sha the
+  orchestrator had to catch by hand. `code-author` and `diff-reviewer` now
+  state the rule: checks run in the foreground, or are polled to completion in
+  the same turn, before the `RESULT` line.
+- **A ticket's blockers are no longer a triage size signal.** The dispatcher
+  scored an issue `oversized` partly on its three `Blocked by` entries — all
+  merged into `main` before the build, since the orchestrator only triages a
+  sub-issue once its blockers are delivered. It scored the ticket for finished
+  work, and inverted the rubric's own rule that a merged pattern makes a
+  ticket *cheaper*: the issue came back CLEAN on its first review with zero fix
+  cycles.
+- **The post-merge sibling refresh covers every still-open member, one call
+  per Bash invocation.** A wave member mid-fix-cycle is precisely the one that
+  goes stale, and skipping it deferred a conflict to the merge gate forty
+  minutes later with the conflict queue idle in between; an `update-branch`
+  that fails on a conflict is now stated as what *enqueues* a PR. The
+  refreshes must also be issued as separate commands — a `for` loop over the
+  wave reads as a bulk code-host write to the permission classifier and was
+  denied wholesale, while the same calls run singly went through untouched.
 - **Merge conflicts no longer fan out into parallel rewrites.** Merge-fix
   workers resolve against `main` *as it is now*, so running three at once
   delivered one PR and queued two rewrites — a run in the field spent two opus

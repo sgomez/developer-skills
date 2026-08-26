@@ -70,7 +70,7 @@ assert_contains "$OUT" "REMOVED worktree"
 assert_contains "$OUT" "DELETED branch agent/issue-01-a"
 assert_no_dir "$W/wt1"
 assert_no_branch agent/issue-01-a
-assert_contains "$OUT" "OK removed=1 branches_deleted=1 kept=0 leftover=0"
+assert_contains "$OUT" "OK removed=1 branches_deleted=1 kept=0 held=0 leftover=0"
 
 # --- unpushed branch: worktree goes, branch is the only copy and stays ------
 T="unpushed-branch-kept"
@@ -136,6 +136,48 @@ assert_contains "$OUT" "leftover=1"
 assert_dir "$W/wt1"
 assert_branch agent/issue-04-d
 
+# --- worktree locked by a LIVE process: never removed, HELD not LEFTOVER ----
+# A running worker (Claude locks its worktree with a pid in the reason) is not
+# a leak: `git worktree remove --force` cannot take it anyway, and the run that
+# owns it cleans up on exit.
+T="sweep-locked-live"
+new_fixture t6b
+mkwt agent/issue-04-l "$W/wt1"; pushbr agent/issue-04-l
+git -C "$R" worktree lock --reason "claude agent agent-abc123 (pid $$ start 849839)" "$W/wt1"
+run "$R" --sweep
+assert_rc 0
+assert_contains "$OUT" "locked by a live agent, pid $$"
+assert_contains "$OUT" "HELD worktree"
+assert_not_contains "$OUT" "LEFTOVER worktree"
+assert_contains "$OUT" "held=1 leftover=0"
+assert_dir "$W/wt1"
+assert_branch agent/issue-04-l                     # its branch is not reaped either
+
+# --- worktree locked by a DEAD process: stale lock lifted, worktree removed --
+T="sweep-locked-stale"
+new_fixture t6c
+mkwt agent/issue-04-s "$W/wt1"; pushbr agent/issue-04-s
+sleep 0.1 & dead_pid=$!; wait "$dead_pid" 2>/dev/null || true
+git -C "$R" worktree lock --reason "claude agent agent-dead (pid $dead_pid start 1)" "$W/wt1"
+run "$R" --sweep
+assert_rc 0
+assert_contains "$OUT" "stale lock from dead pid $dead_pid"
+assert_contains "$OUT" "REMOVED worktree"
+assert_no_dir "$W/wt1"
+assert_contains "$OUT" "held=0 leftover=0"
+
+# --- worktree locked by hand (no pid to check): never overridden -------------
+T="sweep-locked-by-hand"
+new_fixture t6d
+mkwt agent/issue-04-h "$W/wt1"; pushbr agent/issue-04-h
+git -C "$R" worktree lock --reason "mine, do not touch" "$W/wt1"
+run "$R" --sweep
+assert_rc 0
+assert_contains "$OUT" "mine, do not touch"
+assert_contains "$OUT" "unlock it by hand to remove"
+assert_dir "$W/wt1"
+assert_contains "$OUT" "held=1 leftover=0"
+
 # --- --max-branches: cap trips, nothing deleted, worktrees already gone -----
 T="max-branches-cap"
 new_fixture t7
@@ -181,7 +223,7 @@ new_fixture t10
 run "$R" --branch 'main'
 assert_rc 0
 assert_branch main
-assert_contains "$OUT" "OK removed=0 branches_deleted=0 kept=0 leftover=0"
+assert_contains "$OUT" "OK removed=0 branches_deleted=0 kept=0 held=0 leftover=0"
 
 # --- no selector at all → usage, exit 2 -------------------------------------
 T="usage"

@@ -135,6 +135,11 @@ survived the pass — include them verbatim in the chat summary. If it prints
 a `WARN` line (primary checkout detached, or sitting on a worker branch),
 include it verbatim too — never repair the primary checkout yourself.
 
+`held=<n>` is not a leak and does not spoil `leftover=0`: that many worktrees
+are locked by workers whose process is still alive, and they go when those
+processes do. Report it as what it is — a worker of this run still running,
+named by its `HELD`/`KEPT` lines — and do not try to force it out.
+
 The sweep matches worker worktrees by path (`.claude/worktrees/`) only, and
 deletes only the branches of the worktrees it removes in this pass — it will
 not reap worker-named branches left over from other runs, touch a worktree
@@ -183,7 +188,11 @@ If step 4 closed the spec, use
 ## 6. Chat summary
 
 One table, built from the run log's terminal (`outcome=`) rows: sub-issue,
-model used, PR, fix cycles, wave (parallel mode), outcome.
+model used, PR, fix cycles, merge-fixes, wave (parallel mode), outcome.
+When `mergefix=` is non-zero on much of a parallel wave, say so in a line
+under the table — the wave's members were rewriting the same files, and that
+is the run's own evidence for delivering the next spec of that shape
+sequentially.
 
 List escalated sub-issues with reasons, and say how to put one back in play:
 **remove its `ready-for-human` label and re-run `/developer <spec>`** — the

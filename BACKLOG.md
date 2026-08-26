@@ -231,6 +231,12 @@ without having pushed anything, and the checks gate that follows will watch the
 The run that produced the fabricated `pr=` had its next fix cycle told to verify
 against the remote — by hand, in the prompt, because the skill does not ask.
 
+**Field evidence (spec #994).** A fixer ended its turn twice without a
+`RESULT`, its fixes unpushed, and the orchestrator improvised exactly the
+check proposed below — `headRefOid` plus the unresolved-thread count — to
+establish that nothing had landed. Ending a turn mid-work is now ruled out in
+the worker definitions, but the verification is still improvised each time.
+
 **Direction.** Read `gh pr view <PR> --json headRefOid` before spawning the
 fixer, and confirm the sha moved once its `RESULT` lands. One cheap read either
 side, the same shape as the PR-exists check, and it also closes the gate's

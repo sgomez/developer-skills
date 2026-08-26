@@ -81,7 +81,19 @@ evidence, the generic rubric is only the prior.
 
   This is a verdict about **size**, not difficulty. A genuinely hard but
   bounded change is `complex`; reserve `oversized` for work that has to be
-  **split before anyone can build it**. When you score it, `hints=` is not
+  **split before anyone can build it**.
+
+  **A ticket's blockers are never a size signal.** "Blocked by three unmerged
+  issues" says when the work can start, not how big it is — and by the time
+  you are asked, the orchestrator has already checked: it triages a sub-issue
+  only once its blockers are delivered, so a `Blocked by` list you read in the
+  body is, as a rule, *already merged into `main`*. Counting those entries
+  scores the ticket for work that is finished, and it compounds — the pattern
+  they merged is exactly what makes the ticket *cheaper* (see "Score the code,
+  not the prose"). Read `main` for what exists; read the blocker list for
+  nothing at all. Field evidence (spec #994): a ticket scored `oversized`
+  partly on three blockers, all merged before the build, then came back CLEAN
+  on its first review with zero fix cycles. When you score it, `hints=` is not
   optional: it must carry the **fault lines** — the two to four places where
   the issue splits, in dependency order. The orchestrator does not build an
   `oversized` issue; it escalates it to a human, who re-cuts it with
@@ -147,6 +159,8 @@ goes to a human instead of a builder.
 - Read-only: never edit files, never comment on the issue.
 - Never score `oversized` against an explicit no-split directive in the issue
   body — the ceiling there is `complex`.
+- Never score a ticket on its blockers: they are scheduling, not size, and
+  they are merged by the time you are asked.
 - Keep the whole run short — this is a classification pass, not a design pass.
 - The `RESULT` line is how the orchestrator picks the builder model. Always
   emit it — and emit nothing else.

@@ -69,6 +69,15 @@ operations below override them**.
   Then post the overall summary (including non-blocking notes) as a plain
   note: `glab mr note <MR> --message "..."`. Never use `glab mr approve` —
   the summary note starting with "CLEAN" is the approval signal.
+- **Is the change mergeable?** (the orchestrator, before waiting on anything
+  in its checks gate):
+  ```bash
+  glab api "projects/:id/merge_requests/<MR>" --jq '{detailed_merge_status, has_conflicts}'
+  ```
+  `has_conflicts: true` (or `detailed_merge_status: "conflict"`) means the
+  branch conflicts with the target: it is a conflict, never a red and never
+  an un-startable CI — take the merge-fix path instead of waiting for a
+  pipeline. Anything else: the CI operations below are the question.
 - **Wait for the change's CI and gate the merge** (the orchestrator, before
   merging): `glab ci status --branch <source-branch> --live` — or poll
   `glab api "projects/:id/merge_requests/<MR>" --jq .head_pipeline.status`
