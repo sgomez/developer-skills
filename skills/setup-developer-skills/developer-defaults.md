@@ -1,4 +1,4 @@
-<!-- Template written to docs/agents/developer-defaults.md by /setup-developer-skills. Drop this comment line; fill `execution` and `merge` from the user's answers, and leave `oversized` at its default unless they ask otherwise. -->
+<!-- Template written to docs/agents/developer-defaults.md by /setup-developer-skills. Drop this comment line; fill `execution`, `merge` and `oversized` from the user's answers. -->
 
 # /developer defaults
 

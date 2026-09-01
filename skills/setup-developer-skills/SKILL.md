@@ -91,10 +91,13 @@ it: change ref format · publish a change (draft) · change metadata (branch,
 head sha, state) · check out a change in a linked worktree (read-only
 review, and fix-that-pushes) · read the diff · read feedback / unresolved
 threads · post a review (inline + summary, the CLEAN convention) · mark
-ready · reply to a thread · comment on a change · merge (and whether
-unattended merge is supported at all) · issue auto-close on merge (yes/no) ·
-CI on changes (none, or how to wait for the checks and how to read the ones
-recorded for a head sha).
+ready · reply to a thread · comment on a change · read the last reviewed
+revision (the sha the previous review was written against, which is how
+`review-pr` scopes a re-review to the fix pass — if the host records no such
+thing, say so and the reviewer falls back to the full diff every time) ·
+merge (and whether unattended merge is supported at all) · issue auto-close
+on merge (yes/no) · CI on changes (none, or how to wait for the checks and
+how to read the ones recorded for a head sha).
 Anything the user's workflow cannot express (e.g. inline comments), record
 the degraded form the skills should use instead.
 
@@ -178,7 +181,7 @@ lists work by `ready-for-agent`. Respect any label mapping in
 
 ### 6. Choose the run defaults
 
-Ask the user two questions (AskUserQuestion, one call, both questions):
+Ask the user three questions (AskUserQuestion, one call, all three):
 
 1. **Execution** — should `/developer` build independent sub-issues in
    parallel waves (recommended: faster; sibling-PR conflicts are resolved by
@@ -194,17 +197,21 @@ Ask the user two questions (AskUserQuestion, one call, both questions):
    **Skip this question when the code host is local** — `merge: auto` is
    unsupported there (the code-host doc says why); record `merge: manual`
    and tell the user.
+3. **Oversized sub-issues** — when triage scores a sub-issue too big to fit
+   in one context window, should `/developer` hand it back to a human to
+   re-cut (recommended: `escalate`, and the re-cut is usually the cheaper
+   fix), or build it anyway at `opus` (`build`) using triage's fault lines
+   as the builder's order of work? Recommend `build` to a repo whose tickets
+   are deliberately cut large — there the round trip costs more than the
+   build.
 
 Write the answers to `docs/agents/developer-defaults.md` from the template
 [developer-defaults.md](./developer-defaults.md) (drop the HTML comment on
-the first line, set the two answered values in the fenced block). The
-template's third knob, `oversized`, is **not** a setup question — write it at
-its `escalate` default and let the user change it in the file if they ever
-want it.
+the first line, set the three answered values in the fenced block).
 
 **Idempotence**: if the file already exists, show the current values, ask
-the two questions with the current values as the recommended options, and
-rewrite the file — carrying any non-default `oversized` value through.
+the three questions with the current values as the recommended options, and
+rewrite the file.
 
 **Regardless of the merge choice**, the pipeline's code-host writes will
 hit permission prompts — and with nobody at the keyboard a single denial

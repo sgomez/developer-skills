@@ -16,8 +16,8 @@ Changes staged on the `next` branch, published as a new version once ready.
   `docs/agents/developer-defaults.md` (factory default `escalate`, unchanged
   behaviour); `oversized: build` — or `--build-oversized` for one run — builds
   the ticket at `opus` instead, taking triage's fault lines as the builder's
-  order of work. Setup writes the knob at its default without asking a third
-  question.
+  order of work. Setup asks for it as its third question, recommending
+  `escalate`.
 - **`mergefix=<n>` in every ledger row.** `cycles=` prices the ticket being
   hard; the new field prices the *wave* being expensive, and only it lets a
   later calibration say "this spec's tickets all rewrite the same files —
@@ -52,6 +52,10 @@ Changes staged on the `next` branch, published as a new version once ready.
   operation** — GitHub's review `commit_id`, GitLab's positioned-discussion
   `head_sha`, and a new `Reviewed at <sha>` line the local host writes at the
   top of each `## Review N` section.
+- **The `Other` code-host checklist names the new operation.** A custom host
+  written from scratch by setup was the one shape that could miss
+  read-the-last-reviewed-revision and so review the whole change every cycle,
+  for good.
 
 ### Fixed
 - **`scripts/plugin-mode.sh refresh` was dead in `next` mode — a whole
