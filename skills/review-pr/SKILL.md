@@ -66,14 +66,53 @@ Never `gh pr checkout` — in a linked worktree it fails with
 still checked out in the build worker's worktree. Never `git checkout main`
 either — `main` is checked out in the primary worktree.
 
-### 2. Read full diff
+### 2. Settle the review scope
+
+A PR is reviewed more than once: the fix cycle sends the reviewer back after
+every fix pass. Re-reading the whole change each time is the most expensive
+thing in the loop and buys the least — the parts nobody touched since the last
+review were already reviewed, by this same procedure, and found sound.
+
+So first ask the code host **what revision was last reviewed**, per its
+read-the-last-reviewed-revision operation. GitHub default:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls/<PR>/reviews" \
+  --jq 'map(select(.state != "PENDING")) | last | .commit_id // empty'
+```
+
+Empty output means nobody has reviewed this PR yet. Then:
 
 ```bash
 git fetch origin main    # local host: skip the fetch, diff against main
-git diff origin/main...HEAD
 ```
 
-Also read the existing feedback and rendered diff — GitHub default:
+- **No previous review** → **full scope**. The review diff is
+  `git diff origin/main...HEAD`.
+- **A previous review, and its sha is an ancestor of HEAD**
+  (`git merge-base --is-ancestor <sha> HEAD`) **and is not HEAD** →
+  **incremental scope**. The review diff is `git diff <sha>..HEAD`.
+- **The sha is HEAD** → nothing has been pushed since the last review. Do not
+  re-review the same commit: as a /developer worker report
+  `RESULT blocked reason=no new commits since the last review (<sha>)`;
+  interactively, say so and stop.
+- **The sha is not an ancestor of HEAD** (force-push, rebase, a review posted
+  against a branch that was rewritten) → the anchor is meaningless. Fall back
+  to **full scope**.
+
+Under incremental scope, `git diff origin/main...HEAD` is still yours to read
+as **context** — the surrounding code a new hunk lives in, the function it
+calls — but findings come from the review diff. A line nobody touched since
+the last review is not a finding, however tempting: it was reviewed and it
+passed. What replaces the re-read is the thread check in step 3.
+
+Say which scope you used in the review summary, naming the anchor sha on an
+incremental one.
+
+### 2b. Read the feedback
+
+Whatever the scope, read the existing feedback and the rendered diff —
+GitHub default:
 ```bash
 gh pr view --comments   # existing comments
 gh pr diff              # rendered diff with context
@@ -89,7 +128,16 @@ so in the review summary and skip the spec-fidelity checks below.
 
 ### 3. Review
 
-Check for:
+**On incremental scope, start with the previous findings.** Read every
+unresolved thread from the last review, per the code-host doc's read-feedback
+operation, and for each one decide whether the new commits actually address it
+— a reply that says "fixed" is a claim, the diff is the evidence. A finding
+still standing is a finding again: repeat it (a reply on its thread, not a new
+inline comment) and it blocks. This is what pays for not re-reading the rest of
+the change: nothing merges without every previous finding being answered in
+code.
+
+Then review the scope diff. Check for:
 - **Correctness bugs** — logic errors, off-by-ones, null/undefined, wrong types
 - **Spec fidelity** — requirements or acceptance criteria from the
   originating issue that are missing, partial, or implemented wrong;
@@ -191,6 +239,11 @@ gh pr ready <PR>
 ## Rules
 
 - Post review even if no findings ("CLEAN" summary; never an approval event)
+- Settle the scope before reading anything: a re-review reads the diff since
+  the last reviewed sha, never the whole change again
+- Under incremental scope, untouched code is out of bounds for new findings —
+  it was already reviewed. Every previous finding, on the other hand, must be
+  confirmed fixed in code before the review can be CLEAN
 - Never push code changes — review only (exception: a local code host's
   review lives in the change file; committing that one file is the review)
 - One review submission, not comment-by-comment (where the host can batch)

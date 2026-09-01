@@ -31,6 +31,20 @@ Repo-specific facts:
   repo has no CI on PRs; the pipeline then skips the CI operations below and
   behaves exactly as it did before they existed. -->
 
+## Read the last reviewed revision
+
+The reviewer, to settle its scope (`review-pr` step 2) — GitHub records the
+sha each review was submitted against:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls/<PR>/reviews" \
+  --jq 'map(select(.state != "PENDING")) | last | .commit_id // empty'
+```
+
+Empty = never reviewed (full scope). Otherwise the sha anchors the
+incremental diff, once `git merge-base --is-ancestor <sha> HEAD` confirms the
+branch was not rewritten under it.
+
 ## Is the change mergeable?
 
 Read before waiting on anything (the orchestrator, at the top of its checks

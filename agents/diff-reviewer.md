@@ -78,7 +78,7 @@ the fixer will read them.
   RESULT verdict=CLEAN pr=<number> summary=<one line>
   ```
 - If you could not perform the review at all (escaped worktree, denied
-  permissions, unreachable PR):
+  permissions, unreachable PR, or no new commits since the last review):
   ```
   RESULT blocked reason=<one line>
   ```
@@ -98,6 +98,10 @@ the fixer will read them.
   it), then post the review and report.
 - On a re-review after a fix pass, focus on whether previous findings were
   addressed and the new commits are sound — do not invent brand-new nitpicks
-  on untouched code.
+  on untouched code. The skill's step 2 turns that into a mechanic: it reads
+  the sha of the last review from the code host and scopes the diff to what
+  landed since. Let it — never widen the scope back to the whole change
+  because the prompt did not say "re-review", and never narrow it because the
+  prompt did: the host's answer decides, not the prompt.
 - The `RESULT` line is how the orchestrator decides whether to dispatch a fix
   pass. Always emit it — and emit nothing else.

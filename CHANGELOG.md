@@ -33,6 +33,26 @@ Changes staged on the `next` branch, published as a new version once ready.
   directive does not cost a round trip. It is the one place a triage verdict
   is overruled, and only in that direction.
 
+### Changed
+- **A re-review reads the fix pass, not the whole change again.** `review-pr`
+  now opens with a scope step: it asks the code host which revision the last
+  review was submitted against and diffs from there (`git diff <sha>..HEAD`),
+  falling back to the full `origin/main...HEAD` on a first review or a
+  rewritten branch. The full diff stays readable as context, but untouched
+  code is out of bounds for new findings — it was already reviewed. What
+  replaces the re-read is a mandatory check that every previous finding was
+  really fixed in code, and a `blocked` verdict when a fix pass pushed
+  nothing at all. A three-cycle PR used to pay for four full reviews of the
+  same change.
+- **Re-reviews run on sonnet.** The first review is discovery across the whole
+  change and keeps `diff-reviewer`'s pinned opus; the fix cycle's re-review is
+  verification of a diff the skill has already scoped down, and the
+  orchestrator now spawns it with `model: "sonnet"`.
+- **All three code-host templates carry a read-the-last-reviewed-revision
+  operation** — GitHub's review `commit_id`, GitLab's positioned-discussion
+  `head_sha`, and a new `Reviewed at <sha>` line the local host writes at the
+  top of each `## Review N` section.
+
 ### Fixed
 - **`scripts/plugin-mode.sh refresh` was dead in `next` mode — a whole
   cycle's commits never reached the install.** It matched the CLI's rendered

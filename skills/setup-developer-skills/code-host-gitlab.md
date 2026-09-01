@@ -48,6 +48,19 @@ operations below override them**.
   `git push origin HEAD:<source-branch>`.
 - **Read the diff**: `git fetch origin main && git diff origin/main...HEAD`,
   plus `glab mr diff <MR>` for the rendered view.
+- **Read the last reviewed revision** (the reviewer, to settle its scope —
+  `review-pr` step 2): GitLab has no review object, but every positioned
+  discussion records the sha it was written against:
+  ```bash
+  glab api "projects/:id/merge_requests/<MR>/discussions" --jq \
+    '[.[] | .notes[] | select(.position.head_sha) | {sha: .position.head_sha, at: .created_at}]
+     | sort_by(.at) | last | .sha // empty'
+  ```
+  Empty = never reviewed (full scope). Otherwise the sha anchors the
+  incremental diff, once `git merge-base --is-ancestor <sha> HEAD` confirms
+  the branch was not rewritten under it. If the last review posted only
+  unpositioned discussions (the fallback below), there is no sha to read:
+  full scope.
 - **Read feedback**: `glab mr view <MR> --comments` for notes;
   `glab api "projects/:id/merge_requests/<MR>/discussions"` for inline
   threads — a thread is unresolved while any note has `"resolved": false`.

@@ -12,7 +12,7 @@ defaults — **the operations below override them.**
   committed on the branch. It holds everything a PR would: a `Status:` line
   (`draft` / `ready` / `merged`), the issue ref it closes, `## What changed`,
   `## Test plan`, optional `## Discoveries`, and appended `## Review N`
-  sections.
+  sections (each opening with a `Reviewed at <sha>` line).
 - **Base branch**: `main`. Linked worktrees share refs with the primary
   checkout, so `git fetch origin` is meaningless here — branch from local
   `main`: `git checkout -b <branch> main` (never `git checkout main`).
@@ -59,7 +59,13 @@ defaults — **the operations below override them.**
 - **Read feedback**: read the change file's `## Review N` sections. A
   finding is an unchecked `- [ ]` item; `- [x]` with an indented reply is
   resolved.
-- **Post a review**: append a `## Review N` section to the change file —
+- **Read the last reviewed revision** (the reviewer, to settle its scope —
+  `review-pr` step 2): the last `## Review N` section's `Reviewed at` line —
+  `git show <branch>:.scratch/changes/<file>.md | grep '^Reviewed at ' | tail -1 | cut -d' ' -f3`.
+  No such line (or no review section) = never reviewed: full scope.
+- **Post a review**: append a `## Review N` section to the change file,
+  opening it with a `Reviewed at <sha>` line (`git rev-parse HEAD` — the
+  anchor the next review's scope hangs on), then
   one `- [ ] \`<file>:<line>\` — <finding>` item per actionable finding,
   then a summary paragraph (non-blocking notes included; start it with
   "CLEAN" when nothing blocks). Commit **only the change file** — the one

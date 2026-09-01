@@ -119,18 +119,22 @@ What `oversized` means — what to do with a sub-issue triage scores
 
 ## Workers (subagents)
 
-| Step    | Subagent        | Model                    | Isolation  | Skill it runs     |
-|---------|-----------------|--------------------------|------------|-------------------|
-| triage  | `dispatcher`     | sonnet (pinned)          | —          | (reads the issue) |
-| build   | `code-author`   | chosen by triage         | `worktree` | `implement-issue` |
-| review  | `diff-reviewer` | opus (pinned)            | `worktree` | `review-pr`       |
-| fix     | `code-author`   | escalates per cycle      | `worktree` | `fix-pr`          |
-| harvest | `code-author`   | sonnet (pinned)          | `worktree` | (reads PR bodies) |
+| Step    | Subagent        | Model                           | Isolation  | Skill it runs     |
+|---------|-----------------|---------------------------------|------------|-------------------|
+| triage  | `dispatcher`    | sonnet (pinned)                 | —          | (reads the issue) |
+| build   | `code-author`   | chosen by triage                | `worktree` | `implement-issue` |
+| review  | `diff-reviewer` | opus first, sonnet on re-review | `worktree` | `review-pr`       |
+| fix     | `code-author`   | escalates per cycle             | `worktree` | `fix-pr`          |
+| harvest | `code-author`   | sonnet (pinned)                 | `worktree` | (reads PR bodies) |
 
 Spawn each via the **Agent** tool with the matching `subagent_type`. Pass
 `isolation: "worktree"` to every code-author and diff-reviewer spawn. Pass
-`model` explicitly to code-author spawns (triage decides the tier). Never run
-the skills yourself in the main context — the point is isolation.
+`model` explicitly to code-author spawns (triage decides the tier) and to
+**re-review** diff-reviewer spawns (`model: "sonnet"`) — the first review is
+discovery across the whole change and stays on the agent's pinned opus, while a
+re-review is verification of a diff the skill has already scoped down to the
+last fix pass. Never run the skills yourself in the main context — the point is
+isolation.
 
 **Every spawn is `run_in_background: true`**, dispatchers included, in both
 execution modes. A foreground spawn holds your turn open for the worker's whole
@@ -507,9 +511,15 @@ gh pr list --state open --search '"Closes #<subissue>" in:body' --json number,is
 ```
 
 - **No open PR** → nothing to resume: step 1 (Triage).
-- **One open PR, no unresolved review threads** → the build landed but the
-  review did not: keep its `<PR>`, skip Triage and Build, start at step 3
-  (Review).
+- **One open PR, no unresolved review threads** → keep its `<PR>`, skip
+  Triage and Build, start at step 3 (Review). The reviewer settles its own
+  scope from the PR's review history, so this covers both shapes: a build
+  that was never reviewed (full scope) and one whose review was answered in
+  full but never reached a verdict (incremental). If it comes back
+  `blocked reason=no new commits since the last review`, the previous review
+  was the last word and everything it raised is resolved: treat it as
+  **CLEAN** and go to Merge — here only, because no fix pass ran this cycle
+  to leave findings standing.
 - **One open PR with unresolved review threads** → a review landed and its
   fixes did not: start at step 4 (Fix cycle), counting from cycle 1 with the
   fixer at `opus` (the build tier died with the session that chose it).
@@ -638,6 +648,11 @@ whose step 0 found `isDraft: false`.
 
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
+- `RESULT blocked reason=no new commits since the last review …` → the fix
+  pass pushed nothing, so there is nothing to re-review. Treat it exactly as
+  that cycle's `NEEDS_FIXES`: the previous findings still stand. Do not
+  re-spawn the reviewer — go straight to the next fix cycle (or escalate if
+  the budget is spent).
 - `RESULT blocked` because the change branch is held by another worktree
   (the worker quotes git's "already used by worktree" error) → a previous
   worker's worktree wasn't cleaned: run **Cleanup** (step 6) and re-spawn
@@ -671,8 +686,15 @@ For cycle `c` = 1, 2, 3:
 
    `RESULT blocked …` → **escalate**, next sub-issue (a branch-held-by-
    worktree blocked gets the same one-shot Cleanup + re-spawn as in step 3).
-3. Re-review: spawn `diff-reviewer` again (same prompt as step 3, mention it
-   is a re-review after a fix pass).
+3. Re-review: spawn `diff-reviewer` again with the step 3 prompt plus
+   `model: "sonnet"`, and append one line to it:
+
+   > This is a re-review after fix cycle `<c>`. The skill's step 2 will scope
+   > your diff to what landed since the last review — use that scope, and
+   > check every previous finding was really fixed in code.
+
+   Do not restate the findings in the prompt: they are on the PR, which is
+   where the reviewer reads them.
    - `CLEAN` → **Merge**.
    - `NEEDS_FIXES` and `c < 3` → next cycle.
    - `NEEDS_FIXES` and `c = 3` → **escalate** (do NOT merge), next sub-issue.
