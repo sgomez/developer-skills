@@ -52,6 +52,21 @@ Changes staged on the `next` branch, published as a new version once ready.
   operation** — GitHub's review `commit_id`, GitLab's positioned-discussion
   `head_sha`, and a new `Reviewed at <sha>` line the local host writes at the
   top of each `## Review N` section.
+- **The agent docs are read-only to a delivery run.** The harvest used to
+  fold PR discoveries into `AGENTS.md` and anything under `docs/agents/`, then
+  push straight to `main`: a sonnet worker rewriting the instructions every
+  future run obeys, with no review anywhere in the path — the one class of
+  change with more leverage than code, and the only one that skipped the
+  reviewer. It now writes `docs/agents/delivery-ledger.md` and nothing else
+  (the dispatcher reads that one back, so it is state, not instructions), and
+  the discoveries land in `.scratch/developer-discoveries-<spec>.md` as
+  proposals the wrap-up summary lists for a human to apply. `RESULT
+  docs=<updated|none>` becomes `discoveries=<n>`.
+- **Setup declares itself the owner of those docs**, and is told to update
+  them against the templates without rewriting the repo's own prose — a stale
+  sentence gets reported, not silently corrected. New guidance to keep
+  perishable facts (an issue's state today) out of files whose next reader
+  will try to fix them.
 - **The `Other` code-host checklist names the new operation.** A custom host
   written from scratch by setup was the one shape that could miss
   read-the-last-reviewed-revision and so review the whole change every cycle,

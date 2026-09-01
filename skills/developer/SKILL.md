@@ -1045,6 +1045,17 @@ is read once, here, at the end of the run.
   state there, even if merging seems convenient.
 - Unattended: never stop to ask the user anything mid-loop. Escalate via
   labels/comments and keep going.
+- **The agent docs are read-only to this pipeline.** `AGENTS.md`, `CLAUDE.md`,
+  `CONTEXT-MAP.md`, `docs/adr/` and everything under `docs/agents/` are
+  instructions the run obeys, not state it maintains — a run that rewrites its
+  own instructions changes every future run, unattended and unreviewed. Two
+  exceptions, both narrow: `docs/agents/delivery-ledger.md`, which the harvest
+  appends to because the dispatcher reads it back (wrap-up step 2), and Step
+  0's commit of context docs, which publishes edits **the human already made**
+  and authors nothing. Everything else a run learns is *proposed* in the
+  summary and applied by a human, or by `/setup-developer-skills` for the
+  parts its templates own. This binds the workers too: say so in their prompts
+  when a job goes anywhere near these files.
 - Every worker spawn is `run_in_background: true`, in both execution modes.
   Never hold your turn open waiting for a worker to finish.
 - While a run is in flight, no prompt that reaches you is a no-op — a bare

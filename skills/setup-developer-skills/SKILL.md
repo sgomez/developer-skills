@@ -24,6 +24,26 @@ local are first-class** — templates ship with this skill. Anything else
 (Jira, Linear, Gitea…) is configured as freeform prose, exactly like Matt's
 setup handles "other" trackers.
 
+**This skill is the only writer of these docs.** `/developer` and its workers
+read `AGENTS.md`, `CLAUDE.md` and everything under `docs/agents/` as
+instructions and never edit them — the one exception is
+`docs/agents/delivery-ledger.md`, which the harvest appends to because the
+dispatcher reads it back. So a doc that has drifted out of date is fixed here
+or by the human, and never as a side effect of a delivery run. Two things
+follow for this skill:
+
+- **Update against the templates; leave the repo's own prose alone.** These
+  docs accumulate repo-specific text that no template contains — why a knob
+  was set the way it was, a build trap, a test lane. Bring the *template*
+  parts up to date and carry that text through untouched, even when a
+  sentence in it looks stale. If something in it is now wrong, say so in the
+  chat summary and let the user decide; correcting it is not what an update
+  was asked to do.
+- **Prefer facts that do not rot.** When you write prose of your own into
+  these docs, describe how the repo works, not what some issue's state is
+  today. A claim with a date on it goes out of date silently and invites the
+  next session to "fix" it.
+
 This is a prompt-driven skill, not a deterministic script. Explore, present
 what you found, confirm with the user, then write.
 

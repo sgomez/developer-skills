@@ -16,10 +16,10 @@ left silently in_progress.
 
 ## 2. Harvest discoveries and record the run
 
-Turn what the workers learned into docs, and persist this run's outcome so the
-dispatcher can calibrate to this repo. Skip only when the run produced no
-changes. The harvest worker does both in one branch/commit; the **ledger rows**
-it needs are already written — read them, do not reconstruct them:
+Persist this run's outcome so the dispatcher can calibrate to this repo, and
+collect what the workers learned. Skip only when the run produced no changes.
+The **ledger rows** the harvest worker needs are already written — read them,
+do not reconstruct them:
 
 ```bash
 grep 'outcome=' .scratch/developer-run-<spec>.log
@@ -79,23 +79,45 @@ Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
 > <your calibration notes, verbatim, or none>
 > ```
 >
-> **(b) Harvest discoveries.** For each PR read its body and comments per the
-> repo's `docs/agents/code-host.md` (GitHub default:
+> `docs/agents/delivery-ledger.md` is the **only** file you may write, and
+> those two sections are the only parts of it you may touch. Not `AGENTS.md`,
+> not any other doc under `docs/agents/`, not a stale sentence you can prove
+> wrong — those belong to `/setup-developer-skills` and to the human. Step (b)
+> is how anything else gets proposed.
+>
+> **(b) Propose discoveries — do not apply them.** For each PR read its body
+> and comments per the repo's `docs/agents/code-host.md` (GitHub default:
 > `gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
 > entries. Compare them against the repo's agent docs (`AGENTS.md` and
-> everything under `docs/agents/`). Promote only entries that repeat across
-> PRs, correct a doc the code has outgrown, or would clearly have saved
-> another worker real work; drop one-off trivia. Fold the survivors into the
-> right doc (update the existing recipe/pattern doc; create a new
-> `docs/agents/` doc only if none fits). If nothing qualifies, leave the
-> docs untouched — the ledger append from (a) still stands.
+> everything under `docs/agents/`), read-only. Keep only entries that repeat
+> across PRs, correct a doc the code has outgrown, or would clearly have saved
+> another worker real work; drop one-off trivia. Write the survivors to
+> `<primary-checkout>/.scratch/developer-discoveries-<spec>.md` — one entry
+> each as:
 >
-> Commit as `docs(agents): record spec #<spec> run and harvest discoveries`
-> and push with `git push origin HEAD:main` — never check out main. If the
-> push is rejected, fetch and rebase once, then push again; if it still
-> fails, stop and report it. Your entire final message must be the
-> `RESULT docs=<updated|none> ledger=<appended|failed>` line — nothing
-> before it, nothing after it.
+> ```
+> ### <one-line title>
+> Doc: <path the change belongs in, or "new doc: <suggested path>">
+> Evidence: PR #<n> (and #<n>…)
+> Proposed: <the edit, concretely enough to apply without re-reading the PRs>
+> ```
+>
+> Nothing qualifies → do not create the file. Either way the ledger append
+> from (a) still stands.
+>
+> That path is **absolute and outside your worktree** — substitute the
+> orchestrator's checkout root, which is where the run log already lives.
+> Writing it inside the worktree would lose it twice over: the cleanup pass
+> deletes the worktree, and an uncommitted file there makes the cleanup
+> refuse instead.
+>
+> Commit **only** `docs/agents/delivery-ledger.md`, as
+> `docs(agents): record spec #<spec> run`, and push with
+> `git push origin HEAD:main` — never check out main. If the push is
+> rejected, fetch and rebase once, then push again; if it still fails, stop
+> and report it. Your entire final message must be the
+> `RESULT discoveries=<n> ledger=<appended|failed>` line — nothing before it,
+> nothing after it.
 
 On `ledger=appended`, **archive** the run log — never delete it:
 
@@ -222,7 +244,13 @@ at the escape hatch: abort the half-merge and ask you to run the **merge-fix
 job** (`MERGE-FIX.md`) on that change; a worker resolves it in its own
 worktree, never the main context.
 
-Note whether the harvest updated docs.
+**Surface the harvest's proposals.** On `discoveries=<n>` with `n > 0`, read
+`.scratch/developer-discoveries-<spec>.md` and list each entry under a
+**Proposed doc changes** heading: title, target doc, and the one-line edit.
+They are proposals, not changes — no agent doc was modified by this run, and
+say so. Applying one is the human's call (or `/setup-developer-skills` for
+anything the templates own). On `discoveries=0`, one line: the run surfaced
+nothing worth promoting.
 
 ## 7. Execution report
 
