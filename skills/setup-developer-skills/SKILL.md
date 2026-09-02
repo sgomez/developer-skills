@@ -52,7 +52,12 @@ follow for this skill:
   annex, not a smaller font. This applies to the prose the repo adds later
   just as much as to the templates: a build trap or a test lane that belongs
   to one phase belongs in that phase's annex, or in the repo's own testing
-  docs — not in the file every worker opens first.
+  docs — not in the file every worker opens first. And a note about how the
+  **harness** behaves — what the worktree sandbox does to a piped `gh`, which
+  command shapes it refuses — is not a fact about this repo's code host at
+  all: it is the same everywhere, it ships with the worker agents, and it
+  does not belong in `code-host.md`. If you find one there, say so; the fix
+  is an issue against the plugin, not a longer contract doc.
 - **Prefer facts that do not rot.** When you write prose of your own into
   these docs, describe how the repo works, not what some issue's state is
   today. A claim with a date on it goes out of date silently and invites the

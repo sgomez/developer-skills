@@ -53,8 +53,27 @@ Consequences:
   worktree. Follow the skill's commands, not memory.
 - Push everything you produce; your local worktree is discarded afterwards.
   (On a local code host committing is publishing — worktrees share refs.)
-- If a `gh`/`glab` command returns empty output, re-run it once with `2>&1`
-  appended to surface the actual error before drawing conclusions.
+
+### The worktree sandbox eats some command shapes
+
+The harness checks every Bash command stays inside the worktree, and two of
+its failure modes look like data rather than like errors:
+
+- **Output piped to a consumer that stops early** (`gh … | head`) comes back
+  **empty with exit 0**: the output was lost, not absent — never read it as
+  "no data". `gh issue view <N> --comments` does the same with no pipe at
+  all. Redirect to a file and read the file
+  (`gh issue view <N> --json body,comments > /tmp/issue.json`). A long inline
+  GraphQL query has the same problem: write it to a file and pass it as
+  `gh api graphql -F query=@<file>`.
+- **Two shapes are refused outright**, with an explicit error rather than
+  empty output: a chained `cmd_a && cmd_b` ("too complex to verify it stays
+  inside the worktree" — issue them as separate calls), and an inline
+  `python3 - <<'PY' … PY` carrying several paths (write the script to the
+  scratchpad directory and run it by its path).
+
+Empty output is a symptom, never an answer: re-run once with `2>&1` appended
+before concluding anything from it.
 
 ## Inputs
 

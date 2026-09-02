@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **The worker agents now carry the worktree sandbox's failure modes.** Inside
+  a worktree the harness checks every Bash command stays in it, and two of its
+  failure modes read as data rather than as errors: output piped to a consumer
+  that stops early (`gh … | head`, and `gh issue view --comments` with no pipe
+  at all) comes back **empty with exit 0**, and a chained `cmd_a && cmd_b` or
+  an inline multi-path heredoc is refused outright. A worker that read the
+  empty output as "no data" drew the wrong conclusion on its first command.
+  `code-author`, `diff-reviewer` and `dispatcher` now state the symptom and
+  the way around it (redirect to a file, split the chain, run the script by
+  path). This is harness behaviour, identical in every repo — it ships with
+  the agents, and `/setup-developer-skills` now says out loud that it does not
+  belong in a repo's `docs/agents/code-host.md`.
+
 ### Changed
 - **Contract docs are now a short core plus deferred annexes.** Every worker
   read `docs/agents/code-host.md` and `docs/agents/issue-tracker.md` whole in

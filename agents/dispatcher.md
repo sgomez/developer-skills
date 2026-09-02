@@ -21,6 +21,15 @@ codebase, then report one machine-readable line. You never write code.
    ```bash
    gh issue view <N> --comments
    ```
+   **If that comes back empty, it did not fail — the output was lost.** You
+   run inside a worktree, and the harness's command check swallows the output
+   of `gh issue view --comments`, and of anything piped to a consumer that
+   stops early (`… | head`), returning empty with exit 0. Redirect to a file
+   and read the file: `gh issue view <N> --json body,comments >
+   /tmp/issue.json`. It also refuses outright — with an explicit error, not
+   empty output — a chained `cmd_a && cmd_b` (issue them as separate calls)
+   and an inline `python3 - <<'PY' … PY` carrying several paths.
+
    If the issue carries a `## Spec extract` section, **skim that** — it is
    the parent spec's Implementation and Testing Decisions that apply to this
    issue, already copied verbatim, and it is where hidden complexity shows.
