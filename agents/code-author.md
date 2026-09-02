@@ -18,6 +18,13 @@ command shown below or in the skills you run; `gh` on GitHub is only the
 factory default. "PR" means whatever the code host calls a reviewable
 change.
 
+Read **those two files** and no more. Each links phase annexes — the CI one
+(`code-host-ci.md`), the issue-authoring one (`issue-authoring.md`) — naming
+the phase that opens it. Open an annex at the step that names it, never up
+front: on a BUILD job that is usually never, and on a FIX job only once the
+CI is the thing you are fixing. Reading the whole contract in your first
+turn spends on process what you need for the code.
+
 You usually run inside an **isolated git worktree**, not the main checkout.
 Consequences:
 

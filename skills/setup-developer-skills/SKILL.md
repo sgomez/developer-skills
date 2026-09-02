@@ -1,6 +1,6 @@
 ---
 name: setup-developer-skills
-description: Configure this repo for the /developer unattended spec-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md (GitHub, GitLab or local first-class; anything else as freeform), installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults written to docs/agents/developer-defaults.md. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
+description: Configure this repo for the /developer unattended spec-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md and its phase annexes (GitHub, GitLab or local first-class; anything else as freeform), installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults written to docs/agents/developer-defaults.md. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
 disable-model-invocation: true
 ---
 
@@ -15,9 +15,11 @@ the repo:
 
 - **Issue tracker** — where issues live (`docs/agents/issue-tracker.md`,
   created by Matt's setup; this skill appends the pipeline's
-  `## Delivery operations` section).
+  `## Delivery operations` section) plus its authoring annex
+  (`docs/agents/issue-authoring.md`).
 - **Code host** — where changes (PRs/MRs/branches) live
-  (`docs/agents/code-host.md`, created here).
+  (`docs/agents/code-host.md`, created here) plus its CI annex
+  (`docs/agents/code-host-ci.md`).
 
 They may differ (issues in Linear, code on GitHub). **GitHub, GitLab and
 local are first-class** — templates ship with this skill. Anything else
@@ -29,7 +31,7 @@ read `AGENTS.md`, `CLAUDE.md` and everything under `docs/agents/` as
 instructions and never edit them — the one exception is
 `docs/agents/delivery-ledger.md`, which the harvest appends to because the
 dispatcher reads it back. So a doc that has drifted out of date is fixed here
-or by the human, and never as a side effect of a delivery run. Two things
+or by the human, and never as a side effect of a delivery run. Three things
 follow for this skill:
 
 - **Update against the templates; leave the repo's own prose alone.** These
@@ -39,6 +41,18 @@ follow for this skill:
   sentence in it looks stale. If something in it is now wrong, say so in the
   chat summary and let the user decide; correcting it is not what an update
   was asked to do.
+- **A core file and its annexes, never one long file.** Every worker reads
+  `code-host.md` and `issue-tracker.md` **whole, in its first turn**, before
+  looking at a line of code — so those two pay for their length once per
+  worker per sub-issue. Mechanics used in only one phase of a job go in an
+  annex, and the core links it with the phase that opens it spelled out:
+  `code-host-ci.md` is opened only to wait for, read or classify a change's
+  CI; `issue-authoring.md` only when issues are being created. Keep each core
+  file **under ~100 lines**; when one grows past that, the fix is another
+  annex, not a smaller font. This applies to the prose the repo adds later
+  just as much as to the templates: a build trap or a test lane that belongs
+  to one phase belongs in that phase's annex, or in the repo's own testing
+  docs — not in the file every worker opens first.
 - **Prefer facts that do not rot.** When you write prose of your own into
   these docs, describe how the repo works, not what some issue's state is
   today. A claim with a date on it goes out of date silently and invites the
@@ -105,6 +119,19 @@ skill folder (drop the HTML comment on the first line, and fill or delete the
 - [code-host-gitlab.md](./code-host-gitlab.md)
 - [code-host-local.md](./code-host-local.md)
 
+Then, **only if the repo has CI on changes**, write the CI annex
+`docs/agents/code-host-ci.md` from the matching template:
+
+- [code-host-ci-github.md](./code-host-ci-github.md)
+- [code-host-ci-gitlab.md](./code-host-ci-gitlab.md)
+- local has no CI and gets no annex.
+
+If the answer above was "no CI", write no annex and delete any existing one —
+the core's `CI` bullet says `none` and the pipeline skips those operations
+entirely. The annex is the file the workers do **not** open until they are
+about to wait for, read or classify a change's CI; keeping the core free of
+it is the whole point of the split, so never fold the annex back in.
+
 For **Other**, write the doc from scratch based on the user's description.
 It must answer, operation by operation, what the delivery skills will ask of
 it: change ref format · publish a change (draft) · change metadata (branch,
@@ -116,13 +143,22 @@ revision (the sha the previous review was written against, which is how
 `review-pr` scopes a re-review to the fix pass — if the host records no such
 thing, say so and the reviewer falls back to the full diff every time) ·
 merge (and whether unattended merge is supported at all) · issue auto-close
-on merge (yes/no) · CI on changes (none, or how to wait for the checks and
-how to read the ones recorded for a head sha).
+on merge (yes/no) · CI on changes (none, or whether one exists at all).
 Anything the user's workflow cannot express (e.g. inline comments), record
-the degraded form the skills should use instead.
+the degraded form the skills should use instead. The CI **mechanics** — how
+to wait for the checks, how to read the ones recorded for a head sha, how to
+tell a job that ran from one that never started — go in
+`docs/agents/code-host-ci.md`, not here; the core just names the annex and
+the phase that opens it.
 
 **Idempotence**: if `docs/agents/code-host.md` already exists, show its
-current host and content summary, and ask before rewriting.
+current host and content summary, and ask before rewriting. If it is an
+**unsplit** doc from an older version of this skill — CI mechanics still
+inline, or well past ~100 lines — offer the split as its own change: move
+the CI operations, and any repo prose that only a CI reader needs, into
+`docs/agents/code-host-ci.md` **verbatim**, leave the core with the pointer
+line, and say in the summary what moved. Nothing may be lost in the move;
+this is a relocation, not a rewrite.
 
 ### 3. Patch the issue tracker doc with Delivery operations
 
@@ -132,26 +168,44 @@ comment, label, close). Append the section that matches the tracker found in
 step 1 (drop the HTML comment on the first line):
 
 - [delivery-ops-github.md](./delivery-ops-github.md) — native GitHub
-  sub-issues (also instructs `/to-tickets` to create them)
+  sub-issues
 - [delivery-ops-gitlab.md](./delivery-ops-gitlab.md) — `glab` mechanics +
   `Part of #<parent>` markers
 - [delivery-ops-local.md](./delivery-ops-local.md) — `.scratch/` file
   conventions
 
+Then write the authoring annex `docs/agents/issue-authoring.md` from the
+matching template — the rules whatever splits a spec must follow when it
+**creates** children:
+
+- [issue-authoring-github.md](./issue-authoring-github.md)
+- [issue-authoring-gitlab.md](./issue-authoring-gitlab.md)
+- [issue-authoring-local.md](./issue-authoring-local.md)
+
+Unlike the tracker doc, this one is a whole file, not a section: `/to-tickets`
+reads it when creating issues and the delivery pipeline never opens it. Do not
+fold it back into `issue-tracker.md` — that file is read whole by every worker
+in its first turn, and by then the children already exist.
+
 For **other** trackers, write the `## Delivery operations` section from
 scratch with the user: same operation list as above, in their tracker's
 terms (issue ref format included). Carry over the two requirements the
-bundled templates place on whatever splits a spec into tickets: children must
+bundled templates place on whatever splits a spec into tickets — children must
 be **discoverable from the parent** by a mechanic the pipeline can query, and
 each child must carry a **`## Spec extract`** section with the parent's
-Implementation and Testing Decisions that apply to it, copied verbatim — that
-section is what lets a builder work from the ticket alone.
+Implementation and Testing Decisions that apply to it, copied verbatim (that
+section is what lets a builder work from the ticket alone) — but write them
+into `docs/agents/issue-authoring.md`, not into the tracker doc itself, and
+leave the tracker doc pointing at it the way the bundled templates do.
 
 **Idempotence**: if a `## Delivery operations` heading already exists in
 `docs/agents/issue-tracker.md`, replace that section instead of appending a
 duplicate. Same for the legacy heading
 `## Parent/child issues MUST be native sub-issues` (written by older
-versions of this skill) — replace it with the new section.
+versions of this skill) — replace it with the new section. If the authoring
+rules are still **inline** in the tracker doc (any older version wrote them
+there), move them into `docs/agents/issue-authoring.md` verbatim and leave
+the `### Creating child issues` pointer behind.
 
 ### 4. Check the agents are available
 

@@ -15,8 +15,9 @@ codebase, then report one machine-readable line. You never write code.
 ## What to do
 
 1. Read the issue with its comments, per the repo's
-   `docs/agents/issue-tracker.md` (Delivery operations) if it exists.
-   GitHub factory default:
+   `docs/agents/issue-tracker.md` (Delivery operations) if it exists — that
+   section only; its `issue-authoring.md` annex is for whatever *creates*
+   issues and has nothing for you. GitHub factory default:
    ```bash
    gh issue view <N> --comments
    ```

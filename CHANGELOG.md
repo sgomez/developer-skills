@@ -10,6 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **Contract docs are now a short core plus deferred annexes.** Every worker
+  read `docs/agents/code-host.md` and `docs/agents/issue-tracker.md` whole in
+  its first turn, before looking at a line of code — and most of what it paid
+  for belonged to one phase it would often never reach. The CI mechanics (wait
+  for the checks, read the ones recorded for a head sha, tell a code-red from
+  an infra-red) move to a new **`docs/agents/code-host-ci.md`**, opened only at
+  the checks gate; the rules for *creating* child issues (the native sub-issue
+  link, the mandatory `## Spec extract` section) move to a new
+  **`docs/agents/issue-authoring.md`**, read by `/to-tickets` and never by the
+  delivery pipeline. The four skills and the three worker agents now say the
+  annexes are **deferred, not optional** — read at the step that names them,
+  never up front — and the steps that do need them say so on the spot. Without
+  that half the split saves nothing: a worker that opens both files anyway has
+  only gained a hop. `/setup-developer-skills` writes the annexes, offers to
+  split an existing unsplit doc (verbatim: a relocation, not a rewrite), and
+  carries the rule that keeps it from regrowing — core files stay under ~100
+  lines, and phase-specific prose the repo adds later goes in the annex, not
+  in the file every worker opens first.
 - **Every worker agent now declares its `tools`.** `dispatcher` already did;
   `code-author` and `diff-reviewer` were inheriting the full set, MCP servers
   and `Agent` included, so a worker could spawn workers and a reviewer carried

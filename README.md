@@ -159,10 +159,13 @@ Matt's first.
 
 1. Determine the **code host** (GitHub, GitLab, or local branches — anything
    else as freeform prose) and write its mechanics to
-   `docs/agents/code-host.md`.
+   `docs/agents/code-host.md`, with the CI mechanics in the deferred annex
+   `docs/agents/code-host-ci.md`.
 2. Patch `docs/agents/issue-tracker.md` with the pipeline's **Delivery
    operations** — how `/developer` reads issues, discovers children (native
-   sub-issues on GitHub), checks blockers, comments, labels, and closes.
+   sub-issues on GitHub), checks blockers, comments, labels, and closes — and
+   write `docs/agents/issue-authoring.md`, the rules `/to-tickets` follows
+   when it *creates* children.
 3. Check the three plugin agents are loaded: `dispatcher`, `code-author`,
    `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels (or the tracker's
@@ -317,5 +320,7 @@ skills/
   fix-pr/                   # address review threads → push → reply
   setup-developer-skills/   # one-time repo setup (incl. run-defaults template)
     code-host-*.md          # code-host templates (github / gitlab / local)
+    code-host-ci-*.md       # deferred CI annex, opened only at the checks gate
     delivery-ops-*.md       # issue-tracker Delivery operations templates
+    issue-authoring-*.md    # deferred annex, read only when creating issues
 ```

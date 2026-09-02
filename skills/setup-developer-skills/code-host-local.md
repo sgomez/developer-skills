@@ -25,9 +25,11 @@ defaults — **the operations below override them.**
   with `git merge --no-ff <branch>` and then deletes the branch.
 - **CI**: none. There is no remote and no change surface for a CI system to
   report on, so the pipeline's checks gate does not apply: the builder's and
-  the reviewer's local typecheck/test runs **are** the checks. <!-- If this
-  repo grows a local pre-merge check the pipeline should honour, name the
-  command here. -->
+  the reviewer's local typecheck/test runs **are** the checks. There is no
+  `code-host-ci.md` annex on a local host. <!-- If this repo grows a local
+  pre-merge check the pipeline should honour, name the command here — and if
+  explaining it takes more than a few lines, put those lines in
+  `docs/agents/code-host-ci.md` and link them from here. -->
 - **Worktree/branch discipline (orchestrator)**: the branch is the **only
   copy** of unmerged work — always pass `--keep-branches` to
   `cleanup-worktrees.sh`, and run that cleanup **after every worker
@@ -82,3 +84,7 @@ defaults — **the operations below override them.**
 - **Issue auto-close**: no. Reference the issue ref in the change file
   ("Closes <ref>" line); whoever merges closes the issue per the tracker's
   Delivery operations.
+
+<!-- Keep this file under ~100 lines. Every worker reads it whole in its first
+turn, before looking at a line of code, so anything used in only one phase of
+a job belongs in an annex that names its trigger. -->

@@ -46,8 +46,17 @@ own context:
 - **`docs/agents/code-host.md`** — change operations (publish, check out in
   a worktree, review, mark ready, reply, merge, auto-close semantics).
 
-Read both once at the start (they are short — an allowed exception to
-"never read bodies yourself"). **Every command block below shows the GitHub
+Read those two once at the start (they are short — an allowed exception to
+"never read bodies yourself").
+
+**Their annexes are deferred, and every worker inherits that.** Each core doc
+links phase annexes naming the phase that opens them: `code-host-ci.md` is
+opened at the **checks gate**, when a change's CI has to be waited on, read
+or classified — nowhere earlier; `issue-authoring.md` is for whatever
+*creates* issues (`/to-tickets`) and this pipeline never opens it at all.
+Read an annex at the step that names it and not before. A run that opens
+them at the start pays the whole contract, three workers deep, per
+sub-issue, to use a fraction of it. **Every command block below shows the GitHub
 factory default (`gh`); when a contract doc defines a different mechanic
 for the same operation, the doc wins.** If a doc is missing, the GitHub
 defaults apply as-is — suggest `/setup-developer-skills` if that looks
@@ -720,7 +729,10 @@ retry).
 
 **Checks gate — never merge on red CI.** If `docs/agents/code-host.md`
 declares a CI system, wait for the PR's checks and read their result before
-merging, per its "check the change's CI status" operation. GitHub default:
+merging. **This is the step that opens `docs/agents/code-host-ci.md`** (that
+doc's CI annex) if the repo has one — read it now, not at the start of the
+run, and take its wait / read / classify operations from there. GitHub
+default:
 
 ```bash
 # 0. is the branch even mergeable? a conflicting PR never gets a check
@@ -779,7 +791,7 @@ above, or with the **Monitor** tool.
   PR**; the red was synchronization, not a bug, and no fixer is needed.
 
   Still red on an up-to-date branch → **classify the red** before paying
-  for a fixer, per the code-host doc's classify-a-red operation. GitHub
+  for a fixer, per the CI annex's classify-a-red operation. GitHub
   default (`<run-id>` comes from the failing check's `link`):
 
   ```bash
@@ -816,8 +828,9 @@ above, or with the **Monitor** tool.
     every later PR's gate identically, so continuing burns builds that
     cannot merge. The wrap-up's unblock question is one line: restore the
     CI (minutes, runner), then re-run `/developer <spec>`.
-  - The code-host doc defines no classify operation (or the host cannot
-    tell) → every red is code-red, as before.
+  - The CI annex defines no classify operation, or there is no annex and
+    the code-host doc names none (or the host cannot tell) → every red is
+    code-red, as before.
 
   **Never read CI logs in the main context.** The `--json` query above is the
   whole diagnosis you are allowed: `gh run view --log-failed`, `--log`, and

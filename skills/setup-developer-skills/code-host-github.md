@@ -27,9 +27,13 @@ Repo-specific facts:
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/pr-<PR>` branch: `git push origin HEAD:<pr-branch>`).
-- **CI**: GitHub Actions runs on pull requests. <!-- Set to "none" if this
-  repo has no CI on PRs; the pipeline then skips the CI operations below and
-  behaves exactly as it did before they existed. -->
+- **CI**: GitHub Actions runs on pull requests. How to wait for the checks,
+  read the ones recorded for a head sha, and tell a code-red from an
+  infra-red lives in the annex [`code-host-ci.md`](./code-host-ci.md) —
+  **open it only when you are about to do one of those three things**, which
+  for most jobs is never. <!-- Set to "none" if this repo has no CI on PRs,
+  and delete the annex; the pipeline then skips the CI operations entirely
+  and behaves exactly as it did before they existed. -->
 
 ## Read the last reviewed revision
 
@@ -57,46 +61,10 @@ gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus
 `DIRTY` = conflicts with the base: GitHub runs **no checks** against it, so
 waiting for one can only time out. It is a conflict, never a red and never an
 un-startable CI — take the merge-fix path. `BEHIND` = mergeable but stale
-(`gh pr update-branch <PR>`). `CLEAN`/`UNSTABLE`/`BLOCKED` = the checks below
-are the question.
+(`gh pr update-branch <PR>`). `CLEAN`/`UNSTABLE`/`BLOCKED` = the checks are
+the question — that is the point where the CI annex gets opened, and not
+before.
 
-## Checking the change's CI status
-
-Three operations read the same checks, for different readers.
-
-- **Wait for the checks and gate the merge** (the orchestrator, before
-  merging):
-
-  ```bash
-  gh pr checks <PR> --watch --fail-fast   # exits non-zero if any check fails
-  ```
-
-  A non-zero exit is **not** a merge conflict: it is a red build, and the
-  answer is another fix cycle, never a merge-fix job.
-
-- **Read the checks already recorded for the head sha** (the reviewer, before
-  deciding whether to run the suite locally):
-
-  ```bash
-  gh pr checks <PR> --json name,state,link --jq \
-    '[.[] | select(.state != "SUCCESS" and .state != "SKIPPED")]'
-  ```
-
-  Empty output with at least one check present = green. Any entry is a
-  failing or still-running check; its `link` is the job URL to quote.
-
-- **Classify a red — did the failing job actually execute?** (any reader,
-  before spending a fix cycle on it): take `<run-id>` from the failing
-  check's `link` (`…/actions/runs/<run-id>/job/<job-id>`), then
-
-  ```bash
-  gh run view <run-id> --json conclusion,jobs --jq '{run: .conclusion,
-    failed: [.jobs[] | select(.conclusion != "success" and .conclusion != "skipped")
-    | {name, steps: (.steps | length)}]}'
-  ```
-
-  A failed job with `steps > 0` ran against the change: **code-red** — a
-  fix cycle. Every failed job at `steps: 0`, a run conclusion of
-  `startup_failure`, or a job no runner ever picked up: **infra-red** —
-  the job never started (runner offline, Actions minutes exhausted) and
-  the red says nothing about the code.
+<!-- Keep this file under ~100 lines. Every worker reads it whole in its first
+turn, before looking at a line of code, so anything used in only one phase of
+a job belongs in an annex that names its trigger — as the CI operations do. -->

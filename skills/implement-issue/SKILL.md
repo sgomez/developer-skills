@@ -9,12 +9,19 @@ Full issue → PR → close flow, locally.
 
 **Contract docs.** The issue mechanics come from the repo's
 `docs/agents/issue-tracker.md` (its `## Delivery operations` section) and
-the change mechanics from `docs/agents/code-host.md` — read both first if
-present. The commands below are the **GitHub factory defaults** (`gh`),
-used verbatim when those docs are absent or confirm GitHub; when a doc
+the change mechanics from `docs/agents/code-host.md` — read those two files
+first if present. The commands below are the **GitHub factory defaults**
+(`gh`), used verbatim when those docs are absent or confirm GitHub; when a doc
 defines a different mechanic for an operation, the doc wins. "PR" below
 means whatever the code host calls a reviewable change (pull request,
 merge request, branch + change file).
+
+**Their annexes are deferred, not optional.** Those two docs link phase
+annexes — `code-host-ci.md` when a change's CI has to be waited on, read or
+classified; `issue-authoring.md` when issues are being *created*, which this
+skill never does. **Do not read an annex at the start**: open it at the step
+that names it, and not before. Implementing an issue and publishing a draft
+change needs nothing from either.
 
 ## Invoke
 

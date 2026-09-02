@@ -16,8 +16,12 @@ operations below override them**.
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/mr-<MR>` branch: `git push origin HEAD:<source-branch>`).
-- **CI**: GitLab CI runs a pipeline per MR. <!-- Set to "none" if this project
-  has no CI on MRs; the pipeline then skips the checks operations below and
+- **CI**: GitLab CI runs a pipeline per MR. How to wait for it, read the
+  pipeline recorded for a head sha, and tell a code-red from an infra-red
+  lives in the annex [`code-host-ci.md`](./code-host-ci.md) — **open it only
+  when you are about to do one of those three things**, which for most jobs
+  is never. <!-- Set to "none" if this project has no CI on MRs, and delete
+  the annex; the pipeline then skips the checks operations entirely and
   behaves exactly as it did before they existed. -->
 
 ## Operations
@@ -90,31 +94,8 @@ operations below override them**.
   `has_conflicts: true` (or `detailed_merge_status: "conflict"`) means the
   branch conflicts with the target: it is a conflict, never a red and never
   an un-startable CI — take the merge-fix path instead of waiting for a
-  pipeline. Anything else: the CI operations below are the question.
-- **Wait for the change's CI and gate the merge** (the orchestrator, before
-  merging): `glab ci status --branch <source-branch> --live` — or poll
-  `glab api "projects/:id/merge_requests/<MR>" --jq .head_pipeline.status`
-  until it leaves `running`/`pending`. Anything other than `success` (or
-  `skipped`) is a **red build**, not a merge conflict: the answer is another
-  fix cycle, never a merge-fix job.
-- **Read the checks recorded for the head sha** (the reviewer, before deciding
-  whether to run the suite locally):
-  ```bash
-  glab api "projects/:id/pipelines?sha=<head_sha>" --jq '.[0] | {status, web_url}'
-  ```
-  `status: "success"` = green; anything else names the pipeline to quote via
-  its `web_url`.
-- **Classify a red — did the failing job actually execute?** (any reader,
-  before spending a fix cycle on it):
-  ```bash
-  glab api "projects/:id/pipelines/<pipeline_id>/jobs?scope[]=failed" \
-    --jq '.[] | {name, status, failure_reason}'
-  ```
-  `failure_reason: "script_failure"` means the job ran the change's code:
-  **code-red** — a fix cycle. `runner_system_failure`,
-  `stuck_or_timeout_failure` or `scheduler_failure` — or a pipeline whose
-  jobs sit `pending` with no runner — is **infra-red**: the job never ran
-  and the red says nothing about the code.
+  pipeline. Anything else: the CI is the question — that is the point where
+  the CI annex gets opened, and not before.
 - **Mark ready**: `glab mr update <MR> --ready`.
 - **Reply to a thread**:
   `glab api "projects/:id/merge_requests/<MR>/discussions/<DISCUSSION_ID>/notes" --method POST -f body="..."`,
@@ -134,3 +115,9 @@ operations below override them**.
 > Best-effort: this mapping is maintained without a live GitLab pipeline to
 > test against. If a command's shape has drifted, `glab <cmd> --help` is
 > authoritative — fix the command here in this doc, not in the skills.
+
+<!-- Keep this file as short as the operation list allows. Every worker reads
+it whole in its first turn, before looking at a line of code — GitLab is long
+because every operation here overrides a GitHub default, but anything used in
+only one phase of a job still belongs in an annex that names its trigger, as
+the CI operations do. -->

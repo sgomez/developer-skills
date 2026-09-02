@@ -8,11 +8,17 @@ description: Reads all unresolved review comments and threads on a change (PR/MR
 Reads review comments, implements fixes, pushes, replies to threads.
 
 **Contract doc.** Change mechanics come from the repo's
-`docs/agents/code-host.md` — read it first if present. The commands below
-are the **GitHub factory defaults** (`gh`), used verbatim when that doc is
+`docs/agents/code-host.md` — read that file first if present. The commands
+below are the **GitHub factory defaults** (`gh`), used verbatim when that doc is
 absent or confirms GitHub; when it defines a different mechanic for an
 operation (checkout, read feedback, reply, publish commits), the doc wins.
 "PR" below means whatever the code host calls a reviewable change.
+
+**Its annexes are deferred, not optional.** `code-host.md` links phase
+annexes — `code-host-ci.md` above all — with the phase that opens each one
+spelled out. **Do not read an annex at the start**: open it at the step that
+names it, and not before. A worker that reads them all up front pays for the
+whole contract in its first turn to use a quarter of it.
 
 ## Invoke
 
@@ -100,8 +106,9 @@ on:
   **is** your feedback — the failing checks are the work, whether or not any
   thread exists.
 - Otherwise, if you found no threads and no comments, read the change's checks
-  per the code-host doc's "read the checks" operation before giving up.
-  GitHub default:
+  before giving up. **This is the step that opens `docs/agents/code-host-ci.md`**
+  (the code-host doc's CI annex) if the repo has one — take its "read the
+  checks" operation from there. GitHub default:
 
   ```bash
   gh pr checks <PR> --json name,state,link --jq \
@@ -112,7 +119,7 @@ Refuse only when **all** of it comes back empty: no threads, no comments, and
 either green checks or no CI. Then there is genuinely nothing to fix.
 
 When the CI is what you are fixing, first check the failing job **actually
-executed**, per the code-host doc's classify-a-red operation (GitHub default:
+executed**, per the CI annex's classify-a-red operation (GitHub default:
 `gh run view <run-id> --json jobs` — a failed job with zero steps never
 started). A job the CI could not start (runner offline, minutes exhausted) is
 not fixable from a worktree, and no amount of waiting turns it green: stop

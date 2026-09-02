@@ -8,11 +8,17 @@ description: Reviews a change (PR/MR) diff against main, posts inline review com
 Reviews the change's diff, posts the review, marks it ready.
 
 **Contract doc.** Change mechanics come from the repo's
-`docs/agents/code-host.md` — read it first if present. The commands below
-are the **GitHub factory defaults** (`gh`), used verbatim when that doc is
+`docs/agents/code-host.md` — read that file first if present. The commands
+below are the **GitHub factory defaults** (`gh`), used verbatim when that doc is
 absent or confirms GitHub; when it defines a different mechanic for an
 operation (checkout, read feedback, post review, mark ready), the doc
 wins. "PR" below means whatever the code host calls a reviewable change.
+
+**Its annexes are deferred, not optional.** `code-host.md` links phase
+annexes — `code-host-ci.md` above all — with the phase that opens each one
+spelled out. **Do not read an annex at the start**: open it at the step that
+names it, and not before. A worker that reads them all up front pays for the
+whole contract in its first turn to use a quarter of it.
 
 ## Invoke
 
@@ -161,8 +167,10 @@ same commit: the builder ran them, the change's CI is running them, and you
 would run them again.
 
 So, **before installing anything**: if `docs/agents/code-host.md` declares a
-CI system, read the checks recorded for the change's **head sha**, per its
-"read the checks" operation. GitHub default:
+CI system, read the checks recorded for the change's **head sha**. **This is
+the step that opens `docs/agents/code-host-ci.md`** (that doc's CI annex) if
+the repo has one — take its "read the checks" operation from there. GitHub
+default:
 
 ```bash
 gh pr checks <PR> --json name,state,link --jq \
@@ -174,8 +182,8 @@ gh pr checks <PR> --json name,state,link --jq \
   say in the summary that checks were taken from CI (name the head sha). The
   suite has already answered; re-running it buys nothing and costs the most
   context of anything you do.
-- **Red** → check the failing job **actually executed**, per the code-host
-  doc's classify-a-red operation (GitHub default: `gh run view <run-id>
+- **Red** → check the failing job **actually executed**, per the CI annex's
+  classify-a-red operation (GitHub default: `gh run view <run-id>
   --json jobs`, `<run-id>` from the check's `link` — a failed job with zero
   steps never started). Never started (runner offline, CI minutes
   exhausted) → the red recorded nothing about this change: treat it as **no
