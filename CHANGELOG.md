@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **Every worker agent now declares its `tools`.** `dispatcher` already did;
+  `code-author` and `diff-reviewer` were inheriting the full set, MCP servers
+  and `Agent` included, so a worker could spawn workers and a reviewer carried
+  the same write surface as a builder. `code-author` gets the builder set plus
+  `WebFetch`/`WebSearch` (implementing against an external library means
+  reading its docs); `diff-reviewer` gets `Edit` rather than `Write` — the one
+  file it may legitimately touch is a local code host's change file, and that
+  is an append to an existing file. `diff-reviewer` also says out loud that
+  the list is not a sandbox: it holds `Bash`, so read-only stays a rule it
+  keeps, not a wall. The real isolation is still the worktree.
+
 ## [0.21.0] - 2026-09-01
 
 ### Added

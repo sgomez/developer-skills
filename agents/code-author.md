@@ -2,6 +2,7 @@
 name: code-author
 description: Developer worker. Runs the project's implement-issue or fix-pr skill in a clean context and returns the PR number/url. Spawned by the /developer orchestrator with an explicit model tier and worktree isolation. Not for direct use.
 effort: medium
+tools: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch, Skill, TodoWrite
 ---
 
 # Code Author
