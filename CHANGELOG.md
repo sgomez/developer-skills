@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **The board is the progress report; the orchestrator no longer narrates
+  beside it.** A spec run used to announce each wave, print a triage table of
+  the tier every sub-issue drew, and repeat a running "N of M merged" tally —
+  all of it a second, staler copy of what the task list already shows live.
+  Between the run-config line and the wrap-up the default output is now
+  nothing. Six things are still said, each in a line or two: the resolved
+  config, a resume's recovery, a switch into the conflict queue, how to merge
+  the first time a PR lands ready-to-merge, anything that stops the run or
+  needs the human, and any direct answer the user asks for.
 - **The orchestrator's progress board now carries short labels, not full
   issue titles.** The harness re-injects the whole task list into the
   orchestrator's context on a timer, so every character of every subject is

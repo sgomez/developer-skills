@@ -368,6 +368,31 @@ every transition; a stale board defeats its purpose.
 
 Single mode (no sub-issues) skips the board.
 
+**The board is the report — do not narrate the run beside it.** Between the
+run-config line and the wrap-up, a spec run's default output is *nothing*: the
+task list already says which sub-issue is building, which is in review, which
+is merged and which is waiting, and it says it live, without costing a turn.
+Prose that restates it — "wave 1 launched", "triage complete", a table of the
+tier each sub-issue drew, "5 of 25 merged" — is a second, staler copy of the
+board, and the user has to read past it to reach the part that is not on the
+board. Keep the board current instead; that *is* the progress report.
+
+Six things still get said, each in **one or two lines**, never a table:
+
+- the resolved run config, once, before starting (Run configuration);
+- what you recovered, once, after a resume (Resuming the orchestrator);
+- a switch into the conflict queue (Parallel mode);
+- **how** to merge, the first time a sub-issue lands ready-to-merge under
+  `merge: manual` — once for the run, not once per PR; the wrap-up repeats it
+  for the rest;
+- anything that **stops** the run or needs the human: an escalation and why,
+  a denied permission, a spec too large to size;
+- a direct question from the user, answered directly — the silence rule
+  governs unprompted narration, never a reply.
+
+Everything else the run learns goes where it survives: the board, the PR, the
+issue, the run log, and the wrap-up summary at the end.
+
 ## Spec loop
 
 Repeat while open sub-issues remain:
@@ -735,9 +760,11 @@ as **ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
 run **Cleanup** (step 6), record its row (step 7), and move on. The sub-issue
 stays open until the human merges, so its dependents remain blocked this run.
 
-Say **how** to merge the moment a sub-issue becomes ready-to-merge — a bare
-"ready to merge" leaves the user asking what to do, especially off GitHub.
-State the code-host doc's merge operation concretely.
+Say **how** to merge the **first** time a sub-issue becomes ready-to-merge —
+a bare "ready to merge" leaves the user asking what to do, especially off
+GitHub. State the code-host doc's merge operation concretely, in one line,
+once for the whole run: the board carries every later PR, and the wrap-up
+repeats the command.
 
 **With `merge: auto`**: this merge is pre-authorized — the user opted into
 `merge: auto` in `docs/agents/developer-defaults.md` (or passed
@@ -1097,6 +1124,9 @@ is read once, here, at the end of the run.
 - Cap the output of every command you run, and never leave a watching or
   streaming command's progress unredirected — see **Context economy**. Your
   context is the one resource the whole run shares.
+- In spec mode, keep the board current and say nothing beside it — no wave
+  announcements, no triage tables, no running tallies. Six exceptions, all
+  one-liners, listed under **Progress board**.
 - While a run is in flight, no prompt that reaches you is a no-op — a bare
   "continue" is a resume, not a question. Reconstruct and take the next step
   per **Resuming the orchestrator**; never answer that no response is needed.
