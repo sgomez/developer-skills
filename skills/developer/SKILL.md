@@ -186,6 +186,15 @@ The loop may cover many sub-issues; your context must survive all of them.
 
 - **Never read issue or PR bodies yourself.** Workers read them in their own
   disposable contexts. You only run the cheap listing commands below.
+- **Every command you run prints a bounded projection, never a blob.** Ask
+  for the fields you need (`--json`/`--jq`, `--format`) and cap what is left
+  (`head -20`, `| wc -l`). Two failure modes cost the most: a streaming or
+  watching command (`gh pr checks --watch`, `gh run watch`) repainting its
+  progress into your transcript, and a **malformed** command dumping its
+  tool's entire `--help` — a single mis-escaped `gh pr list --search` did
+  exactly that for 4k tokens in one field run. So send both streams of any
+  probe you are not certain of through a cap: `<cmd> 2>&1 | head -20`. What
+  you need from these commands is one number, one state or one exit code.
 - **Never read CI logs yourself** either — `gh run view --log-failed` and
   anything like it. The Merge step's `--json` classification is the whole
   diagnosis the orchestrator gets; the rest is the fixer's, in its context.
@@ -327,9 +336,19 @@ The user follows the run through the harness task list. Keep it faithful at
 every transition; a stale board defeats its purpose.
 
 1. **Immediately after mode detection**, create one task per open sub-issue
-   with **TaskCreate**, in sub-issue order: subject `#<N> <title>`,
+   with **TaskCreate**, in sub-issue order: subject `#<N> <short>`,
    activeForm `Delivering #<N>`. The whole plan must be on the board before
    the first worker spawns.
+
+   `<short>` is the sub-issue title **trimmed to about six words / 50
+   characters**, cut at a word boundary and with no ellipsis — enough for the
+   user to tell the rows apart, and it never grows. Keep the same `<short>`
+   for that sub-issue's every later rename. The number is the identifier; the
+   words are only a label, and the full title is one `gh issue view` away for
+   anyone who needs it. This is not cosmetic: the harness re-injects the
+   **whole board** into your context on a timer, so every character of every
+   subject is re-read many times over a long run — a board of 25 full titles
+   costs more over a run than the entire spawn traffic it is tracking.
 2. When the delivery pipeline starts on a sub-issue → **TaskUpdate**
    `status: in_progress`. In parallel mode every wave member goes
    in_progress as its build spawns, so the board shows exactly what is
@@ -338,14 +357,14 @@ every transition; a stale board defeats its purpose.
    - **merged** (sub-issue verified CLOSED) → `status: completed`.
    - **ready-to-merge** (`merge: manual`, verdict CLEAN) → back to
      `status: pending` and rename the subject to
-     `#<N> <title> — ready to merge: PR #<PR>`. Not completed — the human
+     `#<N> <short> — ready to merge: PR #<PR>`. Not completed — the human
      still has to merge it.
    - **escalated** → back to `status: pending` and rename the subject to
-     `#<N> <title> — escalated: <one-line reason>`. Never mark an escalated
+     `#<N> <short> — escalated: <one-line reason>`. Never mark an escalated
      sub-issue completed — unchecked items at the end are the human's queue.
 4. Sub-issues that never became deliverable (blocked by an escalated one, or
    by a ready-to-merge one the human hasn't merged yet) stay pending; rename
-   them `#<N> <title> — blocked by #<M>` at wrap-up.
+   them `#<N> <short> — blocked by #<M>` at wrap-up.
 
 Single mode (no sub-issues) skips the board.
 
@@ -742,8 +761,12 @@ for _ in $(seq 20); do
   [ "$(gh pr view <PR> --json statusCheckRollup --jq '.statusCheckRollup | length')" -gt 0 ] && break
   sleep 15
 done
-# 2. then wait for them to finish — non-zero here means a check actually failed
-gh pr checks <PR> --watch --fail-fast
+# 2. then wait for them to finish — non-zero here means a check actually failed.
+#    --watch repaints a progress table every 10s; keep all of it out of your
+#    context and read the failures back only if the exit code says there are any.
+gh pr checks <PR> --watch --fail-fast >/dev/null 2>&1 \
+  || gh pr checks <PR> --json name,state,link \
+       --jq '.[] | select(.state != "SUCCESS" and .state != "SKIPPED")'
 ```
 
 Step 0 comes first and it decides whether the rest runs at all. On **`DIRTY`**
@@ -1071,6 +1094,9 @@ is read once, here, at the end of the run.
   when a job goes anywhere near these files.
 - Every worker spawn is `run_in_background: true`, in both execution modes.
   Never hold your turn open waiting for a worker to finish.
+- Cap the output of every command you run, and never leave a watching or
+  streaming command's progress unredirected — see **Context economy**. Your
+  context is the one resource the whole run shares.
 - While a run is in flight, no prompt that reaches you is a no-op — a bare
   "continue" is a resume, not a question. Reconstruct and take the next step
   per **Resuming the orchestrator**; never answer that no response is needed.

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **The orchestrator's progress board now carries short labels, not full
+  issue titles.** The harness re-injects the whole task list into the
+  orchestrator's context on a timer, so every character of every subject is
+  re-read many times over a run: on a 25 sub-issue spec, a board of full
+  titles cost more over two hours than all of the run's spawn traffic put
+  together. Board subjects are now `#<N> <short>` — the title trimmed to
+  about six words — and the same `<short>` is reused for the
+  ready-to-merge / escalated / blocked renames. The number was always the
+  identifier; the words are a label.
+
+### Fixed
+- **The checks gate no longer streams `gh pr checks --watch` into the
+  orchestrator's context.** `--watch` repaints a progress table every ten
+  seconds, and all of it landed in the transcript to deliver one exit code.
+  The gate now discards both streams and reads the failing checks back with
+  `--json` only when the exit code says there are any.
+- **A standing bounded-output rule for the orchestrator.** Context economy and
+  the rules list now require every command it runs to print a projection
+  (`--json`/`--jq`, `head`) rather than a blob, and to cap `2>&1` on any probe
+  that might be malformed — one mis-escaped `gh pr list --search` dumped the
+  command's entire help text, 4k tokens, into a field run.
+
 ## [0.22.0] - 2026-09-02
 
 ### Added
