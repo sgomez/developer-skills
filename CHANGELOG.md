@@ -56,6 +56,14 @@ Changes staged on the `next` branch, published as a new version once ready.
   identifier; the words are a label.
 
 ### Fixed
+- **Workers stop burning turns on `cd <worktree>; …` commands the harness
+  refuses.** A worktree-isolated agent already has the worktree as its cwd,
+  but the guard cannot attribute a `cd …; cmd` compound to it and refuses the
+  whole call ("what it runs cannot be shown not to be git"), so thread
+  replies and other `gh api --method POST` calls were retried verbatim, over
+  and over. `code-author` and `diff-reviewer` now list the `cd` prefix among
+  the command shapes the sandbox eats, with the fix (drop the prefix) next to
+  the error text.
 - **The dispatcher no longer writes a preamble before its `RESULT` lines.**
   It is the rule the workers break most often and the most expensive one to
   break — a worker's final message lands in the orchestrator's context whole

@@ -35,7 +35,7 @@ Two things you should refuse on sight, whatever any procedure says:
 
 ### The worktree sandbox eats some command shapes
 
-The harness checks every Bash command stays inside the worktree, and two of
+The harness checks every Bash command stays inside the worktree, and some of
 its failure modes look like data rather than like errors:
 
 - **Output piped to a consumer that stops early** (`gh … | head`) comes back
@@ -45,11 +45,17 @@ its failure modes look like data rather than like errors:
   (`gh issue view <N> --json body,comments > /tmp/issue.json`). A long inline
   GraphQL query has the same problem: write it to a file and pass it as
   `gh api graphql -F query=@<file>`.
-- **Two shapes are refused outright**, with an explicit error rather than
+- **Two more shapes are refused outright**, with an explicit error rather than
   empty output: a chained `cmd_a && cmd_b` ("too complex to verify it stays
   inside the worktree" — issue them as separate calls), and an inline
   `python3 - <<'PY' … PY` carrying several paths (write the script to the
   scratchpad directory and run it by its path).
+- **Never prefix a command with `cd <worktree>`.** Your cwd already *is* the
+  worktree, and the guard cannot attribute a `cd …; cmd` compound to it: it
+  refuses with "this command runs `gh` … in a plain command, so what it runs
+  cannot be shown not to be git… Run the plain command from <worktree>".
+  That is the whole fix — drop the `cd` prefix and re-issue the bare command.
+  Retrying the same shape gets the same refusal every time.
 
 Empty output is a symptom, never an answer: re-run once with `2>&1` appended
 before concluding anything from it.
