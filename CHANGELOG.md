@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **Triage now scores a whole wave in one dispatcher spawn.** Every spawn
+  costs the orchestrator roughly 750 tokens of prompt, launch metadata and
+  result notification whatever it carries — and a triage spawn carried one
+  word. The Triage step now batches the wave's members into a single
+  `dispatcher` (at most 5 issues a spawn; a larger wave takes a second batch),
+  and the dispatcher scores one or more issues per run, emitting one
+  `RESULT issue=… ` line each. Sequential mode uses the same prompt with a
+  list of one. A member whose line never arrives falls through to the existing
+  malformed-result default (build at `opus`) instead of earning a second
+  spawn.
+- **The dispatcher's `RESULT` line drops `reason=`.** The field held its
+  scoring argument, and nothing read it: the orchestrator parses the score,
+  forwards `hints` to the builder and discards the rest, so the reason was
+  paid for in the orchestrator's context and delivered to no one. The
+  `oversized` escalation comment no longer quotes it either — the fault lines
+  in `hints=` were always the part a human needed. A no-split veto now opens
+  `hints=` with `no-split directive:` instead of explaining itself in prose.
 - **The board is the progress report; the orchestrator no longer narrates
   beside it.** A spec run used to announce each wave, print a triage table of
   the tier every sub-issue drew, and repeat a running "N of M merged" tally —
@@ -30,6 +47,12 @@ Changes staged on the `next` branch, published as a new version once ready.
   identifier; the words are a label.
 
 ### Fixed
+- **The dispatcher no longer writes a preamble before its `RESULT` lines.**
+  It is the rule the workers break most often and the most expensive one to
+  break — a worker's final message lands in the orchestrator's context whole
+  and stays there for the rest of the run, and one field triage notification
+  ran 405 tokens to deliver a 20-token score. The agent now states that cost
+  where the output format is defined and again in its rules.
 - **The checks gate no longer streams `gh pr checks --watch` into the
   orchestrator's context.** `--watch` repaints a progress table every ten
   seconds, and all of it landed in the transcript to deliver one exit code.

@@ -130,7 +130,7 @@ What `oversized` means — what to do with a sub-issue triage scores
 
 | Step    | Subagent        | Model                           | Isolation  | Skill it runs     |
 |---------|-----------------|---------------------------------|------------|-------------------|
-| triage  | `dispatcher`    | sonnet (pinned)                 | —          | (reads the issue) |
+| triage  | `dispatcher`    | sonnet (pinned)                 | —          | (scores a wave)   |
 | build   | `code-author`   | chosen by triage                | `worktree` | `implement-issue` |
 | review  | `diff-reviewer` | opus first, sonnet on re-review | `worktree` | `review-pr`       |
 | fix     | `code-author`   | escalates per cycle             | `worktree` | `fix-pr`          |
@@ -195,6 +195,13 @@ The loop may cover many sub-issues; your context must survive all of them.
   exactly that for 4k tokens in one field run. So send both streams of any
   probe you are not certain of through a cap: `<cmd> 2>&1 | head -20`. What
   you need from these commands is one number, one state or one exit code.
+- **Every spawn costs about the same whatever it carries** — roughly 750
+  tokens of prompt, launch metadata and result notification, against a payload
+  that is often one word. So batch the work that can be batched (triage scores
+  a whole wave in one dispatcher) and never spawn a worker to recover
+  something a default already covers. Builds, reviews and fixes cannot be
+  batched — each needs its own worktree and its own clean context — and are
+  worth their envelope; a second dispatcher for one missing score is not.
 - **Never read CI logs yourself** either — `gh run view --log-failed` and
   anything like it. The Merge step's `--json` classification is the whole
   diagnosis the orchestrator gets; the rest is the fixer's, in its context.
@@ -461,8 +468,10 @@ Work in **waves**:
    did.
 2. Run the delivery pipeline on each wave member concurrently, entry points
    first: the pipeline's **step 0** resolves where each member starts, and only
-   the ones with no open change get a `dispatcher` and a build. Spawn those
-   `dispatcher`s in one batch, then their `code-author` BUILD jobs in parallel
+   the ones with no open change get triaged and built. Spawn **one**
+   `dispatcher` for all of them at once (Triage step — one spawn per wave, not
+   per member, capped at 5 issues a spawn), then their `code-author` BUILD
+   jobs in parallel
    (each in its own worktree, `run_in_background: true`) — **minus any member
    the Triage step escalates as `oversized`**, which leaves the wave without
    a build (under `oversized: build`, or against a no-split directive, it is
@@ -600,14 +609,30 @@ is what stops a sub-issue looping forever across runs.
 
 ### 1. Triage
 
+**Triage a whole wave in one spawn, not one spawn per sub-issue.** In parallel
+mode this step runs once for the wave, covering every member the pipeline's
+step 0 found without an open change; in sequential mode the wave is one
+sub-issue and the same prompt carries a list of one. Batch at most **5**
+issues per dispatcher; a larger wave takes a second batched spawn, never a
+spawn per issue. The reason is the spawn envelope, not the dispatcher: a
+triage round trip costs the orchestrator ~750 tokens of prompt, launch
+metadata and notification whatever it carries, and it carries one word. Five
+scores in one spawn pay that once instead of five times, and triage is the
+step where it is free to do so — the scores are independent, the codebase
+glance is shared, and nothing downstream needs them at different times.
+
 Spawn `dispatcher` with `run_in_background: true`:
 
-> Triage issue #`<subissue>`. Score its implementation complexity per your
-> rubric. Your entire final message must be the
-> `RESULT complexity=… model=… touches=… hints=… reason=…` line — nothing
-> before it, nothing after it.
+> Triage issues #`<N1>`, #`<N2>`, … Score each one's implementation
+> complexity per your rubric, independently of the others. Your entire final
+> message must be one
+> `RESULT issue=… complexity=… model=… touches=… hints=…` line per issue, in
+> the order given — nothing before the first, nothing between them, nothing
+> after the last.
 
-Parse `complexity=` first:
+Match each line back to its sub-issue by `issue=`. A member with **no line at
+all** is treated exactly like a malformed one (below). Then, per sub-issue,
+parse `complexity=` first:
 
 - **`complexity=oversized`** → the sub-issue does not fit in a single fresh
   context window, and what happens next is the `oversized` knob's call (Run
@@ -632,10 +657,12 @@ Parse `complexity=` first:
   outranks the rubric, never the reverse.
 - Anything else → parse `model=<tier>` and continue to Build.
 
-On any malformed result, default to `opus` and build — a line you cannot
-parse is not an `oversized` verdict. Parse `touches=` and `hints=` too,
-defaulting each to `none` if the line predates these fields or omits them —
-never block the pipeline on a missing hint.
+On any malformed or missing result, default to `opus` and build — a line you
+cannot parse, or that never arrived, is not an `oversized` verdict. Parse
+`touches=` and `hints=` too, defaulting each to `none` if the line predates
+these fields or omits them — never block the pipeline on a missing hint.
+Never re-spawn a dispatcher to recover one missing line: the default costs
+less than the round trip it would take to improve on it.
 
 ### 2. Build
 
@@ -1070,7 +1097,7 @@ with a high-tier model and high effort, the conditions the original cut was
 made under. Say `PR: none` — nothing was built. GitHub default:
 
 ```bash
-gh issue comment <subissue> --body "Escalated by /developer: oversized — does not fit in a single fresh context window. <reason, from the dispatcher>.
+gh issue comment <subissue> --body "Escalated by /developer: oversized — does not fit in a single fresh context window.
 
 Fault lines, from triage (a starting point, not the split): <the dispatcher's hints, verbatim>
 
