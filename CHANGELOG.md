@@ -20,6 +20,15 @@ Changes staged on the `next` branch, published as a new version once ready.
   list of one. A member whose line never arrives falls through to the existing
   malformed-result default (build at `opus`) instead of earning a second
   spawn.
+- **The dispatcher's scoring argument gets a 15-word budget instead of a
+  ban.** Removing `reason=` outright made things worse, not better: the field
+  went away and the justification moved in front of the `RESULT` lines, where
+  it is not parseable and not optional — one field triage notification went
+  from 405 to 537 tokens. The line now ends in a capped `why=<max 15 words>`,
+  the only place a scoring argument may go, and the orchestrator restates the
+  cap in every spawn prompt (the last thing the worker reads) before dropping
+  the field. A prohibition with no outlet redirects the pressure; a budget
+  bounds it.
 - **The dispatcher's `RESULT` line drops `reason=`.** The field held its
   scoring argument, and nothing read it: the orchestrator parses the score,
   forwards `hints` to the builder and discards the rest, so the reason was

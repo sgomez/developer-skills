@@ -626,9 +626,19 @@ Spawn `dispatcher` with `run_in_background: true`:
 > Triage issues #`<N1>`, #`<N2>`, … Score each one's implementation
 > complexity per your rubric, independently of the others. Your entire final
 > message must be one
-> `RESULT issue=… complexity=… model=… touches=… hints=…` line per issue, in
-> the order given — nothing before the first, nothing between them, nothing
-> after the last.
+> `RESULT issue=… complexity=… model=… touches=… hints=… why=…` line per
+> issue, in the order given — nothing before the first, nothing between them,
+> nothing after the last. Do not explain your scoring anywhere except the
+> `why=` field, which is capped at 15 words: your final message lands in my
+> context whole and stays there for the rest of the run, so a paragraph in
+> front of the lines is charged to every turn that follows and read by no one.
+
+**Repeat that last sentence in the spawn prompt every time.** It is the rule
+this worker breaks most often — twice in field runs, once after the agent
+definition had already been hardened — and the spawn prompt is the last thing
+it reads before working. Parse `why=` and drop it: it exists to give the
+dispatcher's justification a 20-token home instead of a 330-token one, not
+because anything downstream needs it.
 
 Match each line back to its sub-issue by `issue=`. A member with **no line at
 all** is treated exactly like a malformed one (below). Then, per sub-issue,

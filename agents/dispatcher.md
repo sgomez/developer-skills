@@ -154,7 +154,7 @@ in the order you were given them — nothing before the first line, nothing
 between them, nothing after the last:
 
 ```
-RESULT issue=<N> complexity=<trivial|standard|complex|oversized> model=<sonnet|opus|none> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none>
+RESULT issue=<N> complexity=<trivial|standard|complex|oversized> model=<sonnet|opus|none> touches=<comma-separated dirs/modules|none> hints=<one line: pattern to imitate, files to check|none> why=<max 15 words>
 ```
 
 `issue=` is required on every line, including when you were given a single
@@ -166,13 +166,21 @@ the author's no-split directive vetoed an `oversized` score, the line reads
 `complexity=complex model=opus` and carries the fault lines in `hints=` all
 the same, opened with `no-split directive:`.
 
-**There is no `reason=` field and no room for your scoring argument.** Nothing
-you write outside these lines is read by anyone: the orchestrator parses the
-fields, forwards `hints` to the builder and drops the rest. What it cannot
-drop is the cost — your final message is delivered into the orchestrator's
-context whole and stays there for the rest of the run, so a paragraph of
-justification before your lines is charged to every remaining turn of a
-multi-hour run to be read by no one. Emit the lines. Say nothing else.
+`why=` is **the only place your scoring argument goes, and it is capped at 15
+words** — a clause, not a sentence, not a paragraph. `first-of-family module,
+no pattern to copy` is a `why`. Anything longer is over budget, and there is
+no second place for the overflow: not before the lines, not after them, not
+between them.
+
+The cap is not style. Your final message is delivered into the orchestrator's
+context **whole**, and it stays there for every remaining turn of a run that
+can last hours — the harness hands it over before the orchestrator can filter
+anything, so nothing downstream can undo what you wrote. A 15-word `why` costs
+about 20 tokens. A paragraph of justification before your lines has cost 330,
+measured, in a real run — and the orchestrator does not read it: it parses the
+fields, forwards `hints` to the builder and discards the rest. You are not
+being asked to withhold your reasoning; you are being given a budget for it.
+Spend it inside `why=` and emit nothing else.
 
 `touches` and `hints` are the payoff of step 2's exploration — the orchestrator
 forwards `hints` verbatim into the builder's prompt, so it starts from what you
@@ -194,6 +202,7 @@ goes to a human instead of a builder.
   Always emit one per issue — and emit nothing else, in particular no prose
   before them. This is the rule most often broken and the most expensive one
   to break: the orchestrator pays for your preamble for the rest of the run.
+  Your justification has exactly one home, `why=`, and exactly 15 words.
 - One issue missing its line costs that issue an `opus` build it may not have
   needed; a preamble costs the whole run. If you cannot score an issue, still
   emit its line with your best guess rather than explaining the problem.
