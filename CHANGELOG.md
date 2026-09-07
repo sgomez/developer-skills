@@ -55,7 +55,27 @@ Changes staged on the `next` branch, published as a new version once ready.
   ready-to-merge / escalated / blocked renames. The number was always the
   identifier; the words are a label.
 
+- **`implement-issue` reads each file once and caps noisy command output.**
+  Forensics on a field build showed 58% of the worker's tool traffic was
+  re-reading source it had already read — one test file seven times — and a
+  further 28% was uncapped `cargo test` output at ~15k characters a call. The
+  skill now says: read a file whole once and return to it with `grep -n` or
+  `sed -n`, never re-read to confirm an edit the harness already echoed,
+  prefer fewer and larger edits, and append `2>&1 | tail -40` to any command
+  whose toolchain has no quiet reporter.
+- **A red check invalidates that check, and nothing else.** `review-pr` used
+  to treat any red CI as a reason to fall back to a full local run: in a
+  measured review a change came back red on formatting alone and the reviewer
+  reinstalled dependencies and re-ran the lint gate, clippy and the whole
+  suite locally, all of which CI had reported green for that exact head sha.
+  Checks CI reports green are now answered; only the red one is the reviewer's
+  problem.
+
 ### Fixed
+- **Format before committing, so a formatter never becomes a review finding.**
+  `implement-issue` and `fix-pr` now run the project's formatter as part of the
+  pre-commit gate, instead of letting whitespace land in the change and come
+  back as a review round trip.
 - **Workers stop burning turns on `cd <worktree>; …` commands the harness
   refuses.** A worktree-isolated agent already has the worktree as its cwd,
   but the guard cannot attribute a `cd …; cmd` compound to it and refuses the

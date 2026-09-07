@@ -148,6 +148,12 @@ pnpm test --reporter=dot
 Fix failures before committing; re-run just the failing file or test name to
 see why, never the whole suite again.
 
+- Then run the project's **formatter in its writing form** (`cargo fmt --all`,
+  `biome check --write .`, `prettier -w`, `ruff format` — whatever this repo
+  uses) and its lint gate, before the commit. A fix pass that lands a
+  formatting failure sends the change round the loop again for something a
+  formatter fixes in a second, and this time the cycle is already spent.
+
 ### 4. Commit and push
 
 ```bash

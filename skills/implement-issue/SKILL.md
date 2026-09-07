@@ -188,7 +188,51 @@ worker's context — far more than any source file — and it tells you nothing 
 one file didn't. When a run comes back red, re-run **just the failing file or
 test name** for its output; never the suite.
 
+**Where the project has no quiet reporter, cap the output instead.** Not every
+toolchain has one — `cargo test`, `go test`, a Gradle run and most build steps
+print everything they do, and a quiet flag that does not exist cannot save you.
+Append `2>&1 | tail -40` to those commands. In a field build two uncapped
+`cargo test` calls came to 15,000 characters **each**, which is most of what
+that worker had left to write code with. `tail` is safe: the shape that turns a
+command into silence under the worktree sandbox is a consumer that stops
+*early*, like `head`.
+
 Fix all failures before proceeding. If you cannot fix them, see **Blocked** below.
+
+**Read each file once.** The other half of the same problem, and in a measured
+build the larger half: 58% of that worker's tool output was re-reading source it
+had already read, one test file **seven times**. So: read a file whole once,
+and afterwards go back to it with `grep -n '<symbol>'` or `sed -n '<from>,<to>p'`
+— never a second `cat -n` of the whole thing. Never re-read a file to confirm
+your own edit; the harness echoes the edited region back to you and that echo is
+the confirmation. And prefer one edit per coherent change to five edits on
+consecutive lines, since every edit pays for that echo.
+
+**Then run the project's formatter and its lint gate, before you commit.** The
+suite passing is not the same as the change being publishable: a build once
+pushed code that was green on 974 tests and red on `cargo fmt --check`, and it
+cost a full review → fix → re-review cycle to put back a whitespace change the
+formatter would have made in a second.
+
+Find the commands where the project keeps them — `AGENTS.md`, `CLAUDE.md`, or
+the runner it uses (`justfile`, `Makefile`, `package.json` scripts). Do not
+reconstruct CI's list of checks from its workflow files: run the repo's own
+recipe, whatever it is called.
+
+Run the **writing** form first, then the checking one:
+
+```bash
+cargo fmt --all          # or: biome check --write . / prettier -w / ruff format
+just lint                # or whatever the repo calls its lint gate
+```
+
+That order matters. A formatter's output is not an opinion to be reviewed — it
+is derivable from the source, so anything it can fix by itself must never reach
+a reviewer. A linter's findings are not derivable, so those you read and fix.
+
+Where the repo installs a **pre-push hook** this is the same gate you would hit
+at push time; running it here means you find it while you still have the
+context to fix it cheaply. Never push past a hook with `--no-verify`.
 
 ### 5. Commit
 
@@ -266,6 +310,9 @@ wait for an answer — the blocking comment plus your final report is the output
 ## Rules
 
 - One sub-issue per invocation — always check for sub-issues before treating an issue as standalone
+- Run the project's formatter (writing form) and lint gate before committing —
+  a formatting finding in a review costs a whole fix cycle to undo work a
+  formatter does in a second.
 - Never bypass git hooks (`--no-verify`, `-n`). If a pre-push check fails in a package your change didn't touch, first suspect missing installs in the worktree (`pnpm install`); if it is genuinely broken on `origin/main`, report **Blocked** instead of pushing around the gate
 - No commented-out code or TODO comments in committed code
 - Do not modify files unrelated to the issue

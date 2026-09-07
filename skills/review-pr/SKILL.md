@@ -191,6 +191,17 @@ gh pr checks <PR> --json name,state,link --jq \
   **NEEDS_FIXES**, with the failing job's **URL** in the finding. Do not
   try to reproduce it locally and do not review around it: the fixer needs
   the job, not your re-run.
+
+  **A red check invalidates that check, and nothing else.** CI reports per
+  check, so the ones it reports green for this same head sha are answered —
+  read them and move on. This is the branch reviewers get wrong: in a measured
+  run a change came back red on **formatting alone**, and the reviewer
+  reinstalled dependencies and re-ran the lint gate, clippy, the library tests
+  and the full suite locally — all of which CI had already reported green for
+  that exact commit. That re-derivation was most of a 118k review, and it
+  produced one finding CI had handed it for free. When some checks are red and
+  the rest are green, the local run below is **not** the fallback: it is a
+  duplicate.
 - **Still running** → do not wait for it. Fall back to the local run below.
 - **No CI declared** (or no checks recorded for the head sha) → the local run
   below, exactly as before.
@@ -257,6 +268,8 @@ gh pr ready <PR>
 - One review submission, not comment-by-comment (where the host can batch)
 - Flag typecheck / test failures as blocking, whether they came from CI or
   from your own run — a red check is never a note
+- A red check invalidates only itself — take the checks CI reports green for
+  the same head sha as answered, and never re-derive them locally.
 - Never run the suite locally when the change's CI already reports green for
   its head sha
 - Unattended: never ask the user anything; when unsure whether a finding
