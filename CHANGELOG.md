@@ -80,6 +80,18 @@ Changes staged on the `next` branch, published as a new version once ready.
   sha in the summary. The local run stays what it always should have been —
   the fallback for a repo with no CI at all.
 
+- **The repo's own way of reading code is binding, and exploration is
+  batched.** Two builds in the same run had the same zone maps and the same
+  index command: one read the map whole, batched `outline`+`grep` lookups into
+  single calls and explored in 2m30s; the other truncated its index with
+  `| head -2`, silenced the error with `2>/dev/null`, got nothing, fell back to
+  `cat` and spent 7m40s on ~60 one-question calls. `implement-issue` and
+  `review-pr` now say that a repo-prescribed map or index command is
+  obligatory rather than advisory, give a `grep -n`-over-definitions fallback
+  for repos with neither, require batching several lookups per call, and
+  forbid truncating an index or silencing its errors — an empty index means a
+  wrong invocation, not permission to grep blind.
+
 ### Fixed
 - **A noisy gate is redirected to a file and judged by its exit code, never
   piped into `tail`.** The pipe throws away the status and hands back whatever

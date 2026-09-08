@@ -167,6 +167,24 @@ never absolute paths into the primary checkout.
   flags them; don't overload the implementation session
 - Keep change as small as possible — only what the issue requires
 
+**Read the repo's map first, then its index — and only then grep.** Where the
+agent docs prescribe a way to read code — a zone map, an index/outline command
+(`just outline <path>`, `ctags`, whatever it is called) — that method is
+**binding, not advice**: read the zone's map whole, and use the index command
+to locate symbols instead of `cat`-ing a large file. Where the repo has none,
+`grep -n` over definitions (`^\s*\(pub \)\?\(fn\|class\|def\|struct\|func\|export\)`)
+is your index. Then batch: several index or `grep -n` calls in one command
+separated by `echo ===`, rather than one call per question — each call costs a
+whole turn, and in a field build 60 chained one-question calls came to 7m40s of
+a 18-minute build, against 2m30s for the same exploration done in batches.
+
+**Never truncate an index or silence its errors.** `| head -2` and
+`2>/dev/null` on the command that tells you where everything is throw away the
+one thing you asked for. If the index comes back empty, your invocation is
+wrong — fix it (usually a missing path argument, or the wrong cwd) instead of
+falling back to `cat` and grepping blind for the next seven minutes. That is
+the exact shape that made the slow build slow.
+
 **Run the tests you are working on, not all of them.** Each red → green loop
 runs **only the affected test file**, with the project's quietest reporter:
 

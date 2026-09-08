@@ -118,6 +118,12 @@ passed. What replaces the re-read is the thread check in step 3.
 Say which scope you used in the review summary, naming the anchor sha on an
 incremental one.
 
+Reading that context follows the repo's own method: where the agent docs
+prescribe a zone map or an index/outline command, use it rather than `cat`,
+never truncate it or silence its errors, and batch several lookups into one
+command separated by `echo ===`. Each call costs a whole turn, and a reviewer
+pays them on top of the diff it came to read.
+
 ### 2b. Read the feedback
 
 Whatever the scope, read the existing feedback and the rendered diff —
