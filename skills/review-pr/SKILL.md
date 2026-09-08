@@ -55,17 +55,20 @@ If both paths are equal you are in the **primary checkout** — detaching or
 switching it would hijack the user's working state. Never do it: as a
 /developer worker end with `RESULT blocked reason=escaped worktree —
 refusing to touch the primary checkout`; interactively, stop and tell the
-user. Then check out the change head detached, per the code-host doc's
-read-only checkout — but **gate the checkout on the worktree check in the
-same command**, so that if your cwd ever drifts to the primary checkout the
-`git checkout` simply does not run (you get a clean blocked report instead of
-hijacking the user's working state). GitHub default:
+user. Only once that command has answered with two different paths, check out
+the change head detached, per the code-host doc's read-only checkout — as
+**plain, separate commands**, one per call. GitHub default:
 
 ```bash
-[ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ] \
-  || { echo "escaped worktree — refusing to touch the primary checkout"; exit 1; }
-git fetch origin "pull/<PR>/head" && git checkout --detach FETCH_HEAD
+git fetch origin "pull/<PR>/head"
+git checkout --detach FETCH_HEAD
 ```
+
+**Do not fold the worktree check into the checkout.** The tempting shape —
+`[ … ] || { echo …; exit 1; }` ahead of `git fetch && git checkout` — is one
+the worktree sandbox refuses as "too complex to verify", costing three failed
+calls in every review before you run the bare checkout anyway. Read the
+`git rev-parse` answer, decide between calls, then run the two commands.
 
 Never `gh pr checkout` — in a linked worktree it fails with
 `fatal: '<branch>' is already used by worktree` because the PR branch is
@@ -202,7 +205,14 @@ gh pr checks <PR> --json name,state,link --jq \
   produced one finding CI had handed it for free. When some checks are red and
   the rest are green, the local run below is **not** the fallback: it is a
   duplicate.
-- **Still running** → do not wait for it. Fall back to the local run below.
+- **Still running** → **do not wait, and do not run the suite locally
+  either.** Review the diff and spec fidelity on their own, report your
+  verdict now, and name the head sha and pending checks in the summary
+  ("checks still running at `<sha>`: `<names>`"). Polling holds a worker slot
+  for the whole CI run — 64 seconds of a 4-minute review, measured — and the
+  orchestrator's checks gate waits on that same CI again before merging. The
+  local run below is the fallback for **no CI at all**, not for CI that has
+  not finished.
 - **No CI declared** (or no checks recorded for the head sha) → the local run
   below, exactly as before.
 
@@ -272,5 +282,7 @@ gh pr ready <PR>
   the same head sha as answered, and never re-derive them locally.
 - Never run the suite locally when the change's CI already reports green for
   its head sha
+- Never wait on a pipeline that is still running — report on the diff, name the
+  pending checks, and let the merge gate settle them
 - Unattended: never ask the user anything; when unsure whether a finding
   blocks, ask "would this stop me merging?" — if not, it's a note

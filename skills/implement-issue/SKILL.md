@@ -188,14 +188,19 @@ worker's context — far more than any source file — and it tells you nothing 
 one file didn't. When a run comes back red, re-run **just the failing file or
 test name** for its output; never the suite.
 
-**Where the project has no quiet reporter, cap the output instead.** Not every
-toolchain has one — `cargo test`, `go test`, a Gradle run and most build steps
-print everything they do, and a quiet flag that does not exist cannot save you.
-Append `2>&1 | tail -40` to those commands. In a field build two uncapped
-`cargo test` calls came to 15,000 characters **each**, which is most of what
-that worker had left to write code with. `tail` is safe: the shape that turns a
-command into silence under the worktree sandbox is a consumer that stops
-*early*, like `head`.
+**Where the project has no quiet reporter** — `cargo test`, `go test`, most
+build steps — keep the log out of your context but keep the **verdict**:
+
+```bash
+<the command> > /tmp/check.log 2>&1; echo "exit=$?"
+grep -nEi 'error|FAILED|test result' /tmp/check.log | tail -30   # only when exit≠0
+```
+
+**Never pipe the command into `tail`.** The pipe throws the exit code away and
+returns whatever printed last, which on a multi-step recipe is the next step's
+output: a field build read a coverage table instead of its verdict and re-ran
+the whole gate three more times, 2m32s to recover one bit it had already
+computed. Once the gate is green it stays green — never re-run it to confirm.
 
 Fix all failures before proceeding. If you cannot fix them, see **Blocked** below.
 
@@ -313,6 +318,8 @@ wait for an answer — the blocking comment plus your final report is the output
 - Run the project's formatter (writing form) and lint gate before committing —
   a formatting finding in a review costs a whole fix cycle to undo work a
   formatter does in a second.
+- Run each gate **once** and read its exit code (`> /tmp/check.log 2>&1; echo
+  "exit=$?"`), never `| tail`. A green gate is never re-run to confirm it.
 - Never bypass git hooks (`--no-verify`, `-n`). If a pre-push check fails in a package your change didn't touch, first suspect missing installs in the worktree (`pnpm install`); if it is genuinely broken on `origin/main`, report **Blocked** instead of pushing around the gate
 - No commented-out code or TODO comments in committed code
 - Do not modify files unrelated to the issue

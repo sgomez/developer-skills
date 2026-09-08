@@ -148,6 +148,11 @@ pnpm test --reporter=dot
 Fix failures before committing; re-run just the failing file or test name to
 see why, never the whole suite again.
 
+Where the toolchain has no quiet reporter, judge the run by its exit code —
+`<the command> > /tmp/check.log 2>&1; echo "exit=$?"`, grepping the log only
+when it is non-zero. Never pipe it into `tail`: that discards the status and
+costs you a re-run. A green gate is never re-run to confirm.
+
 - Then run the project's **formatter in its writing form** (`cargo fmt --all`,
   `biome check --write .`, `prettier -w`, `ruff format` — whatever this repo
   uses) and its lint gate, before the commit. A fix pass that lands a

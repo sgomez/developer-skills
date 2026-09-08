@@ -61,8 +61,9 @@ Changes staged on the `next` branch, published as a new version once ready.
   further 28% was uncapped `cargo test` output at ~15k characters a call. The
   skill now says: read a file whole once and return to it with `grep -n` or
   `sed -n`, never re-read to confirm an edit the harness already echoed,
-  prefer fewer and larger edits, and append `2>&1 | tail -40` to any command
-  whose toolchain has no quiet reporter.
+  prefer fewer and larger edits, and keep the output of any command whose
+  toolchain has no quiet reporter out of context (see the redirect-and-read-
+  the-exit-code rule below).
 - **A red check invalidates that check, and nothing else.** `review-pr` used
   to treat any red CI as a reason to fall back to a full local run: in a
   measured review a change came back red on formatting alone and the reviewer
@@ -70,8 +71,32 @@ Changes staged on the `next` branch, published as a new version once ready.
   suite locally, all of which CI had reported green for that exact head sha.
   Checks CI reports green are now answered; only the red one is the reviewer's
   problem.
+- **The reviewer no longer waits on a pipeline that is still running.** A
+  pending check used to send `review-pr` either into a poll loop or into a
+  local suite run; in a measured review the poll held a worker slot for 64
+  seconds of a 4-minute review, and the orchestrator's checks gate then waited
+  on that same CI again before merging. A still-running check now means:
+  review the diff, report the verdict, and name the pending checks and head
+  sha in the summary. The local run stays what it always should have been —
+  the fallback for a repo with no CI at all.
 
 ### Fixed
+- **A noisy gate is redirected to a file and judged by its exit code, never
+  piped into `tail`.** The pipe throws away the status and hands back whatever
+  printed last, which on a multi-step recipe is the next step's output: a
+  field build ran `just check-changed 2>&1 | tail -60`, got a bundle listing
+  and a coverage table, could not tell whether the gate had passed, and re-ran
+  the whole thing three more times — 2m32s and 16,000 characters to recover
+  one bit it had already computed. `implement-issue` now prescribes
+  `> /tmp/check.log 2>&1; echo "exit=$?"` with a grep over the log on failure,
+  and says outright that a green gate is never re-run to confirm it.
+- **`review-pr`'s checkout no longer folds the worktree check into the git
+  command.** The gated one-liner it prescribed — `[ … ] || { …; exit 1; }`
+  ahead of `git fetch && git checkout` — is a shape the worktree sandbox
+  refuses to verify, so every review spent three failed calls and ~30 seconds
+  before falling back to the bare checkout. The step now reads the
+  `git rev-parse` answer, decides between calls, and runs `git fetch` and
+  `git checkout --detach` as plain separate commands.
 - **Format before committing, so a formatter never becomes a review finding.**
   `implement-issue` and `fix-pr` now run the project's formatter as part of the
   pre-commit gate, instead of letting whitespace land in the change and come

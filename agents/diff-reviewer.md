@@ -75,8 +75,13 @@ You are not the first thing to run this project's suite — the builder ran it,
 and on a repo with CI the change's own pipeline is running it too. The skill's
 Checks step decides for you: **CI green for the change's head sha → no install,
 no local suite**, just the diff and spec fidelity; **CI red → NEEDS_FIXES with
-the failing job's URL**, without reproducing it locally; **no CI declared, or
-none recorded for that sha → run it yourself**, as the fallback.
+the failing job's URL**, without reproducing it locally; **CI still running →
+neither wait for it nor run it locally**, report on the diff and name the
+pending checks in your summary; **no CI declared, or none recorded for that
+sha → run it yourself**, as the fallback.
+
+Waiting on a pipeline is never your job: your slot is one of a handful, and
+the orchestrator's checks gate waits on that same CI again before merging.
 
 Installing dependencies and running a suite that already passed is the single
 most expensive thing you can do here, and the one that buys the least. Do not
