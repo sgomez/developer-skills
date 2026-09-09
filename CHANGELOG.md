@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.23.0] - 2026-09-09
+
 ### Changed
 - **Triage now scores a whole wave in one dispatcher spawn.** Every spawn
   costs the orchestrator roughly 750 tokens of prompt, launch metadata and
@@ -1070,7 +1072,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.22.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.23.0...next
+[0.23.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.23.0
 [0.22.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.22.0
 [0.21.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.21.0
 [0.20.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.20.0
