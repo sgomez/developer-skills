@@ -48,7 +48,13 @@ Development happens on the **`next` branch**, whose `version` is the release it
 is working **toward**, marked as a semver pre-release: `0.16.0-next` is the
 unreleased run-up to `0.16.0`, and sorts after `0.15.0` but before `0.16.0`.
 The suffix exists so `claude plugin list` and the `/plugin` UI say out loud
-that the loaded build is not the published one. Only the release steps below
+that the loaded build is not the published one. On top of that, a pre-commit hook
+(`.githooks/pre-commit`) stamps every commit's version with its UTC commit
+time — `0.16.0-next.20260918143210` — so each commit is a distinct version:
+`claude plugin update` and project-scoped installs pick it up, and
+`scripts/plugin-mode.sh status` shows which commit each install came from.
+Enable the hook once per clone with `git config core.hooksPath .githooks`;
+it leaves a bare `X.Y.Z` alone. Test it with `bash tests/version-stamp.test.sh`. Only the release steps below
 take it off. The target number is a forecast, not a promise — if the cycle's
 scope turns out to be a patch rather than a minor, correct the string when you
 release (step 1). Try it out with `scripts/plugin-mode.sh dev` (this checkout,
@@ -61,8 +67,8 @@ promotes that section to the new version.
 ### Steps
 
 1. **Set the version** in `.claude-plugin/plugin.json` to the release `X.Y.Z` —
-   a bare number, dropping the `-next` suffix `next` carries between releases.
-   Usually that is just `0.16.0-next` → `0.16.0`, but if the cycle's actual
+   a bare number, dropping the `-next.<stamp>` suffix `next` carries between releases.
+   Usually that is just `0.16.0-next.<stamp>` → `0.16.0`, but if the cycle's actual
    scope no longer matches what the branch was forecasting, set the number the
    changes earn and ignore the forecast.
 2. **Update `CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com)

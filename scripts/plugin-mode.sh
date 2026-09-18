@@ -19,12 +19,13 @@
 # such requirement since it always pulls from GitHub regardless of your
 # local branch.
 #
-# "next" (both flavors) carries one static pre-release version (X.Y.Z-next)
-# for the whole cycle, so the copy/ref-keyed installer sees nothing new and
-# would skip an update: dev/next/refresh force uninstall + install instead.
-# The suffix tells the loaded build apart from the published release in
-# `claude plugin list`; it says nothing about how fresh the copy is, which is
-# what `refresh` is for.
+# "next" carries a pre-release version the repo's pre-commit hook stamps on
+# every commit (X.Y.Z-next.<UTC yyyymmddHHMMSS>, see .githooks/pre-commit), so
+# each pushed commit is a new version to the installer and `plugin update`
+# picks it up — which is how refresh brings project-scoped installs along.
+# Uncommitted edits (dev mode) do not change the version, so the user-wide
+# install is still forced with uninstall + install. `status` and `refresh` list
+# every install with the commit it came from.
 #
 # The marketplace keeps its name ("sgomez") in every mode, so the plugin id
 # developer-skills@sgomez stays stable: any project-scoped install resolves
@@ -92,13 +93,127 @@ uninstall_user_scope() {
     claude plugin uninstall "$PLUGIN" --scope user 2>/dev/null || true
 }
 
+# --- project-scoped installs -------------------------------------------------
+# A project can install the plugin in its own scope, and there it wins over the
+# user-wide install — which is the only one dev/next/refresh reinstall. Each
+# such install is pinned to the version string it was installed at, so a
+# project installed during an older cycle keeps loading that cycle's copy while
+# `refresh` reports everything current. Worse, a project's worktrees each get an
+# entry of their own, and those entries outlive the worktrees.
+#
+# Claude Code records every install, with the commit it came from, in
+# installed_plugins.json. There is no CLI to list them across projects, nor to
+# remove one whose project directory is gone, so these helpers read that file
+# directly and edit it only to drop entries for directories that no longer
+# exist (after a backup).
+INSTALLED_JSON="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
+PLUGIN_ID="$PLUGIN@$MARKETPLACE"
+
+have_installed_json() {
+  command -v jq >/dev/null 2>&1 && [[ -f "$INSTALLED_JSON" ]] &&
+    jq -e '.plugins | type == "object"' "$INSTALLED_JSON" >/dev/null 2>&1
+}
+
+# Project paths of this plugin's project-scoped installs, one per line.
+project_install_paths() {
+  jq -r --arg id "$PLUGIN_ID" \
+    '.plugins[$id][]? | select(.scope == "project") | .projectPath // empty' \
+    "$INSTALLED_JSON" | sort -u
+}
+
+# Drops project-scoped entries whose project directory no longer exists.
+prune_dead_project_installs() {
+  have_installed_json || return 0
+  local p dead=()
+  while IFS= read -r p; do
+    [[ -n "$p" && ! -d "$p" ]] && dead+=("$p")
+  done < <(project_install_paths)
+  (( ${#dead[@]} )) || return 0
+  local backup tmp
+  backup="$INSTALLED_JSON.bak-$(date +%Y%m%d%H%M%S)"
+  tmp="$(mktemp)"
+  cp "$INSTALLED_JSON" "$backup"
+  if jq --arg id "$PLUGIN_ID" \
+        --argjson dead "$(printf '%s\n' "${dead[@]}" | jq -R . | jq -s .)" \
+        '.plugins[$id] |= map(select(.scope != "project" or ((.projectPath // "") as $p | $dead | index($p) | not)))' \
+        "$INSTALLED_JSON" >"$tmp"; then
+    mv "$tmp" "$INSTALLED_JSON"
+    bold "Pruned ${#dead[@]} project install(s) whose directory no longer exists."
+    note "Backup: $backup"
+  else
+    rm -f "$tmp"
+    note "Could not prune dead project installs; $INSTALLED_JSON left untouched."
+  fi
+}
+
+# Brings every live project-scoped install up to the marketplace's version.
+update_project_installs() {
+  have_installed_json || return 0
+  local p
+  while IFS= read -r p; do
+    [[ -d "$p" ]] || continue
+    note "Updating the project install in $p"
+    (cd "$p" && claude plugin update "$PLUGIN_ID" --scope project) ||
+      note "  update failed in $p — run there: claude plugin update $PLUGIN_ID --scope project"
+  done < <(project_install_paths)
+}
+
+# The commit each install came from, against the one it should mirror.
+report_install_commits() {
+  have_installed_json || return 0
+  local want="${1:-}" scope path version sha state gone=0
+  echo
+  bold "Installs of $PLUGIN_ID (commit they were installed from):"
+  while IFS=$'\t' read -r scope path version sha; do
+    if [[ "$scope" == project && ! -d "$path" ]]; then
+      gone=$((gone + 1))
+      continue
+    elif [[ -z "$want" ]]; then
+      state=""
+    elif [[ "$sha" == "$want"* ]]; then
+      state="current"
+    else
+      state="STALE"
+    fi
+    printf '    %-8s %-14s %-9s %s  %s\n' "$scope" "$version" "${sha:0:7}" "${path/#$HOME/\~}" "$state"
+  done < <(jq -r --arg id "$PLUGIN_ID" \
+    '.plugins[$id][]? | [.scope, (.projectPath // "-"), .version, (.gitCommitSha // "?")] | @tsv' \
+    "$INSTALLED_JSON")
+  [[ -z "$want" ]] || note "Expected commit: ${want:0:7}"
+  (( gone == 0 )) ||
+    note "$gone more for project directories that no longer exist — $0 refresh prunes them."
+}
+
+# The commit dev/next installs should carry: the local branch in dev mode (the
+# copy is this checkout), origin's in next mode.
+expected_commit() {
+  case "$1" in
+    dev)  git -C "$REPO_DIR" rev-parse "$DEV_BRANCH" 2>/dev/null || true ;;
+    next) git -C "$REPO_DIR" ls-remote origin "$DEV_BRANCH" 2>/dev/null | awk 'NR==1 {print $1}' ;;
+  esac
+}
+
+# The user-wide install is not the only one a session can load: drop the
+# project installs whose directory is gone, then update the live ones.
+sync_project_installs() {
+  prune_dead_project_installs
+  update_project_installs
+}
+
 plugin_version() {
   sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
     "$REPO_DIR/.claude-plugin/plugin.json" | head -1
 }
 
+# Where the user-wide install lives. Read from installed_plugins.json: in next
+# mode the installed version is origin's, which need not match this checkout's.
 installed_root() {
-  echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache/$MARKETPLACE/$PLUGIN/$(plugin_version)"
+  local p=""
+  have_installed_json &&
+    p="$(jq -r --arg id "$PLUGIN_ID" \
+      'first(.plugins[$id][]? | select(.scope == "user") | .installPath) // empty' \
+      "$INSTALLED_JSON")"
+  echo "${p:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache/$MARKETPLACE/$PLUGIN/$(plugin_version)}"
 }
 
 # next mode installs from GitHub, so an unpushed commit simply is not in it —
@@ -166,8 +281,10 @@ cmd_dev() {
   uninstall_user_scope
   swap_marketplace "$REPO_DIR"
   claude plugin install "$PLUGIN@$MARKETPLACE" --scope user
+  sync_project_installs
   bold "Dev mode active."
   report_installed dev
+  report_install_commits "$(expected_commit dev)"
   note "The plugin is installed user-wide from this checkout."
   note "After editing skills/agents here, run: $0 refresh"
   note "Restart Claude Code sessions to load the new code."
@@ -179,8 +296,10 @@ cmd_next() {
   uninstall_user_scope
   swap_marketplace "$REMOTE_NEXT_SOURCE"
   claude plugin install "$PLUGIN@$MARKETPLACE" --scope user
+  sync_project_installs
   bold "Next mode active."
   report_installed next
+  report_install_commits "$(expected_commit next)"
   note "The plugin is installed user-wide from GitHub's '$DEV_BRANCH' branch."
   note "This is the same command on every machine — push to '$DEV_BRANCH' first."
   note "After pushing new commits to '$DEV_BRANCH', run: $0 refresh"
@@ -217,7 +336,9 @@ cmd_refresh() {
   # version is unchanged, so force a fresh copy with uninstall + install.
   uninstall_user_scope
   claude plugin install "$PLUGIN@$MARKETPLACE" --scope user
+  sync_project_installs
   report_installed "$mode"
+  report_install_commits "$(expected_commit "$mode")"
   note "Restart Claude Code sessions to load the refreshed code."
 }
 
@@ -237,7 +358,9 @@ cmd_status() {
     note "$PLUGIN@$MARKETPLACE is not installed in this scope context."
   echo
   case "$mode" in
-    dev|next) report_installed "$mode" ;;
+    dev|next) report_installed "$mode"
+              report_install_commits "$(expected_commit "$mode")" ;;
+    *)        report_install_commits ;;
   esac
 }
 

@@ -52,6 +52,25 @@ Changes staged on the `next` branch, published as a new version once ready.
   job if it stays red; a measured fixer spent 11 minutes watching the checks
   and 15 calls on the log of a flaky run instead. Push, reply, report.
 
+### Fixed
+- **`plugin-mode.sh` now reaches project-scoped installs, and says which
+  commit each one runs.** A project that installs the plugin in its own scope
+  wins over the user-wide install, and `dev`/`next`/`refresh` only ever
+  reinstalled the user-wide one — so a project kept loading the cycle it was
+  first installed at while `refresh` reported everything current (a measured
+  `/developer` run executed `0.21.0-next` two releases later). Every mode now
+  updates each live project install, prunes the entries left behind by
+  project directories that no longer exist (worktrees, mostly — one repo had
+  39; `installed_plugins.json` is backed up first), and `status`/`refresh`
+  list every install with the commit it came from, marked `current` or
+  `STALE`.
+- **Every commit on `next` is its own version.** A new `.githooks/pre-commit`
+  stamps the `-next` pre-release with the commit's UTC time
+  (`0.24.0-next.20260918143210`), inside the commit itself, so the installer
+  and `claude plugin update` see each commit as new instead of one version per
+  cycle. Enable it once per clone with `git config core.hooksPath .githooks`;
+  a bare release version is left alone.
+
 ## [0.23.0] - 2026-09-09
 
 ### Changed

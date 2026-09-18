@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# pre-commit — give every commit on a development cycle its own version.
+#
+# Between releases `.claude-plugin/plugin.json` carries `X.Y.Z-next`. Claude
+# Code keys its plugin cache and `plugin update` on that string, so while it
+# stays the same for a whole cycle an install cannot tell one commit from the
+# next: `update` reports "already at the latest version" and a project-scoped
+# install keeps whatever it was first given. This hook rewrites the staged
+# version to `X.Y.Z-next.<UTC yyyymmddHHMMSS>` on every commit, inside the
+# commit itself — a hash could not be, since a commit cannot contain its own.
+# The numeric identifier keeps semver order: newer commits sort higher, and all
+# of them still sort below the bare `X.Y.Z` release.
+#
+# A bare `X.Y.Z` (release step 1) is left alone, and only the version line is
+# touched: the index gets the stamped blob and the working tree gets the same
+# edit, so unstaged changes elsewhere in the file are neither staged nor lost.
+#
+# Enable once per clone: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+f=.claude-plugin/plugin.json
+staged="$(git show ":$f" 2>/dev/null)" || exit 0
+
+v="$(printf '%s\n' "$staged" |
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+[[ "$v" =~ ^([0-9]+\.[0-9]+\.[0-9]+-next)(\.[0-9]+)?$ ]] || exit 0
+
+new="${BASH_REMATCH[1]}.$(date -u +%Y%m%d%H%M%S)"
+old_re="${v//./\\.}"
+stamp() { sed "s/\(\"version\"[[:space:]]*:[[:space:]]*\"\)$old_re\"/\1$new\"/"; }
+
+mode="$(git ls-files -s -- "$f" | awk '{print $1}')"
+blob="$(printf '%s\n' "$staged" | stamp | git hash-object -w --stdin)"
+git update-index --cacheinfo "$mode,$blob,$f"
+
+if [[ -f "$f" ]]; then
+  tmp="$(mktemp)"
+  stamp <"$f" >"$tmp" && cat "$tmp" >"$f"
+  rm -f "$tmp"
+fi
