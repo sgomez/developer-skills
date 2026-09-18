@@ -29,8 +29,7 @@ setup handles "other" trackers.
 **This skill is the only writer of these docs.** `/developer` and its workers
 read `AGENTS.md`, `CLAUDE.md` and everything under `docs/agents/` as
 instructions and never edit them — the one exception is
-`docs/agents/delivery-ledger.md`, which the harvest appends to because the
-dispatcher reads it back. So a doc that has drifted out of date is fixed here
+`docs/agents/delivery-ledger.md`, the run history the harvest appends to. So a doc that has drifted out of date is fixed here
 or by the human, and never as a side effect of a delivery run. Three things
 follow for this skill:
 
@@ -194,12 +193,16 @@ in its first turn, and by then the children already exist.
 
 For **other** trackers, write the `## Delivery operations` section from
 scratch with the user: same operation list as above, in their tracker's
-terms (issue ref format included). Carry over the two requirements the
+terms (issue ref format included). Carry over the three requirements the
 bundled templates place on whatever splits a spec into tickets — children must
-be **discoverable from the parent** by a mechanic the pipeline can query, and
-each child must carry a **`## Spec extract`** section with the parent's
+be **discoverable from the parent** by a mechanic the pipeline can query; each
+child must carry a **`## Spec extract`** section with the parent's
 Implementation and Testing Decisions that apply to it, copied verbatim (that
-section is what lets a builder work from the ticket alone) — but write them
+section is what lets a builder work from the ticket alone); and each child must
+carry a **`## Complexity`** section rating it `standard` or `complex` with one
+line of why, also shown in the breakdown the splitter proposes for approval
+(the pipeline builds `complex` at `opus` and everything else at `sonnet`) —
+copy that rule from the bundled templates as written. Write them
 into `docs/agents/issue-authoring.md`, not into the tracker doc itself, and
 leave the tracker doc pointing at it the way the bundled templates do.
 
@@ -214,12 +217,12 @@ the `### Creating child issues` pointer behind.
 
 ### 4. Check the agents are available
 
-The three worker agents ship with the plugin and are already loaded,
-namespaced as `developer-skills:dispatcher`, `developer-skills:code-author`
-and `developer-skills:diff-reviewer`:
+The two worker agents ship with the plugin and are already loaded,
+namespaced as `developer-skills:code-author` and
+`developer-skills:diff-reviewer`:
 
-- `dispatcher` — complexity triage (pinned `sonnet`, `effort: low`)
-- `code-author` — implements / fixes (model chosen per sub-issue)
+- `code-author` — implements / fixes (model from the sub-issue's
+  `## Complexity` section)
 - `diff-reviewer` — review gate before auto-merge (pinned `opus`, `effort: high`)
 
 If this skill's own name is not namespaced (it appears as
@@ -260,7 +263,7 @@ lists work by `ready-for-agent`. Respect any label mapping in
 
 ### 6. Choose the run defaults
 
-Ask the user three questions (AskUserQuestion, one call, all three):
+Ask the user two questions (AskUserQuestion, one call, both):
 
 1. **Execution** — should `/developer` build independent sub-issues in
    parallel waves (recommended: faster; sibling-PR conflicts are resolved by
@@ -276,20 +279,13 @@ Ask the user three questions (AskUserQuestion, one call, all three):
    **Skip this question when the code host is local** — `merge: auto` is
    unsupported there (the code-host doc says why); record `merge: manual`
    and tell the user.
-3. **Oversized sub-issues** — when triage scores a sub-issue too big to fit
-   in one context window, should `/developer` hand it back to a human to
-   re-cut (recommended: `escalate`, and the re-cut is usually the cheaper
-   fix), or build it anyway at `opus` (`build`) using triage's fault lines
-   as the builder's order of work? Recommend `build` to a repo whose tickets
-   are deliberately cut large — there the round trip costs more than the
-   build.
 
 Write the answers to `docs/agents/developer-defaults.md` from the template
 [developer-defaults.md](./developer-defaults.md) (drop the HTML comment on
-the first line, set the three answered values in the fenced block).
+the first line, set the two answered values in the fenced block).
 
 **Idempotence**: if the file already exists, show the current values, ask
-the three questions with the current values as the recommended options, and
+the two questions with the current values as the recommended options, and
 rewrite the file.
 
 **Regardless of the merge choice**, the pipeline's code-host writes will
@@ -380,7 +376,7 @@ the user of the flow:
 2. `/to-tickets <spec>` breaks it into child issues discoverable by the
    pipeline (native sub-issues on GitHub; the tracker doc's equivalent
    elsewhere) with `Blocked by` ordering.
-3. `/developer <spec>` delivers them all unattended — triage → build → review
+3. `/developer <spec>` delivers them all unattended — build → review
    → fix cycles → merge per the chosen policy — and sends a push
    notification when done.
 

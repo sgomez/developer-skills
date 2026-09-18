@@ -41,8 +41,8 @@ primary checkout — scoped to `.scratch/` paths only — and committed as
 
 The rules a splitter (`/to-tickets` and anything like it) must follow when it
 **creates** children — one file per ticket under
-`.scratch/<feature>/issues/`, and the mandatory `## Spec extract` section —
-live in [`docs/agents/issue-authoring.md`](./issue-authoring.md). **Open that
+`.scratch/<feature>/issues/`, and the mandatory `## Spec extract` and
+`## Complexity` sections — live in [`docs/agents/issue-authoring.md`](./issue-authoring.md). **Open that
 file only when you are creating or editing issues.** Nothing in the delivery
-pipeline — triaging, implementing, reviewing, fixing, merging — needs it: by
+pipeline — implementing, reviewing, fixing, merging — needs it: by
 then the children already exist.

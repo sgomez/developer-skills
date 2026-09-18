@@ -100,9 +100,10 @@ classifier — the hook already handles that.
 
 ## Tier→model map in developer-defaults (report D8)
 
-**Problem.** The `sonnet` / `opus` strings are hard-coded in five
-places (the dispatcher's rubric, its `RESULT` line, the orchestrator's worker
-table, the Build step, the fix cycle's escalation ladder). Retuning a repo's
+**Problem.** The `sonnet` / `opus` strings are hard-coded in four
+places (the `## Complexity` rules in the issue-authoring templates, the
+orchestrator's worker table, its Model tier step, the fix cycle's escalation
+ladder). Retuning a repo's
 tiers means editing skills that ship with the plugin, and a repo cannot say
 "here, standard needs opus" at all.
 
@@ -111,21 +112,17 @@ template in `skills/setup-developer-skills/`):
 
 ```
 models:
-  trivial:  sonnet
   standard: sonnet
   complex:  opus
   reviewer: opus
 ```
 
-The dispatcher then emits only `complexity=` (semantics) and the orchestrator
-resolves `model=` against the map (mechanics), falling back to the factory
+The ticket then carries only its complexity (semantics) and the orchestrator
+resolves the model against the map (mechanics), falling back to the factory
 values when the file or a key is absent.
 
-**What blocks it.** The `oversized` verdict (0.17.0) has no model at all —
-`complexity=oversized` pairs with `model=none` — so the map is not a total
-function from complexity to model, and the resolution step has to special-case
-it. Worth doing together with whatever V2 handles oversized tickets, so the
-two shapes are designed once.
+**What blocks it.** No repo has asked for a different map yet — it adds a
+config knob for a need nobody has shown.
 
 ## Re-reviews with a declared focus (report C7)
 
@@ -161,7 +158,7 @@ justification than the one it was parked with.
 ## Plan-then-build for the complex tier (report O3)
 
 **Problem.** A `complex` sub-issue sends its builder straight into
-implementation with only the dispatcher's one-line `hints` for orientation.
+implementation with only its ticket for orientation.
 The expensive thinking (seams, ordering, which pattern to imitate) happens
 inside the same context that then has to hold the whole implementation.
 
@@ -169,33 +166,11 @@ inside the same context that then has to hold the whole implementation.
 as a comment on the issue, and start the builder from it. Standard and trivial
 tickets would only pay overhead.
 
-**What blocks it.** It overlaps with the `oversized` verdict from the other
-end: both are answers to "this ticket is too much for one pass", one by
-splitting the ticket and one by splitting the *work* on it. Deciding which
-applies where is the design question, and doing O3 without answering it risks
-two mechanisms that fire on the same tickets.
-
-## Pinned-tier split proposal for `oversized` tickets
-
-**Problem.** The `hints=` on an `oversized` verdict are produced by the
-dispatcher at its pinned `effort: low` — the pipeline's only design-shaped
-output, from its cheapest pass. The escalation now frames them as fault
-lines and routes the real cut to `/to-tickets` in a fresh high-tier
-session, but that routing is advisory: skills inherit the operator's
-session model and effort, and nothing enforces the tier the re-cut
-actually runs at.
-
-**Direction.** A dedicated worker with `model` and `effort` pinned high in
-its definition, spawned only on an `oversized` verdict, to draft the split
-properly. It must write its proposal **directly into the escalation
-comment** (its durable home) and return only a `RESULT` line — the
-orchestrator's context never carries the design.
-
-**What blocks it.** No field evidence yet: no run has shown a bad partition
-being approved off the dispatcher's hints. It also overlaps with the
-`oversized` special-case in the tier→model map entry and with
-plan-then-build (O3) — whatever V2 handles oversized tickets should design
-the three together.
+**What blocks it.** It overlaps with the cut itself: `/to-tickets` already
+answers "this ticket is too much for one pass" by splitting it, and a plan
+step splits the *work* on a ticket instead. Deciding which applies where is
+the design question, and no run has yet shown a `complex` ticket the cut
+should not have split.
 
 ## Red CI is invisible in the `merge: manual` queue
 

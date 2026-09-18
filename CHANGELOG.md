@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **Triage is gone: a ticket carries its own complexity.** The `dispatcher`
+  agent and the pipeline's Triage step are removed. `/to-tickets` now rates
+  every child as it cuts the spec — a `## Complexity` section (`standard` or
+  `complex`, with one line of why), required by the issue-authoring
+  templates and shown in the breakdown the human approves — and the
+  orchestrator reads that one section to pick the build's model:
+  `complex` → `opus`, anything else or no section at all → `sonnet`. Whoever
+  cut the spec already knows how hard each piece is; paying a worker to
+  re-derive it before every wave bought a spawn, a codebase read and a
+  round trip for one word. With it go everything that existed only for
+  triage: the `oversized` verdict, the `oversized` knob in
+  `developer-defaults.md` and the `--build-oversized` flag (a ticket too big
+  for one builder is split by the cut, not detected afterwards), the
+  dispatcher's `hints=` in the build prompt, and the `## Local calibration`
+  the harvest maintained for it — the delivery ledger keeps its run log.
+  `/to-tickets` only learns the rule from the repo's docs, so re-run
+  `/setup-developer-skills` to add it to an existing repo's
+  `docs/agents/issue-authoring.md` and to the pointer in `issue-tracker.md`
+  that sends splitters there; a leftover `oversized:`
+  line in `developer-defaults.md` is ignored.
 - **A build loads `implement-issue` before anything else, and reads its issue
   once.** The code-author's BUILD steps had it fetch the sub-issue itself
   before running the skill, which then fetched it again — and the

@@ -7,7 +7,7 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
 - `skills/` — one directory per skill (`developer`, `fix-pr`, `implement-issue`,
   `review-pr`, `setup-developer-skills`), each with its own `SKILL.md`.
 - `agents/` — worker agent definitions as top-level `.md` files
-  (`code-author.md`, `diff-reviewer.md`, `dispatcher.md`).
+  (`code-author.md`, `diff-reviewer.md`).
 - `hooks/` — `hooks.json` plus the hook scripts it registers. Claude Code
   auto-loads `hooks/hooks.json` from this standard path, so **do not** also
   name it in `plugin.json`'s `hooks` key: that registers the same file twice

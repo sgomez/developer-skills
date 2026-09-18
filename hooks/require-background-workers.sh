@@ -34,7 +34,7 @@ payload="$(cat)"
 #    agents are loaded from a checkout, so match on the part after the colon.
 type="$(printf '%s' "$payload" | jq -r '.tool_input.subagent_type // ""' 2>/dev/null)" || exit 0
 case "${type##*:}" in
-  code-author | diff-reviewer | dispatcher) ;;
+  code-author | diff-reviewer) ;;
   *) exit 0 ;;
 esac
 

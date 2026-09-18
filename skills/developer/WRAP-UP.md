@@ -16,8 +16,8 @@ left silently in_progress.
 
 ## 2. Harvest discoveries and record the run
 
-Persist this run's outcome so the dispatcher can calibrate to this repo, and
-collect what the workers learned. Skip only when the run produced no changes.
+Record this run's outcome in the repo's delivery ledger, and collect what the
+workers learned. Skip only when the run produced no changes.
 The **ledger rows** the harvest worker needs are already written — read them,
 do not reconstruct them:
 
@@ -34,14 +34,6 @@ they do not belong in the ledger. Only if a sub-issue you know went terminal
 has no row — a step 7 that was denied or interrupted — write that one row now,
 from what you still hold, and say so in the chat summary.
 
-Distill your own **calibration notes** before spawning the harvest: one line
-per sub-issue whose tier proved wrong in either direction this run — cost far
-above or below its tier (tokens, tool calls, wall-clock), a pattern the triage
-assumed missing that was already merged (or vice versa), a worker that broke
-worktree discipline. The ledger rows carry outcomes; these lines carry the
-*mechanism*, which the rows cannot express and which is gone once your context
-is. `none` when the run priced cleanly.
-
 Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
 `run_in_background: true`, then log the spawn row (SKILL.md, Workers) with
 `job=harvest`:
@@ -52,35 +44,15 @@ Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
 >
 > **(a) Record the run in the ledger.** Append these rows verbatim to the
 > `## Run log` section of `docs/agents/delivery-ledger.md`, creating the
-> file if it does not exist (with a one-line title, an empty
-> `## Local calibration` section, and a `## Run log` section):
+> file if it does not exist (with a one-line title and a `## Run log`
+> section):
 >
 > ```
 > <the ledger rows, one per delivered sub-issue>
 > ```
 >
-> Then read the **recent** `## Run log` — the last ~50 rows are plenty
-> (older rows already left their mark in the calibration; the log is a
-> rolling window of evidence, not an archive) — and update
-> `## Local calibration`: add or refine a short bullet **only** when the log
-> shows a class of issue was consistently mis-tiered — e.g. issues touching
-> a given area scored `standard` but needed 2+ fix cycles or escalated at
-> that tier, or issues of a given shape scored `complex` but came back
-> `oversized` from triage. Each bullet names the signal and the corrected
-> tier (the dispatcher reads them on top of its generic rubric). Change
-> nothing there if no pattern is evident yet; never invent a rule from a
-> single row on its own. The orchestrator watched this run and its notes
-> below carry mechanism the rows cannot — a single row **plus** a note
-> naming a structural cause (the pattern did not exist yet; a tier's model
-> broke discipline) is enough for a bullet, statistics need repetition but
-> mechanisms do not:
->
-> ```
-> <your calibration notes, verbatim, or none>
-> ```
->
 > `docs/agents/delivery-ledger.md` is the **only** file you may write, and
-> those two sections are the only parts of it you may touch. Not `AGENTS.md`,
+> its `## Run log` section is the only part of it you may touch. Not `AGENTS.md`,
 > not any other doc under `docs/agents/`, not a stale sentence you can prove
 > wrong — those belong to `/setup-developer-skills` and to the human. Step (b)
 > is how anything else gets proposed.
@@ -219,18 +191,13 @@ sequentially.
 List escalated sub-issues with reasons, and say how to put one back in play:
 **remove its `ready-for-human` label and re-run `/developer <spec>`** — the
 label is the only thing holding it out of the pick, and the re-run resumes
-whatever change it already has instead of building a second one. For a
-sub-issue escalated as **oversized**, its escalation comment already carries
-the fault lines and the route — `/to-tickets` in a fresh session with a
-high-tier model and high effort — point the human at it: splitting the
-sub-issue is what unblocks it, removing the label alone just re-runs the same
-wall.
+whatever change it already has instead of building a second one.
 
 When anything escalated, **end the summary with the decisions themselves**:
 one direct question per escalated sub-issue, phrased so a one-line reply
 unblocks it — "close #363 as a duplicate of #349, or narrow it to a remaining
-gap?", "re-cut #368 with /to-tickets along the fault lines in its escalation
-comment?". You already know exactly
+gap?", "re-cut #368 with /to-tickets — three fix cycles never converged?".
+You already know exactly
 what each escalation is waiting on; do not make the human interview you to
 find out.
 

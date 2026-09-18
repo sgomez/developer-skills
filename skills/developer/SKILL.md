@@ -1,11 +1,11 @@
 ---
 name: developer
-description: Orchestrates unattended spec delivery — loops over a spec's child issues in dependency order, dispatching dispatcher (complexity triage), code-author (implement), and diff-reviewer (review) workers per sub-issue, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this spec" (or "deliver this PRD"), "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended spec delivery — loops over a spec's child issues in dependency order, dispatching code-author (implement) and diff-reviewer (review) workers per sub-issue — each build's model comes from the sub-issue's own ## Complexity section, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this spec" (or "deliver this PRD"), "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (orchestrator)
 
-Drives the triage → build → review → fix → merge pipeline across isolated
+Drives the build → review → fix → merge pipeline across isolated
 subagent workers, looping over every sub-issue of a spec unattended. Each
 worker gets a **clean context** — the only thing it knows is the arguments you
 pass in its prompt. You (the orchestrator) hold the state between steps.
@@ -20,7 +20,6 @@ pass in its prompt. You (the orchestrator) hold the state between steps.
 Flags (override the repo defaults — see Run configuration):
   --parallel | --sequential     # spec mode: waves vs one-at-a-time
   --auto-merge | --no-auto-merge  # merge CLEAN PRs vs leave them ready
-  --build-oversized             # build `oversized` tickets instead of escalating
 ```
 
 If no issue number is given, ask for it and stop. Do not guess issue numbers.
@@ -29,7 +28,7 @@ Accept the bare words `parallel` / `sequential` as synonyms for the flags.
 
 > **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
 > the plugin prefix: the skills appear as `developer-skills:<name>` and the
-> subagents as `developer-skills:dispatcher` / `developer-skills:code-author` /
+> subagents as `developer-skills:code-author` /
 > `developer-skills:diff-reviewer`. Use the names exactly as they appear in
 > your available-skills and available-agents lists; the short names below
 > refer to whichever form is installed.
@@ -83,19 +82,19 @@ step that says to read one is not optional, it is that step's other half.)
 
 ## Run configuration
 
-Three knobs govern a run. Resolve each one **before mode detection**, in this
+Two knobs govern a run. Resolve each one **before mode detection**, in this
 precedence order: CLI flag > repo default > factory default.
 
 | Knob        | Values                    | Factory default |
 |-------------|---------------------------|-----------------|
 | `execution` | `parallel` / `sequential` | `parallel`      |
 | `merge`     | `auto` / `manual`         | `manual`        |
-| `oversized` | `escalate` / `build`      | `escalate`      |
 
 Repo defaults live in `docs/agents/developer-defaults.md`, written by
 `/setup-developer-skills`. Read it once at the start (it is short — this is
 an allowed exception to "never read bodies yourself"); if it is missing or a
-knob is absent, fall back to the factory default. State the resolved
+knob is absent, fall back to the factory default. Ignore any other key in
+it — an `oversized:` line left by an older setup included. State the resolved
 configuration in one line before starting, e.g.
 `Run config: execution=parallel, merge=manual (repo defaults)`.
 
@@ -113,39 +112,25 @@ What `merge` means:
   blocked for the rest of the run — expected, not an error; it lands in the
   wrap-up as the human's queue.
 
-What `oversized` means — what to do with a sub-issue triage scores
-`oversized` (`--build-oversized` sets it to `build` for the run):
-
-- **`escalate`** — the default and the safe reading: the ticket is handed to
-  a human to re-cut, and nothing is built (Triage step).
-- **`build`** — build it anyway, at `opus`, exactly as if triage had said
-  `complex`. This is the user's standing answer to "the ticket is too big":
-  they have decided the split is not worth the round trip. Note the risk once
-  when you resolve the config, then stop arguing it — the dispatcher's fault
-  lines still go into the builder's prompt as its order of work, and if the
-  builder does come back with half a feature, that PR escalates through the
-  ordinary non-convergent path rather than a second opinion about size.
-
 ## Workers (subagents)
 
 | Step    | Subagent        | Model                           | Isolation  | Skill it runs     |
 |---------|-----------------|---------------------------------|------------|-------------------|
-| triage  | `dispatcher`    | sonnet (pinned)                 | —          | (scores a wave)   |
-| build   | `code-author`   | chosen by triage                | `worktree` | `implement-issue` |
+| build   | `code-author`   | from the sub-issue's complexity | `worktree` | `implement-issue` |
 | review  | `diff-reviewer` | opus first, sonnet on re-review | `worktree` | `review-pr`       |
 | fix     | `code-author`   | escalates per cycle             | `worktree` | `fix-pr`          |
 | harvest | `code-author`   | sonnet (pinned)                 | `worktree` | (reads PR bodies) |
 
 Spawn each via the **Agent** tool with the matching `subagent_type`. Pass
 `isolation: "worktree"` to every code-author and diff-reviewer spawn. Pass
-`model` explicitly to code-author spawns (triage decides the tier) and to
+`model` explicitly to code-author spawns (step 1 picks the tier) and to
 **re-review** diff-reviewer spawns (`model: "sonnet"`) — the first review is
 discovery across the whole change and stays on the agent's pinned opus, while a
 re-review is verification of a diff the skill has already scoped down to the
 last fix pass. Never run the skills yourself in the main context — the point is
 isolation.
 
-**Every spawn is `run_in_background: true`**, dispatchers included, in both
+**Every spawn is `run_in_background: true`**, in both
 execution modes. A foreground spawn holds your turn open for the worker's whole
 run, and anything that interrupts that turn — a Ctrl-C, a dropped connection —
 takes the worker down with it: its context, its worktree and its commits are
@@ -174,8 +159,8 @@ resume and a rebuild later:
     >> .scratch/developer-run-<spec>.log
   ```
 
-  (`sub=none` on the harvest, which belongs to the whole run.) Triage and
-  review spawns skip the row entirely: both are cheap to repeat, and pipeline
+  (`sub=none` on the harvest, which belongs to the whole run.) Review spawns
+  skip the row entirely: they are cheap to repeat, and pipeline
   step 0 reconstructs where a PR stands without them. Step 7 writes the other
   kind of row, the terminal one — a resume reads both, the wrap-up reads only
   the terminal ones.
@@ -197,11 +182,10 @@ The loop may cover many sub-issues; your context must survive all of them.
   you need from these commands is one number, one state or one exit code.
 - **Every spawn costs about the same whatever it carries** — roughly 750
   tokens of prompt, launch metadata and result notification, against a payload
-  that is often one word. So batch the work that can be batched (triage scores
-  a whole wave in one dispatcher) and never spawn a worker to recover
-  something a default already covers. Builds, reviews and fixes cannot be
-  batched — each needs its own worktree and its own clean context — and are
-  worth their envelope; a second dispatcher for one missing score is not.
+  that is often one word. So never spawn a worker for anything a command or a
+  default already answers — the build's model tier is one line of the
+  sub-issue, read with one command. Builds, reviews and fixes are worth their
+  envelope: each needs its own worktree and its own clean context.
 - **Never read CI logs yourself** either — `gh run view --log-failed` and
   anything like it. The Merge step's `--json` classification is the whole
   diagnosis the orchestrator gets; the rest is the fixer's, in its context.
@@ -214,10 +198,7 @@ The loop may cover many sub-issues; your context must survive all of them.
   now (dropped the moment its `RESULT` arrives), outcome (merged /
   ready-to-merge / escalated / blocked) — and write the row to the run log the
   moment the sub-issue goes terminal (delivery pipeline step 7), so the wrap-up
-  reads facts instead of recalling them. Also keep the dispatcher's
-  `touches`/`hints` just long enough to forward `hints` into that sub-issue's
-  Build step — discard both once the build is spawned, they have no use after
-  that.
+  reads facts instead of recalling them.
 
 ## Resuming the orchestrator
 
@@ -261,7 +242,7 @@ On any such prompt:
 
    **B. Its worker is gone** → run pipeline **step 0** on that sub-issue
    exactly as written. It asks the code host rather than your memory, and
-   routes the sub-issue to Review, to the Fix cycle, or back to Triage when
+   routes the sub-issue to Review, to the Fix cycle, or back to Build when
    nothing was ever opened for it.
 
 3. **Re-enter the loop**: recompute the unblocked set (spec loop step 1, or the
@@ -379,7 +360,7 @@ Single mode (no sub-issues) skips the board.
 run-config line and the wrap-up, a spec run's default output is *nothing*: the
 task list already says which sub-issue is building, which is in review, which
 is merged and which is waiting, and it says it live, without costing a turn.
-Prose that restates it — "wave 1 launched", "triage complete", a table of the
+Prose that restates it — "wave 1 launched", "builds spawned", a table of the
 tier each sub-issue drew, "5 of 25 merged" — is a second, staler copy of the
 board, and the user has to read past it to reach the part that is not on the
 board. Keep the board current instead; that *is* the progress report.
@@ -468,14 +449,9 @@ Work in **waves**:
    did.
 2. Run the delivery pipeline on each wave member concurrently, entry points
    first: the pipeline's **step 0** resolves where each member starts, and only
-   the ones with no open change get triaged and built. Spawn **one**
-   `dispatcher` for all of them at once (Triage step — one spawn per wave, not
-   per member, capped at 5 issues a spawn), then their `code-author` BUILD
-   jobs in parallel
-   (each in its own worktree, `run_in_background: true`) — **minus any member
-   the Triage step escalates as `oversized`**, which leaves the wave without
-   a build (under `oversized: build`, or against a no-split directive, it is
-   built like any other member). A resumed member goes
+   the ones with no open change get built. Read each one's model tier (step 1),
+   then spawn their `code-author` BUILD jobs in parallel (each in its own
+   worktree, `run_in_background: true`). A resumed member goes
    straight into the review or fix stage alongside them. As each build
    reports its PR, spawn its `diff-reviewer`; as each reviewer reports,
    mark that PR ready (step 3 of the pipeline); fix cycles run per PR
@@ -564,7 +540,7 @@ A run can die at any point — a dead session, a compaction, a Ctrl-C — and th
 sub-issues it half-delivered are still open, so re-running `/developer <spec>`
 picks them right back up. What the tracker forgets is how far each one got:
 build from scratch again and you get a second PR for the same sub-issue and a
-second review paying for it. So before triaging, ask the code host whether a
+second review paying for it. So before building, ask the code host whether a
 change already exists for this sub-issue, per its "open change for this issue"
 operation. GitHub default:
 
@@ -572,9 +548,9 @@ operation. GitHub default:
 gh pr list --state open --search '"Closes #<subissue>" in:body' --json number,isDraft
 ```
 
-- **No open PR** → nothing to resume: step 1 (Triage).
+- **No open PR** → nothing to resume: step 1 (Model tier).
 - **One open PR, no unresolved review threads** → keep its `<PR>`, skip
-  Triage and Build, start at step 3 (Review). The reviewer settles its own
+  Build, start at step 3 (Review). The reviewer settles its own
   scope from the PR's review history, so this covers both shapes: a build
   that was never reviewed (full scope) and one whose review was answered in
   full but never reached a verdict (incremental). If it comes back
@@ -583,8 +559,8 @@ gh pr list --state open --search '"Closes #<subissue>" in:body' --json number,is
   **CLEAN** and go to Merge — here only, because no fix pass ran this cycle
   to leave findings standing.
 - **One open PR with unresolved review threads** → a review landed and its
-  fixes did not: start at step 4 (Fix cycle), counting from cycle 1 with the
-  fixer at `opus` (the build tier died with the session that chose it).
+  fixes did not: read the model tier (step 1), then start at step 4 (Fix
+  cycle), counting from cycle 1.
 - **More than one open PR matches** → **escalate**: two open changes for one
   sub-issue is a human's call, never a pick.
 
@@ -607,72 +583,25 @@ in the dead run gets three more here. That is deliberate — the alternative is
 reconstructing a counter nothing ever recorded — and the `ready-for-human` gate
 is what stops a sub-issue looping forever across runs.
 
-### 1. Triage
+### 1. Model tier
 
-**Triage a whole wave in one spawn, not one spawn per sub-issue.** In parallel
-mode this step runs once for the wave, covering every member the pipeline's
-step 0 found without an open change; in sequential mode the wave is one
-sub-issue and the same prompt carries a list of one. Batch at most **5**
-issues per dispatcher; a larger wave takes a second batched spawn, never a
-spawn per issue. The reason is the spawn envelope, not the dispatcher: a
-triage round trip costs the orchestrator ~750 tokens of prompt, launch
-metadata and notification whatever it carries, and it carries one word. Five
-scores in one spawn pay that once instead of five times, and triage is the
-step where it is free to do so — the scores are independent, the codebase
-glance is shared, and nothing downstream needs them at different times.
+The sub-issue carries its own complexity: `/to-tickets` writes a
+`## Complexity` section into every child it creates (the repo's
+`docs/agents/issue-authoring.md` requires it), rated by whoever cut the spec.
+Read that section only — never the body — per the tracker's read-an-issue
+operation. GitHub default:
 
-Spawn `dispatcher` with `run_in_background: true`:
+```bash
+gh issue view <N> --json body --jq '.body' \
+  | awk '/^##[#]* *[Cc]omplexity/{f=1;next} /^#/{f=0} f' | head -3
+```
 
-> Triage issues #`<N1>`, #`<N2>`, … Score each one's implementation
-> complexity per your rubric, independently of the others. Your entire final
-> message must be one
-> `RESULT issue=… complexity=… model=… touches=… hints=… why=…` line per
-> issue, in the order given — nothing before the first, nothing between them,
-> nothing after the last. Do not explain your scoring anywhere except the
-> `why=` field, which is capped at 15 words: your final message lands in my
-> context whole and stays there for the rest of the run, so a paragraph in
-> front of the lines is charged to every turn that follows and read by no one.
+- starts with `complex` → **`opus`**
+- anything else — `standard`, an unrecognised word, or no section at all (an
+  older or hand-written ticket) → **`sonnet`**
 
-**Repeat that last sentence in the spawn prompt every time.** It is the rule
-this worker breaks most often — twice in field runs, once after the agent
-definition had already been hardened — and the spawn prompt is the last thing
-it reads before working. Parse `why=` and drop it: it exists to give the
-dispatcher's justification a 20-token home instead of a 330-token one, not
-because anything downstream needs it.
-
-Match each line back to its sub-issue by `issue=`. A member with **no line at
-all** is treated exactly like a malformed one (below). Then, per sub-issue,
-parse `complexity=` first:
-
-- **`complexity=oversized`** → the sub-issue does not fit in a single fresh
-  context window, and what happens next is the `oversized` knob's call (Run
-  configuration):
-  - **`oversized: escalate`** (default) → **Do not build it.** No model tier
-    rescues a ticket that does not fit: the builder runs out of room, the
-    review finds half a feature, and three fix cycles burn against the same
-    wall. Go straight to **Escalation**, quoting the dispatcher's `hints=` —
-    they carry the fault lines — and move to the next sub-issue. No BUILD, no
-    review, no fix cycles are spent on it.
-  - **`oversized: build`** → continue to Build at `opus`, passing the
-    dispatcher's `hints=` through as usual; the fault lines become the
-    builder's order of work. Do not escalate, do not label, and do not
-    re-argue the size — the knob is the answer to that argument.
-
-  Before escalating, check the issue body once for an explicit **no-split
-  directive** ("deliberately indivisible", "no dividir", "ship as one unit").
-  The dispatcher is told to veto its own `oversized` score when it finds one,
-  so an `oversized` line on such a ticket means triage missed it: build it at
-  `opus` as if the knob said `build`. This is the one place you overrule a
-  triage verdict, and only ever in that direction — the author's directive
-  outranks the rubric, never the reverse.
-- Anything else → parse `model=<tier>` and continue to Build.
-
-On any malformed or missing result, default to `opus` and build — a line you
-cannot parse, or that never arrived, is not an `oversized` verdict. Parse
-`touches=` and `hints=` too, defaulting each to `none` if the line predates
-these fields or omits them — never block the pipeline on a missing hint.
-Never re-spawn a dispatcher to recover one missing line: the default costs
-less than the round trip it would take to improve on it.
+That is the whole step: no worker is spawned to rate a ticket. The tier is
+fixed for the sub-issue; the fix cycle escalates from it on its own (step 4).
 
 ### 2. Build
 
@@ -683,8 +612,6 @@ Spawn `code-author` with `model: <tier>`, `isolation: "worktree"` and
 > Run the implement-issue skill on the sub-issue. The sub-issue's
 > `## Spec extract` section carries the spec decisions that apply to it —
 > read the full spec issue only if that section is missing.
-> Triage found: `<dispatcher's hints, verbatim, or omit this line
-> entirely when hints=none>`.
 > Your entire final message must be the `RESULT pr=… url=…` line — no summary
 > before it, nothing after it. Whatever deserves a record goes in the PR body,
 > not in your reply. Report only a PR number you have confirmed exists.
@@ -755,8 +682,8 @@ whose step 0 found `isDraft: false`.
 For cycle `c` = 1, 2, 3:
 
 1. Fixer model: cycle 1 uses the build tier, each later cycle escalates one
-   tier (sonnet → opus; opus stays opus). A sub-issue resumed straight
-   into this step has no build tier — step 0 already set it to `opus`.
+   tier (sonnet → opus; opus stays opus). A sub-issue resumed straight into
+   this step takes its tier from step 1, like a build.
 2. Spawn `code-author` with that model, `isolation: "worktree"` and
    `run_in_background: true`, then log the spawn row (Workers):
 
@@ -1058,14 +985,11 @@ stay comparable across runs if the pin ever changes. `mergefix=` counts the
 merge-fix workers this PR needed — `0` for a PR that merged on its first
 try. It is a separate number from `cycles=` because it prices a different
 thing: `cycles` is the ticket being hard, `mergefix` is the *wave* being
-expensive, and only that field lets a later calibration say "this spec's
+expensive, and only that field lets a later reader of the ledger say "this spec's
 tickets all rewrite the same files — deliver it sequentially". `verdict=—` /
 `wave=—`
 where the field does not apply — an escalated sub-issue that never got a
-CLEAN, sequential mode. `pr=none` for a build that never opened one, and
-`model=none effort=none pr=none cycles=0` for a sub-issue escalated as
-`oversized`, which never reached a builder at all — that row is what lets
-the harvest notice a spec whose tickets are systematically too big.)
+CLEAN, sequential mode. `pr=none` for a build that never opened one.)
 
 Write it here and the wrap-up reads facts instead of recalling them: a run that
 survives ten sub-issues, a context compaction, and a resume (step 0) still
@@ -1085,9 +1009,7 @@ context-docs publish (the top-level Step 0) and the local-tracker
 
 ## Escalation
 
-When a sub-issue is blocked, triaged **oversized** (under
-`oversized: escalate`, and absent a no-split directive in its body),
-non-convergent after 3
+When a sub-issue is blocked, non-convergent after 3
 fix cycles, or unmergeable, apply the `ready-for-human` triage label to the
 sub-issue and comment on both the sub-issue and the spec, per the tracker
 ops. GitHub default:
@@ -1098,27 +1020,9 @@ gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url 
 gh issue comment <spec> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
-**Escalating an `oversized` sub-issue**, the comment must carry the **fault
-lines**, not just the verdict: the dispatcher already saw where the work
-splits and said so in `hints=`. Pass those hints through verbatim — as the
-seed of the re-cut, never as the partition itself: splitting a ticket is
-design work, and the comment routes it to `/to-tickets` in a fresh session
-with a high-tier model and high effort, the conditions the original cut was
-made under. Say `PR: none` — nothing was built. GitHub default:
-
-```bash
-gh issue comment <subissue> --body "Escalated by /developer: oversized — does not fit in a single fresh context window.
-
-Fault lines, from triage (a starting point, not the split): <the dispatcher's hints, verbatim>
-
-To split it: run /to-tickets on this issue in a fresh session with a high-tier model and high effort, starting from the fault lines above. Then remove the \`ready-for-human\` label to put the new sub-issues in play. PR: none."
-```
-
 Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
 (step 6) — the local worktrees go, the remote branch and PR stay — record the
-row (step 7), then continue the loop with the next unblocked sub-issue. An
-`oversized` sub-issue has no PR and no worktree: record its row with
-`pr=none` and skip Cleanup.
+row (step 7), then continue the loop with the next unblocked sub-issue.
 
 The label is what makes the escalation outlive this session: the pick (spec
 loop step 1) skips a `ready-for-human` sub-issue on every future run, until a
@@ -1149,8 +1053,8 @@ is read once, here, at the end of the run.
   `CONTEXT-MAP.md`, `docs/adr/` and everything under `docs/agents/` are
   instructions the run obeys, not state it maintains — a run that rewrites its
   own instructions changes every future run, unattended and unreviewed. Two
-  exceptions, both narrow: `docs/agents/delivery-ledger.md`, which the harvest
-  appends to because the dispatcher reads it back (wrap-up step 2), and Step
+  exceptions, both narrow: `docs/agents/delivery-ledger.md`, the run history the
+  harvest appends to (wrap-up step 2), and Step
   0's commit of context docs, which publishes edits **the human already made**
   and authors nothing. Everything else a run learns is *proposed* in the
   summary and applied by a human, or by `/setup-developer-skills` for the
@@ -1162,7 +1066,7 @@ is read once, here, at the end of the run.
   streaming command's progress unredirected — see **Context economy**. Your
   context is the one resource the whole run shares.
 - In spec mode, keep the board current and say nothing beside it — no wave
-  announcements, no triage tables, no running tallies. Six exceptions, all
+  announcements, no tier tables, no running tallies. Six exceptions, all
   one-liners, listed under **Progress board**.
 - While a run is in flight, no prompt that reaches you is a no-op — a bare
   "continue" is a resume, not a question. Reconstruct and take the next step
@@ -1189,11 +1093,6 @@ is read once, here, at the end of the run.
   escalates and ends the run instead.
 - Retry a red CI run exactly once per PR, never twice, and never diagnose it
   by reading its logs in the main context.
-- Never spawn a build for a sub-issue triaged `oversized` **under
-  `oversized: escalate`** — escalate it with the fault lines instead. Buying
-  it a stronger model is the one thing that does not work. Under
-  `oversized: build`, or when the issue body forbids splitting, the ticket is
-  built at `opus` and this rule does not apply.
 - Never merge a change whose CI checks are red, whatever the merge policy
   and however unrelated the failing check looks.
 - Never resolve merge conflicts in the main context — not even when the

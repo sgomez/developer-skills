@@ -72,10 +72,6 @@ T="bg/foreground-namespaced-type-denied"
 run "$BG_HOOK" "$(spawn developer-skills:diff-reviewer false)"
 assert_rc0; assert_deny
 
-T="bg/foreground-dispatcher-denied"
-run "$BG_HOOK" "$(spawn dispatcher false)"
-assert_deny
-
 T="bg/background-spawn-allowed"
 run "$BG_HOOK" "$(spawn code-author true)"
 assert_rc0; assert_silent

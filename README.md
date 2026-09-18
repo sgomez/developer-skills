@@ -2,16 +2,16 @@
 
 Unattended spec delivery for [Claude Code](https://claude.com/claude-code):
 you write specs, a pipeline of isolated agents implements every sub-issue —
-triage → build → review → fix → merge — and pings you when it's done.
+build → review → fix → merge — and pings you when it's done.
 
 ```
 /developer <spec-issue>
         │
         ▼
-   ┌────────────┐  complexity tier    ┌─────────────┐
-   │ dispatcher │ ───────────────────▶│ code-author │──▶ draft PR
-   │  (sonnet)  │    sonnet/opus      │ (worktree)  │
-   └────────────┘                     └─────────────┘
+   sub-issue's ## Complexity          ┌─────────────┐
+   standard → sonnet ────────────────▶│ code-author │──▶ draft PR
+   complex  → opus                    │ (worktree)  │
+                                      └─────────────┘
                                             │
                                             ▼
                     NEEDS_FIXES      ┌───────────────┐
@@ -35,9 +35,10 @@ triage → build → review → fix → merge — and pings you when it's done.
   (always serialized) merge. `sequential` delivers one sub-issue fully before
   the next — with auto-merge, each PR then branches from a `main` that
   already contains the previous one, so merges never conflict.
-- **Model-tiered** — a `dispatcher` agent scores each sub-issue
-  (trivial/standard → `sonnet`, complex → `opus`); the fixer
-  escalates one tier per fix cycle.
+- **Model-tiered** — `/to-tickets` rates each sub-issue as it cuts the spec
+  (a `## Complexity` section: standard → `sonnet`, complex → `opus`; missing
+  → `sonnet`), so no worker is spent scoring tickets; the fixer escalates
+  one tier per fix cycle.
 - **Unattended with an escape hatch** — max 3 review→fix cycles, then the
   sub-issue is labeled `ready-for-human`, commented on the spec, and the loop
   moves on. Push notification with the tally at the end.
@@ -80,7 +81,8 @@ Installs the skills **and the three subagents** in one step:
 
 Plugin components are namespaced: the skills appear as
 `/developer-skills:developer`, `/developer-skills:setup-developer-skills`,
-etc., and the agents as `developer-skills:dispatcher` and friends.
+etc., and the agents as `developer-skills:code-author` and
+`developer-skills:diff-reviewer`.
 
 Restart the session afterwards: plugins load at session start.
 
@@ -166,8 +168,7 @@ Matt's first.
    sub-issues on GitHub), checks blockers, comments, labels, and closes — and
    write `docs/agents/issue-authoring.md`, the rules `/to-tickets` follows
    when it *creates* children.
-3. Check the three plugin agents are loaded: `dispatcher`, `code-author`,
-   `diff-reviewer`.
+3. Check the two plugin agents are loaded: `code-author`, `diff-reviewer`.
 4. Ensure the `ready-for-agent` / `ready-for-human` labels (or the tracker's
    equivalent) exist.
 5. Ask for the repo's run defaults — parallel vs sequential execution,
@@ -257,8 +258,8 @@ update; `agy plugin list` / `agy plugin uninstall developer-skills` to manage.
 Caveats: all five skills are imported, including the `/developer`
 orchestrator, and Antigravity does have worktree isolation for agents. What
 it lacks is per-spawn model tiers and `effort:` — subagents run on
-Antigravity's own models, so the `dispatcher`'s sonnet/opus triage
-doesn't steer which model builds each sub-issue. The unattended loop is
+Antigravity's own models, so a sub-issue's `## Complexity` rating
+doesn't steer which model builds it. The unattended loop is
 best-effort outside Claude Code.
 
 ## Requirements
@@ -307,8 +308,7 @@ you. (Not sure which skill fits? `/ask-matt`.)
   plugin.json               # plugin manifest
   marketplace.json          # lets you /plugin marketplace add sgomez/developer-skills
 agents/                     # subagents, auto-loaded by the plugin route
-  dispatcher.md             # complexity triage — pinned sonnet, effort: low
-  code-author.md            # builder/fixer — model chosen per sub-issue
+  code-author.md            # builder/fixer — model from the sub-issue's complexity
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
   developer/                # orchestrator: spec loop, fix cycles, merge policy
