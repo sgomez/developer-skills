@@ -99,23 +99,14 @@ The prompt gives you one of these jobs:
 
 ### BUILD job
 
-1. Read the **sub-issue** from the tracker, per
-   `docs/agents/issue-tracker.md`. GitHub factory default:
-   ```bash
-   gh issue view <SUBISSUE_NUMBER> --comments
-   ```
-   A well-formed sub-issue carries a `## Spec extract` section with the
-   parent spec's Implementation and Testing Decisions that apply to it,
-   copied verbatim. When it does, that section **is** your spec: do not read
-   the parent. Its remaining body is decisions for sibling sub-issues, and
-   in your context it displaces the code exploration you cannot skip.
-
-   Read the parent spec (`gh issue view <SPEC_NUMBER> --comments`) **only as
-   a fallback**, when the sub-issue has no `## Spec extract` section.
-2. Run the `implement-issue` skill **with the sub-issue ref as argument**.
+1. Run the `implement-issue` skill **first**, with the sub-issue ref as
+   argument — before any other tool call. The skill reads the sub-issue (and
+   the parent spec only when the sub-issue has no `## Spec extract` section),
+   so do not fetch it yourself beforehand: in the field every build read its
+   issue four or five times before loading the skill, then again inside it.
    The issue was already selected for you — implement exactly that one; do not
    re-run issue selection.
-3. Let that skill run its full flow (branch → TDD → checks → commit → push →
+2. Let that skill run its full flow (branch → TDD → checks → commit → push →
    draft PR). Do not duplicate its steps yourself — invoke it and follow it.
 
 ### FIX job
@@ -134,7 +125,13 @@ its fixes still unpushed, costing two round trips and a stale head sha the
 orchestrator had to catch by hand.
 
 Run project checks in the **foreground** and let them finish, however long they
-take. If something genuinely must run detached, poll it to completion inside
+take. The Bash tool moves any command still running after its default 2-minute
+timeout to the background, so give every call that can outlast that — the full
+suite, and a `git push` behind a pre-push hook that runs the gate — the
+maximum timeout (`timeout: 600000`) up front. In the field a push behind such a
+hook was moved to the background at 120 s every time, and the worker spent
+another fixed 121 s per push sleeping blind before it could read the result.
+If something genuinely must run detached, poll it to completion inside
 the same turn (an `until` loop over its output or exit file — never a bare
 `sleep`, the harness blocks it) before you write anything. If it hangs past
 usefulness, kill it, act on what you have, and say so where the job's output

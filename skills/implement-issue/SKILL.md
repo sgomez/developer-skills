@@ -84,11 +84,16 @@ Priority order: **bugs > tracer bullets > polish > refactors**. Pick highest-pri
 
 ### 2. Read spec
 
-Read the issue with its comments per the tracker doc — GitHub default:
+Read the issue with its comments per the tracker doc, **once** — GitHub
+default:
 
 ```bash
-gh issue view <N> --comments
+gh issue view <N> --json title,body,comments > /tmp/issue-<N>.json
 ```
+
+then read that file. Not `gh issue view <N> --comments`: inside a /developer
+worktree the sandbox returns it **empty with exit 0**, and builds in the field
+re-fetched the issue four or five times before trying another shape.
 
 Read the full body, acceptance criteria, and all comments.
 
@@ -201,7 +206,19 @@ pnpm test --reporter=dot
 ```
 
 (See `AGENTS.md` / `CLAUDE.md` for this project's exact commands and its quiet
-reporter.) The suite printed after every loop is what actually exhausts a
+reporter.)
+
+**Unless a pre-push hook already runs it.** When the repo's hook config
+(`lefthook.yml`, `.husky/pre-push`, `.pre-commit-config.yaml`'s `pre-push`
+stage…) shows the pre-push hook running the typecheck and the full suite,
+skip this final run — and the lint gate below — and let the push in step 6 be
+that run. Running both is the same gate twice on the same commit: in the
+field every build ran the suite, then paid for it again inside `git push`,
+80–125 s each time. Do still run the writing formatter below: a hook only
+checks. If the hook rejects the push, fix what it names, amend the commit
+(nothing was published yet), and push again.
+
+The suite printed after every loop is what actually exhausts a
 worker's context — far more than any source file — and it tells you nothing the
 one file didn't. When a run comes back red, re-run **just the failing file or
 test name** for its output; never the suite.
@@ -253,9 +270,9 @@ That order matters. A formatter's output is not an opinion to be reviewed — it
 is derivable from the source, so anything it can fix by itself must never reach
 a reviewer. A linter's findings are not derivable, so those you read and fix.
 
-Where the repo installs a **pre-push hook** this is the same gate you would hit
-at push time; running it here means you find it while you still have the
-context to fix it cheaply. Never push past a hook with `--no-verify`.
+Where the repo installs a **pre-push hook** that runs the lint gate, skip the
+checking form here (see above) — the push runs it. Never push past a hook with
+`--no-verify`.
 
 ### 5. Commit
 
@@ -278,7 +295,7 @@ Publish a **draft** change per the code-host doc, linked to the issue for
 closing. GitHub default:
 
 ```bash
-git push origin agent/issue-<N>-<slug>
+git push origin agent/issue-<N>-<slug>   # behind a gate-running pre-push hook: Bash timeout 600000
 
 gh pr create \
   --draft \

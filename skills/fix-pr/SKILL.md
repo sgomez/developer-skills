@@ -148,6 +148,12 @@ pnpm test --reporter=dot
 Fix failures before committing; re-run just the failing file or test name to
 see why, never the whole suite again.
 
+Skip that run — and the lint gate below — when the repo's pre-push hook
+(`lefthook.yml`, `.husky/pre-push`…) already runs the typecheck and the full
+suite: the push in step 4 is that run, and running both pays for the same gate
+twice on the same commit. If the hook rejects the push, fix what it names,
+amend the commit, and push again.
+
 Where the toolchain has no quiet reporter, judge the run by its exit code —
 `<the command> > /tmp/check.log 2>&1; echo "exit=$?"`, grepping the log only
 when it is non-zero. Never pipe it into `tail`: that discards the status and
@@ -166,6 +172,16 @@ git add <files you changed>   # stage by path — never `git add -p` (interactiv
 git commit -m "fix(pr): address review comments on #<PR>"
 git push origin <branch>      # from a local fix/pr-<PR>: git push origin HEAD:<pr-branch>
 ```
+
+Behind a pre-push hook that runs the gate, give the push the Bash tool's
+maximum timeout (`timeout: 600000`) so it finishes in the foreground.
+
+**Do not wait for CI after the push.** Watching the checks, re-running a red
+job, or digging through its log is not part of this job: under /developer the
+orchestrator's checks gate waits on that same CI before merging, re-runs a
+flaky job once, and sends a new fix job if it stays red. In the field a fixer
+spent 11 minutes watching CI and 15 calls on the log of a flaky run the
+orchestrator would have re-run anyway. Push, reply, report.
 
 ### 5. Reply to threads
 

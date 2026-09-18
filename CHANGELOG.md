@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **A build loads `implement-issue` before anything else, and reads its issue
+  once.** The code-author's BUILD steps had it fetch the sub-issue itself
+  before running the skill, which then fetched it again — and the
+  `gh issue view --comments` both showed comes back empty with exit 0 inside
+  the worktree sandbox, so every build in a measured run re-fetched it four
+  or five times. The agent now runs the skill first, and the skill reads the
+  issue with `--json title,body,comments` into a file.
+- **No full local gate before a push that runs it anyway.** When the repo's
+  pre-push hook runs the typecheck and the full suite, `implement-issue` and
+  `fix-pr` skip their explicit final run and lint gate and let the push be
+  that run — measured builds paid 80–125 s for the suite and then the same
+  gate again inside `git push`. The writing formatter still runs; a hook only
+  checks.
+- **Long commands get the long timeout up front.** A push behind a gate-running
+  hook outlasts the Bash tool's 2-minute default, was moved to the background,
+  and the worker then slept a fixed 121 s blind per push. The code-author and
+  both skills now ask for `timeout: 600000` on those calls.
+- **`fix-pr` no longer waits for CI after pushing.** The orchestrator's checks
+  gate already waits on that CI, re-runs a flaky job once and sends a new fix
+  job if it stays red; a measured fixer spent 11 minutes watching the checks
+  and 15 calls on the log of a flaky run instead. Push, reply, report.
+
 ## [0.23.0] - 2026-09-09
 
 ### Changed
