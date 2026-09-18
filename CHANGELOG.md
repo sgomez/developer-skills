@@ -28,8 +28,8 @@ Changes staged on the `next` branch, published as a new version once ready.
   `/to-tickets` only learns the rule from the repo's docs, so re-run
   `/setup-developer-skills` to add it to an existing repo's
   `docs/agents/issue-authoring.md` and to the pointer in `issue-tracker.md`
-  that sends splitters there; a leftover `oversized:`
-  line in `developer-defaults.md` is ignored.
+  that sends splitters there. The same re-run retires what triage left in the
+  repo (see Fixed).
 - **A build loads `implement-issue` before anything else, and reads its issue
   once.** The code-author's BUILD steps had it fetch the sub-issue itself
   before running the skill, which then fetched it again — and the
@@ -53,6 +53,14 @@ Changes staged on the `next` branch, published as a new version once ready.
   and 15 calls on the log of a flaky run instead. Push, reply, report.
 
 ### Fixed
+- **`/setup-developer-skills` removes what a dropped feature left in the
+  repo.** Re-running it after the triage removal added `## Complexity` but
+  kept the ledger's `## Local calibration` (520 lines in one repo), the index
+  row routing complexity scoring to it and any `oversized:` knob — its own
+  rule to leave the repo's prose alone protected them. A new step retires
+  them from a fixed list, after confirmation, and first offers to distil the
+  calibration's tier heuristics into `issue-authoring.md`'s `## Complexity`,
+  where the splitter now makes that call.
 - **`plugin-mode.sh` now reaches project-scoped installs, and says which
   commit each one runs.** A project that installs the plugin in its own scope
   wins over the user-wide install, and `dev`/`next`/`refresh` only ever
