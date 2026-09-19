@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.24.0] - 2026-09-19
+
 ### Changed
 - **Triage is gone: a ticket carries its own complexity.** The `dispatcher`
   agent and the pipeline's Triage step are removed. `/to-tickets` now rates
@@ -1142,7 +1144,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.23.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.24.0...next
+[0.24.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.24.0
 [0.23.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.23.0
 [0.22.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.22.0
 [0.21.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.21.0
