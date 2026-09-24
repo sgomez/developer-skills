@@ -87,10 +87,15 @@ read-the-last-reviewed-revision operation. GitHub default:
 
 ```bash
 gh api "repos/{owner}/{repo}/pulls/<PR>/reviews" \
-  --jq 'map(select(.state != "PENDING")) | last | .commit_id // empty'
+  --jq 'map(select(.state != "PENDING" and (.body // "") != "")) | last | .commit_id // empty'
 ```
 
-Empty output means nobody has reviewed this PR yet. Then:
+Empty output means nobody has reviewed this PR yet. The body filter is not
+optional: GitHub stores every reply to a review thread as a review of its
+own — `COMMENTED`, empty body, `commit_id` = the head at reply time. The
+fixer replies *after* pushing, so without the filter the "last review" is
+its reply, pinned to the fix commit, and the re-review wrongly finds nothing
+new. A real review always carries a summary (step 4). Then:
 
 ```bash
 git fetch origin main    # local host: skip the fetch, diff against main

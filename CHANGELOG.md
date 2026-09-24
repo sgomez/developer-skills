@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Fixed
+- **A re-review no longer mistakes the fixer's thread replies for a review.**
+  GitHub stores each reply to a review thread as a review object with an
+  empty body, pinned to the head at reply time — and the fixer replies after
+  pushing, so the "last reviewed revision" came back as the fix commit and
+  the re-review reported `blocked reason=no new commits since the last
+  review`, which the orchestrator read as `NEEDS_FIXES` and spent a fix cycle
+  on commits nobody had reviewed. The read-the-last-reviewed-revision
+  operation now skips empty-bodied reviews (every real review carries a
+  summary), and the orchestrator checks the PR head actually stood still
+  during the fix pass before trusting that blocked — if it moved, it
+  escalates instead. Repos set up earlier carry the old query in
+  `docs/agents/code-host.md`: re-run `/setup-developer-skills`, or add
+  `and (.body // "") != ""` to the `select` there by hand.
+
 ## [0.24.0] - 2026-09-19
 
 ### Changed

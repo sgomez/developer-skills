@@ -666,10 +666,14 @@ whose step 0 found `isDraft: false`.
 - `verdict=CLEAN` → go to **Merge**.
 - `verdict=NEEDS_FIXES` → enter the fix cycle.
 - `RESULT blocked reason=no new commits since the last review …` → the fix
-  pass pushed nothing, so there is nothing to re-review. Treat it exactly as
-  that cycle's `NEEDS_FIXES`: the previous findings still stand. Do not
-  re-spawn the reviewer — go straight to the next fix cycle (or escalate if
-  the budget is spent).
+  pass pushed nothing, so there is nothing to re-review. Check that first:
+  if the PR's head (`gh pr view <PR> --json headRefOid --jq .headRefOid`)
+  is not the one it had before that fix pass spawned, the fixer **did** push
+  and the reviewer misread its anchor — **escalate** rather than burn a
+  cycle on commits nobody reviewed. Otherwise treat it exactly as that
+  cycle's `NEEDS_FIXES`: the previous findings still stand. Do not re-spawn
+  the reviewer — go straight to the next fix cycle (or escalate if the
+  budget is spent).
 - `RESULT blocked` because the change branch is held by another worktree
   (the worker quotes git's "already used by worktree" error) → a previous
   worker's worktree wasn't cleaned: run **Cleanup** (step 6) and re-spawn
@@ -684,7 +688,9 @@ For cycle `c` = 1, 2, 3:
 1. Fixer model: cycle 1 uses the build tier, each later cycle escalates one
    tier (sonnet → opus; opus stays opus). A sub-issue resumed straight into
    this step takes its tier from step 1, like a build.
-2. Spawn `code-author` with that model, `isolation: "worktree"` and
+2. Note the PR's head sha (`gh pr view <PR> --json headRefOid --jq
+   .headRefOid`) — step 3's no-new-commits check compares against it. Spawn
+   `code-author` with that model, `isolation: "worktree"` and
    `run_in_background: true`, then log the spawn row (Workers):
 
    > FIX job. PR #`<PR>`. Run the fix-pr skill to address all review
