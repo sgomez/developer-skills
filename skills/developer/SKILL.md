@@ -180,6 +180,8 @@ The loop may cover many sub-issues; your context must survive all of them.
   exactly that for 4k tokens in one field run. So send both streams of any
   probe you are not certain of through a cap: `<cmd> 2>&1 | head -20`. What
   you need from these commands is one number, one state or one exit code.
+  **Code-host writes are the exception** — see the last rule under **Rules**:
+  they run bare, never through a cap.
 - **Every spawn costs about the same whatever it carries** — roughly 750
   tokens of prompt, launch metadata and result notification, against a payload
   that is often one word. So never spawn a worker for anything a command or a
@@ -877,13 +879,20 @@ remotely, per the code-host doc's merge operation. GitHub default:
 gh pr merge <PR> --merge
 ```
 
+Run it **exactly** in that form, alone in its own Bash call — no pipe, no
+`2>&1 | head`, no `;`/`&&`, and not chained with the issue check below. The
+merge-approval hook (`hooks/approve-merge.sh`) only matches the bare command,
+and an allow rule only covers a compound command when every piece matches one;
+anything else falls to the auto-mode classifier, which denies the merge.
+
 Do **not** pass `--delete-branch`: it also tries to delete the *local* branch,
 which is always still checked out in the build worker's worktree, so it fails
 noisily every time. The remote branch is deleted in Cleanup (step 6), after
 the worktrees are gone.
 
 Then make sure the sub-issue is closed. If the code host auto-closes linked
-issues (see `docs/agents/code-host.md`), just verify — GitHub default:
+issues (see `docs/agents/code-host.md`), just verify, in a separate Bash
+call — GitHub default:
 
 ```bash
 gh issue view <subissue> --json state --jq '.state'   # expect CLOSED
@@ -950,11 +959,15 @@ deliberately skipped `--delete-branch`, and `cleanup-worktrees.sh` only ever
 deletes *local* branches):
 
 ```bash
-if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-  git push origin --delete "$BRANCH"
-else
-  echo "remote branch already gone"
-fi
+git ls-remote --exit-code --heads origin "$BRANCH"
+```
+
+Exit code 0 → the branch is still there; delete it in a **separate** Bash call
+(a code-host write — see the last rule under **Rules**). Exit code 2 → the
+host already deleted it; skip the push.
+
+```bash
+git push origin --delete "$BRANCH"
 ```
 
 Ask before you push: many hosts delete the head branch themselves on merge, and
@@ -1070,7 +1083,15 @@ is read once, here, at the end of the run.
   Never hold your turn open waiting for a worker to finish.
 - Cap the output of every command you run, and never leave a watching or
   streaming command's progress unredirected — see **Context economy**. Your
-  context is the one resource the whole run shares.
+  context is the one resource the whole run shares. Code-host writes are the
+  exception (next rule).
+- Every code-host write the orchestrator runs — `gh pr merge`, `gh pr ready`,
+  `gh pr update-branch`, `git push origin --delete` (or their `docs/agents/code-host.md`
+  equivalents) — is a **bare command in its own Bash call**: no pipe, no
+  `2>&1 | head`, no `;`/`&&`, no verification chained after it. Permission
+  rules and the merge hook match the whole command, so a chained write loses
+  its pre-approval and goes to the auto-mode classifier. Their output is a
+  line or two anyway.
 - In spec mode, keep the board current and say nothing beside it — no wave
   announcements, no tier tables, no running tallies. Six exceptions, all
   one-liners, listed under **Progress board**.

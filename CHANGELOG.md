@@ -24,6 +24,15 @@ Changes staged on the `next` branch, published as a new version once ready.
   `docs/agents/code-host.md`: re-run `/setup-developer-skills`, or add
   `and (.body // "") != ""` to the `select` there by hand.
 
+- **The unattended merge is no longer handed to the auto-mode classifier.**
+  The orchestrator chained `gh pr merge <PR> --merge 2>&1 | head -3; gh issue
+  view …`, as Context economy told it to cap every command — and the merge
+  hook only approves the bare command, so the classifier saw the merge and
+  denied it. Every code-host write the orchestrator runs (`gh pr merge`,
+  `gh pr ready`, `gh pr update-branch`, `git push origin --delete`) is now a
+  bare command in its own Bash call, exempt from the output cap, with its
+  verification in a separate call.
+
 ## [0.24.0] - 2026-09-19
 
 ### Changed
