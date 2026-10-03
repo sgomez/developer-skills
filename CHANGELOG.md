@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Fixed
+- **Workers stop losing turns to command shapes the worktree sandbox
+  refuses.** Every `git fetch … && git checkout …` the workers were shown —
+  in `code-author`, `fix-pr`, the merge-fix prompt and the code-host
+  templates — is now two separate commands, the only shape the sandbox
+  accepts. And the push is now an explicit rule in `implement-issue` and
+  `fix-pr`: bare, in its own call, with the maximum timeout. In a measured
+  batch a third of the builders' pushes were refused for carrying
+  `> log; echo $?`, and half of those retried as `| tail`, which loses the
+  exit code. Repos set up earlier carry the `&&` form in
+  `docs/agents/code-host.md`: re-run `/setup-developer-skills`, or split it
+  by hand.
 - **A re-review no longer mistakes the fixer's thread replies for a review.**
   GitHub stores each reply to a review thread as a review object with an
   empty body, pinned to the head at reply time — and the fixer replies after

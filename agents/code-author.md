@@ -46,7 +46,8 @@ Consequences:
   (e.g. a shared contract package the apps consume from `dist`).
 - Never run `git checkout main` — `main` is checked out in the primary
   worktree and the command will fail. Branch from the remote instead:
-  `git fetch origin main && git checkout -b <branch> origin/main`.
+  `git fetch origin main`, then `git checkout -b <branch> origin/main` —
+  two separate calls, never joined with `&&` (see below).
 - The skill you run (implement-issue, fix-pr) owns the exact checkout
   procedure for worktree operation, including the guard that verifies you
   are in a linked worktree and the fallback when a branch is held by another

@@ -64,8 +64,11 @@ If that fails with `already used by worktree` (normal under /developer — the
 PR branch is checked out in the build worker's worktree):
 
 ```bash
-git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>
+git fetch origin pull/<PR>/head:fix/pr-<PR>
+git checkout fix/pr-<PR>
 ```
+
+Two separate calls — the worktree sandbox refuses them joined with `&&`.
 
 If `fix/pr-<PR>` is refused too — an earlier fix cycle's worktree still
 holds it — use `fix/pr-<PR>-r2` (then `-r3`, and so on) in both commands.
@@ -173,8 +176,12 @@ git commit -m "fix(pr): address review comments on #<PR>"
 git push origin <branch>      # from a local fix/pr-<PR>: git push origin HEAD:<pr-branch>
 ```
 
-Behind a pre-push hook that runs the gate, give the push the Bash tool's
-maximum timeout (`timeout: 600000`) so it finishes in the foreground.
+Run the push bare, in a call of its own, with the Bash tool's maximum
+timeout (`timeout: 600000`) so a gate-running pre-push hook finishes in the
+foreground. No `> log; echo $?`, no `| tail`: the worktree sandbox refuses the
+compound shapes, and a pipe throws the exit code away. The tool reports a
+non-zero exit by itself; when the output is long, search the file the harness
+saved it to, in a separate call, only on failure.
 
 **Do not wait for CI after the push.** Watching the checks, re-running a red
 job, or digging through its log is not part of this job: under /developer the

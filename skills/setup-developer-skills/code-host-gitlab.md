@@ -11,8 +11,8 @@ operations below override them**.
 - **Change ref**: the MR number (`!42` — GitLab numbers issues and MRs
   separately, so it never collides with an issue `#42`).
 - **Base branch**: `main`. Start work from `origin/main`
-  (`git fetch origin main && git checkout -b <branch> origin/main`) —
-  never `git checkout main`.
+  (`git fetch origin main`, then `git checkout -b <branch> origin/main` as
+  a separate command) — never `git checkout main`.
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/mr-<MR>` branch: `git push origin HEAD:<source-branch>`).
@@ -41,16 +41,16 @@ operations below override them**.
 - **Change metadata**: `glab mr view <MR> -F json` — fields `iid`, `title`,
   `source_branch`, `sha` (head), `state`, `draft`.
 - **Check out a change in a linked worktree (review, read-only)**: GitLab
-  exposes MR head refs — `git fetch origin merge-requests/<MR>/head &&
-  git checkout --detach FETCH_HEAD`. Never `glab mr checkout` in a linked
+  exposes MR head refs — `git fetch origin merge-requests/<MR>/head`, then
+  `git checkout --detach FETCH_HEAD` as a separate command. Never `glab mr checkout` in a linked
   worktree (the source branch is checked out in the build worker's
   worktree and git will refuse); never `git checkout main`.
 - **Check out a change in a linked worktree (fix, will push)**:
   `glab mr checkout <MR>`; if it fails because the branch is held by
-  another worktree, `git fetch origin merge-requests/<MR>/head:fix/mr-<MR>
-  && git checkout fix/mr-<MR>` and push later with
+  another worktree, `git fetch origin merge-requests/<MR>/head:fix/mr-<MR>`,
+  then `git checkout fix/mr-<MR>` as a separate command, and push later with
   `git push origin HEAD:<source-branch>`.
-- **Read the diff**: `git fetch origin main && git diff origin/main...HEAD`,
+- **Read the diff**: `git fetch origin main`, then `git diff origin/main...HEAD`,
   plus `glab mr diff <MR>` for the rendered view.
 - **Read the last reviewed revision** (the reviewer, to settle its scope —
   `review-pr` step 2): GitLab has no review object, but every positioned

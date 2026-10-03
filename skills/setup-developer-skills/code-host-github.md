@@ -16,8 +16,8 @@ Repo-specific facts:
 
 - **Change ref**: the PR number.
 - **Base branch**: `main`. Start work from `origin/main`
-  (`git fetch origin main && git checkout -b <branch> origin/main`) —
-  never `git checkout main`.
+  (`git fetch origin main`, then `git checkout -b <branch> origin/main` as
+  a separate command) — never `git checkout main`.
 - **Issue auto-close**: yes — `Closes #<n>` in the PR body closes issue
   `#<n>` when the PR merges, **provided the issue lives in this repo's
   GitHub Issues**. If this repo's issues live elsewhere (see

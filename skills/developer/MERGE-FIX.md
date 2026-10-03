@@ -51,8 +51,9 @@ Spawn a `code-author` with model `opus`, `isolation: "worktree"` and
 > MERGE-FIX job. PR #`<PR>` cannot be merged into main (conflict with a
 > previously merged PR). In your worktree get the PR branch per the
 > fix-that-pushes checkout in `docs/agents/code-host.md` (GitHub default:
-> `git fetch origin pull/<PR>/head:fix/pr-<PR> && git checkout fix/pr-<PR>`
-> — do not use `gh pr checkout` or check out the branch by name, it is
+> `git fetch origin pull/<PR>/head:fix/pr-<PR>`, then
+> `git checkout fix/pr-<PR>` as a separate call — never joined with `&&`,
+> which the worktree sandbox refuses; do not use `gh pr checkout` or check out the branch by name, it is
 > checked out in the build worker's worktree and git will refuse). If git
 > also refuses `fix/pr-<PR>` — an earlier fix cycle's worktree still holds
 > it — use `fix/pr-<PR>-merge` in both commands; never any other name, the

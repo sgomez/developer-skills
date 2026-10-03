@@ -295,7 +295,7 @@ Publish a **draft** change per the code-host doc, linked to the issue for
 closing. GitHub default:
 
 ```bash
-git push origin agent/issue-<N>-<slug>   # behind a gate-running pre-push hook: Bash timeout 600000
+git push origin agent/issue-<N>-<slug>
 
 gh pr create \
   --draft \
@@ -313,6 +313,14 @@ gh pr create \
 ## Discoveries
 <see below — omit the section when empty, the normal case>"
 ```
+
+**Run the push bare, in a call of its own, with the Bash tool's maximum
+timeout (`timeout: 600000`)** — a gate-running pre-push hook outlasts the
+2-minute default. No `> log; echo $?`, no `| tail`, no `cd` or variables in
+front: the worktree sandbox refuses the compound shapes outright, and a pipe
+throws the exit code away. The tool reports a non-zero exit by itself; that is
+the verdict. When the hook's output is long the harness saves it to a file —
+search that file in a separate call, and only when the push failed.
 
 Whatever the host, the change body keeps this shape — `Closes <ref>`,
 `## What changed`, `## Test plan`, optional `## Discoveries` — the
