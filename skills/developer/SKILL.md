@@ -5,10 +5,10 @@ description: Orchestrates unattended spec delivery — loops over a spec's child
 
 # Developer (orchestrator)
 
-Drives the build → review → fix → merge pipeline across isolated
-subagent workers, looping over every sub-issue of a spec unattended. Each
-worker gets a **clean context** — the only thing it knows is the arguments you
-pass in its prompt. You (the orchestrator) hold the state between steps.
+Drives the build → review → fix → merge pipeline across isolated subagent
+workers, looping over every sub-issue of a spec unattended. Each worker gets a
+**clean context** — it knows only what you pass in its prompt. You hold the
+state between steps.
 
 ## Invoke
 
@@ -18,99 +18,74 @@ pass in its prompt. You (the orchestrator) hold the state between steps.
 /developer <spec> <subissue>    # deliver a single specific sub-issue
 
 Flags (override the repo defaults — see Run configuration):
-  --parallel | --sequential     # spec mode: waves vs one-at-a-time
+  --parallel | --sequential       # spec mode: waves vs one-at-a-time
   --auto-merge | --no-auto-merge  # merge CLEAN PRs vs leave them ready
 ```
 
-If no issue number is given, ask for it and stop. Do not guess issue numbers.
-The execution flags only change spec mode; in single mode they are a no-op.
-Accept the bare words `parallel` / `sequential` as synonyms for the flags.
+If no issue number is given, ask for it and stop; never guess one. The
+execution flags only change spec mode. Accept the bare words `parallel` /
+`sequential` as synonyms.
 
-> **Namespacing.** Installed as a Claude Code plugin, skills and agents carry
-> the plugin prefix: the skills appear as `developer-skills:<name>` and the
-> subagents as `developer-skills:code-author` /
-> `developer-skills:diff-reviewer`. Use the names exactly as they appear in
-> your available-skills and available-agents lists; the short names below
-> refer to whichever form is installed.
+> **Namespacing.** Installed as a plugin, skills and agents carry the plugin
+> prefix (`developer-skills:<name>`, `developer-skills:code-author`,
+> `developer-skills:diff-reviewer`). Use the names exactly as your
+> available-skills and available-agents lists show them.
 
 ## Contract docs (tracker + code host)
 
-The pipeline is agnostic about where issues and changes live. Two committed
-docs define the mechanics for this repo, and every worker reads them in its
-own context:
+Two committed docs define this repo's mechanics, and every worker reads them
+in its own context:
 
-- **`docs/agents/issue-tracker.md`** — issue operations (read an issue,
-  enumerate children of a parent, check a blocker, comment, label, close)
-  in its `## Delivery operations` section.
-- **`docs/agents/code-host.md`** — change operations (publish, check out in
-  a worktree, review, mark ready, reply, merge, auto-close semantics).
+- **`docs/agents/issue-tracker.md`** — issue operations, in its
+  `## Delivery operations` section.
+- **`docs/agents/code-host.md`** — change operations (publish, check out,
+  review, mark ready, reply, merge, auto-close semantics).
 
-Read those two once at the start (they are short — an allowed exception to
-"never read bodies yourself").
+Read both once at the start, together with `docs/agents/developer-defaults.md`
+(Run configuration), in **one** call. Every command block below shows the
+GitHub factory default (`gh`); **when a contract doc defines a different
+mechanic for the same operation, the doc wins.** Missing docs → GitHub
+defaults as-is (suggest `/setup-developer-skills` if that looks wrong).
 
-**Their annexes are deferred, and every worker inherits that.** Each core doc
-links phase annexes naming the phase that opens them: `code-host-ci.md` is
-opened at the **checks gate**, when a change's CI has to be waited on, read
-or classified — nowhere earlier; `issue-authoring.md` is for whatever
-*creates* issues (`/to-tickets`) and this pipeline never opens it at all.
-Read an annex at the step that names it and not before. A run that opens
-them at the start pays the whole contract, three workers deep, per
-sub-issue, to use a fraction of it. **Every command block below shows the GitHub
-factory default (`gh`); when a contract doc defines a different mechanic
-for the same operation, the doc wins.** If a doc is missing, the GitHub
-defaults apply as-is — suggest `/setup-developer-skills` if that looks
-wrong.
+Note three things from `code-host.md`: whether the host is **GitHub** (it
+decides how the checks gate runs, step 5), whether it **declares CI** on
+changes (its `CI` line; `none` means there is no gate at all), and whether it
+**auto-closes issues on merge** (if not, you close each delivered issue
+yourself per the tracker ops right after verifying the merge).
 
-Note one capability flag from `docs/agents/code-host.md`: **issue auto-close
-on merge?** If not (e.g. issues on a tracker the code host can't close), the
-orchestrator closes the delivered issue itself per the tracker ops right
-after verifying the merge.
+**Their annexes are deferred.** `code-host-ci.md` belongs to the checks gate
+and, on GitHub, the bundled gate script replaces it for you (step 5) — leave
+it to the workers. `issue-authoring.md` is for whatever *creates* issues; this
+pipeline never opens it.
 
-**If either doc says the tracker or the code host is `local` (files in the
-repo, no remote), read `LOCAL-HOST.md` now, before anything else.** It holds
-every standing adjustment a local host or tracker needs — capability
-overrides, tracker writes, branch discipline, cleanup and wrap-up. A run on a
-remote host never loads it.
-
-Two more files are read **on demand**, never at the start: `MERGE-FIX.md` at
-the first merge conflict, and `WRAP-UP.md` when the loop ends.
-
-(All three live **next to this SKILL.md**, in the skill's own directory —
-under the plugin root when installed as a plugin, the same place
-`scripts/cleanup-worktrees.sh` comes from. They are part of this skill: a
-step that says to read one is not optional, it is that step's other half.)
+**If either doc says the tracker or the code host is `local`, read
+`LOCAL-HOST.md` now**, before anything else: it holds every standing
+adjustment a local host needs. Three more files next to this SKILL.md are read
+**on demand**, never at the start: `RESUME.md` on a resume, `MERGE-FIX.md` at
+the first merge conflict, `WRAP-UP.md` when the loop ends. Like
+`scripts/cleanup-worktrees.sh` and `scripts/checks-gate.sh`, they live in this
+skill's own directory; a step that says to read one is not optional.
 
 ## Run configuration
 
-Two knobs govern a run. Resolve each one **before mode detection**, in this
-precedence order: CLI flag > repo default > factory default.
+Two knobs, resolved once before mode detection and kept for the whole run —
+CLI flag > repo default (`docs/agents/developer-defaults.md`) > factory
+default. Ignore any other key in that file.
 
 | Knob        | Values                    | Factory default |
 |-------------|---------------------------|-----------------|
 | `execution` | `parallel` / `sequential` | `parallel`      |
 | `merge`     | `auto` / `manual`         | `manual`        |
 
-Repo defaults live in `docs/agents/developer-defaults.md`, written by
-`/setup-developer-skills`. Read it once at the start (it is short — this is
-an allowed exception to "never read bodies yourself"); if it is missing or a
-knob is absent, fall back to the factory default. Ignore any other key in
-it — an `oversized:` line left by an older setup included. State the resolved
-configuration in one line before starting, e.g.
+State it in one line before starting, e.g.
 `Run config: execution=parallel, merge=manual (repo defaults)`.
 
-What `merge` means:
-
-- **`auto`** — a CLEAN verdict triggers the code host's merge operation
-  (Merge step; `gh pr merge` on GitHub). The
-  committed `merge: auto` line in `docs/agents/developer-defaults.md` is the
-  user's standing authorization for these merges.
-- **`manual`** — the pipeline stops at CLEAN: you already marked the PR
-  ready after the review, so record the sub-issue as **ready-to-merge**
-  and leave
-  the merge to the human. Because sub-issues only close on merge
-  (`Closes #N`), anything `Blocked by` a ready-to-merge sub-issue stays
-  blocked for the rest of the run — expected, not an error; it lands in the
-  wrap-up as the human's queue.
+- **`merge: auto`** — a CLEAN verdict leads to the merge (step 5). The
+  committed `merge: auto` line is the user's standing authorization.
+- **`merge: manual`** — the pipeline stops at CLEAN: the PR is already marked
+  ready, so record the sub-issue as **ready-to-merge** and leave the merge to
+  the human. Sub-issues close only on merge, so anything blocked by a
+  ready-to-merge sub-issue stays blocked this run — expected, not an error.
 
 ## Workers (subagents)
 
@@ -121,37 +96,26 @@ What `merge` means:
 | fix     | `code-author`   | escalates per cycle             | `worktree` | `fix-pr`          |
 | harvest | `code-author`   | sonnet (pinned)                 | `worktree` | (reads PR bodies) |
 
-Spawn each via the **Agent** tool with the matching `subagent_type`. Pass
-`isolation: "worktree"` to every code-author and diff-reviewer spawn. Pass
-`model` explicitly to code-author spawns (step 1 picks the tier) and to
-**re-review** diff-reviewer spawns (`model: "sonnet"`) — the first review is
-discovery across the whole change and stays on the agent's pinned opus, while a
-re-review is verification of a diff the skill has already scoped down to the
-last fix pass. Never run the skills yourself in the main context — the point is
-isolation.
+Spawn each via the **Agent** tool with the matching `subagent_type` and
+`isolation: "worktree"`. Pass `model` explicitly to code-author spawns and to
+re-review spawns (`model: "sonnet"`); the first review stays on the agent's
+pinned opus. Never run these skills in the main context — isolation is the
+point.
 
-**Every spawn is `run_in_background: true`**, in both
-execution modes. A foreground spawn holds your turn open for the worker's whole
-run, and anything that interrupts that turn — a Ctrl-C, a dropped connection —
-takes the worker down with it: its context, its worktree and its commits are
-gone for good. The same interruption leaves a background worker running and
-still reachable. Sequential mode is not an exception to this: it means *wait
-for this worker's result before spawning the next*, not *spawn it in the
+**Every spawn is `run_in_background: true`**, in both execution modes. A
+foreground spawn dies with your turn — a Ctrl-C or a dropped connection takes
+its context, worktree and commits with it. Sequential mode means *wait for
+this worker's result before spawning the next*, not *spawn in the
 foreground*.
 
-Three things at every spawn, each cheap now and each the difference between a
-resume and a rebuild later:
+At every spawn:
 
-- Give the Agent tool a `description` that names the job and the sub-issue —
-  `Build #<N>`, `Review PR #<PR>`, `Fix #<N> cycle 2`. It is how the worker is
-  identified in the agent list and in the user's view of the run.
-- **Keep the `agentId`** the tool returns for as long as that worker runs: it
-  is the handle that picks the worker back up instead of starting it over (see
-  **Resuming the orchestrator**). Drop it when its `RESULT` arrives.
-- On a **BUILD, FIX or HARVEST** spawn — the jobs that hold uncommitted work
-  and are expensive to lose — append a spawn row to this run's log as soon as
-  the tool hands you the `agentId`, so the job leaves a trace that outlives
-  your context:
+- Give it a `description` naming the job and the sub-issue — `Build #<N>`,
+  `Review PR #<PR>`, `Fix #<N> cycle 2`.
+- **Keep the `agentId`** until its `RESULT` arrives: it is the handle that
+  resumes the worker instead of rebuilding.
+- On a **BUILD, FIX or HARVEST** spawn, append a spawn row to the run log as
+  soon as you have the `agentId` (batch the rows of one turn into one call):
 
   ```bash
   mkdir -p .scratch
@@ -159,113 +123,60 @@ resume and a rebuild later:
     >> .scratch/developer-run-<spec>.log
   ```
 
-  (`sub=none` on the harvest, which belongs to the whole run.) Review spawns
-  skip the row entirely: they are cheap to repeat, and pipeline
-  step 0 reconstructs where a PR stands without them. Step 7 writes the other
-  kind of row, the terminal one — a resume reads both, the wrap-up reads only
-  the terminal ones.
+  (`sub=none` for the harvest.) Review spawns get no row — they are cheap to
+  repeat and step 0 reconstructs them.
 
 ## Context economy
 
-The loop may cover many sub-issues; your context must survive all of them.
+Your context is the one resource the whole run shares, and **every turn you
+take re-reads all of it**. The cost of a run is your context size times your
+number of turns, so cut both.
 
-- **Never read issue or PR bodies yourself.** Workers read them in their own
-  disposable contexts. You only run the cheap listing commands below.
-- **Every command you run prints a bounded projection, never a blob.** Ask
-  for the fields you need (`--json`/`--jq`, `--format`) and cap what is left
-  (`head -20`, `| wc -l`). Two failure modes cost the most: a streaming or
-  watching command (`gh pr checks --watch`, `gh run watch`) repainting its
-  progress into your transcript, and a **malformed** command dumping its
-  tool's entire `--help` — a single mis-escaped `gh pr list --search` did
-  exactly that for 4k tokens in one field run. So send both streams of any
-  probe you are not certain of through a cap: `<cmd> 2>&1 | head -20`. What
-  you need from these commands is one number, one state or one exit code.
-  **Code-host writes are the exception** — see the last rule under **Rules**:
-  they run bare, never through a cap.
-- **Every spawn costs about the same whatever it carries** — roughly 750
-  tokens of prompt, launch metadata and result notification, against a payload
-  that is often one word. So never spawn a worker for anything a command or a
-  default already answers — the build's model tier is one line of the
-  sub-issue, read with one command. Builds, reviews and fixes are worth their
-  envelope: each needs its own worktree and its own clean context.
-- **Never read CI logs yourself** either — `gh run view --log-failed` and
-  anything like it. The Merge step's `--json` classification is the whole
-  diagnosis the orchestrator gets; the rest is the fixer's, in its context.
-- A worker's whole final message **is** its `RESULT` line — the agents require
-  it and every spawn prompt below restates it. A worker that reports prose
-  before its line is spending your context, not its own; nothing it says there
-  survives the run, so anything worth keeping belongs on the PR or the issue.
-- Track per sub-issue: number, task id, chosen model, PR number, verdict, fix
-  cycles, wave (parallel mode), the `agentId` of the worker running on it right
-  now (dropped the moment its `RESULT` arrives), outcome (merged /
-  ready-to-merge / escalated / blocked) — and write the row to the run log the
-  moment the sub-issue goes terminal (delivery pipeline step 7), so the wrap-up
-  reads facts instead of recalling them.
+- **Fewer turns.** Fold reads and local bookkeeping that happen at the same
+  moment into one Bash call — the blocks below are already shaped that way.
+  The one exception is code-host writes (last rule under **Rules**).
+- **Never read issue or PR bodies or CI logs yourself**, nor the contract
+  docs' annexes — except the CI annex at the checks gate on a non-GitHub
+  host. Workers read them in their own disposable contexts; you run the
+  bounded listing commands below.
+- **Bounded output.** Ask for the fields you need (`--json`/`--jq`) and cap
+  the rest (`2>&1 | head -20`): a malformed command can dump its tool's whole
+  `--help`. Never leave a watching or streaming command's progress
+  unredirected.
+- **Never spawn a worker for what a command answers.** Every spawn costs
+  ~750 tokens of envelope whatever it carries.
+- **A worker's whole final message is its `RESULT` line.** Anything worth
+  keeping belongs on the PR or the issue, not in your context.
+- Track per sub-issue: number, model, PR, verdict, fix cycles, wave, the live
+  worker's `agentId`, outcome — and write the row to the run log the moment
+  it goes terminal (step 7).
 
 ## Resuming the orchestrator
 
-A run outlives your turn: workers keep going in the background, their
-notifications can arrive late, and sessions get interrupted, compacted or
-restarted. So **while a run is in flight, every prompt that reaches you is a
-resume** — including a bare `Continue from where you left off.`, an empty
-continuation, or a notification you believe you have already handled. There is
-no state in which the right answer is "no response requested": either work is
-pending and you take its next step, or nothing is, and you go to **Wrap-up**.
-Silence is the one failure mode this pipeline cannot recover from on its own.
+A run outlives your turn: workers keep going in the background and their
+notifications can arrive late. **While a run is in flight, every prompt that
+reaches you is a resume** — a bare `Continue from where you left off.`, an
+empty continuation, a notification you think you already handled. There is no
+state in which the right answer is "no response requested": either work is
+pending and you take its next step, or nothing is and you go to **Wrap-up**.
 
-(This is the orchestrator's own resume. Pipeline step 0 is the per-sub-issue
-one — it is what step B below runs.)
-
-On any such prompt:
-
-1. **Rebuild the picture** from the three places that survive a dead context,
-   never from recall:
-   - the progress board (**TaskList**) — which sub-issues are `in_progress`;
-   - `.scratch/developer-run-<spec>.log` — the terminal rows already recorded,
-     and the `event=spawned` rows naming the worker that was running on each
-     sub-issue still in flight. If a wrap-up already ran this spec, the rows
-     from before it are in `.scratch/archive/developer-run-<spec>-*.log`;
-   - **ListAgents** — which of those workers are still alive.
-2. **Recover each non-terminal sub-issue** in this order, stopping at the first
-   that works:
-
-   **A. Its worker is still alive** → **SendMessage** to its `agentId` and ask
-   it to report. Its context, its worktree and its commits are all intact, so
-   this continues the job rather than repeating it — by far the cheapest
-   recovery, and the only one that does not throw away work already paid for.
-   A worker that finished while you were not looking answers here too, with the
-   `RESULT` whose notification you missed.
-
-   This works for `code-author`. It usually does not for `diff-reviewer`: a
-   review changes no files, so its worktree is removed when it ends and a
-   reviewer missing from `ListAgents` is missing for good. Try it if it is
-   listed; otherwise go straight to B — a review is cheap to repeat, a build
-   is not.
-
-   **B. Its worker is gone** → run pipeline **step 0** on that sub-issue
-   exactly as written. It asks the code host rather than your memory, and
-   routes the sub-issue to Review, to the Fix cycle, or back to Build when
-   nothing was ever opened for it.
-
-3. **Re-enter the loop**: recompute the unblocked set (spec loop step 1, or the
-   wave in parallel mode) and carry on. Nothing left → **Wrap-up**.
-
-Say in one line what you recovered and how, before continuing. During an
-unattended run the board and that line are the user's whole window into it.
+A worker's `RESULT` you were waiting for is just the next step. Anything else
+— or any doubt about where the run stands — **read `RESUME.md` and follow
+it**. Before rebuilding anything, check whether its worker is alive
+(`ListAgents`) and resume it with **SendMessage**: re-spawning a live
+worker's job pays twice for work that was never lost.
 
 ## Step 0 — Publish context docs before anything else
 
-Workers branch from `origin/main`, so any domain-context file that is not
-committed **and pushed** is invisible to them. Grilling/spec sessions edit
-these files but do not commit them. Before dispatching any worker:
+Workers branch from `origin/main`, so a domain-context file that is not
+committed **and pushed** is invisible to them:
 
 ```bash
 git status --porcelain -- CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
 ```
 
-If anything shows up, stage **only those paths** (never the user's unrelated
-work-in-progress), commit on the current branch (must be `main` — if not,
-stop and tell the user), and push:
+If anything shows up, stage **only those paths**, commit on the current branch
+(must be `main` — if not, stop and tell the user) and push:
 
 ```bash
 git add CONTEXT-MAP.md '**/CONTEXT.md' docs/adr docs/agents AGENTS.md CLAUDE.md
@@ -273,15 +184,13 @@ git commit -m "docs(domain): publish context map and ADR updates"
 git push origin main
 ```
 
-If the push is rejected, stop and report — do not rebase or force anything.
-This is the flow's start, before going unattended; the user is still there to
-resolve it.
+If the push is rejected, stop and report — never rebase or force. The user is
+still there at this point.
 
 ## Mode detection
 
 Enumerate the children of the given issue per the tracker's Delivery
-operations. GitHub default — native sub-issues (infer OWNER/REPO from
-`git remote -v`):
+operations. GitHub default (OWNER/REPO from `git remote -v`):
 
 ```bash
 gh api graphql -f query='
@@ -297,102 +206,66 @@ gh api graphql -f query='
 }' --jq '.data.repository.issue.subIssues'
 ```
 
-If `hasNextPage` is `true`, **stop and report**: a spec with more than 50
-sub-issues is not sized for this pipeline — tell the user to split it and end
-the run. Never proceed on the first page alone: delivering 50 of 60 while
-reporting the spec complete is a silent failure, the one outcome worse than
-stopping.
+`hasNextPage: true` → **stop and report**: more than 50 sub-issues is not sized
+for this pipeline; tell the user to split the spec. Never proceed on the
+first page alone. Keep each sub-issue's labels — the pick reads them. Where
+a tracker's enumeration carries no labels, get them per its read-labels
+operation instead.
 
-Keep each sub-issue's labels from this query — the pick reads them (spec loop
-step 1). Where a tracker's enumeration carries no labels, get them per its
-read-labels operation instead.
+(`#<N>` is the issue ref in the tracker's format, `#<PR>` the change ref in
+the code host's.)
 
-(Throughout this skill, `#<N>` stands for the issue ref in the tracker's
-own format — a number on GitHub/GitLab, a file path on a local tracker —
-and `#<PR>` for the change ref in the code host's format.)
-
-- **Open sub-issues exist → spec mode**: loop over all of them (below).
-- **No sub-issues → single mode**: run the delivery pipeline once on the given
-  issue, with the issue itself as spec (no separate parent spec).
-- **Two arguments given**: run the delivery pipeline once on `<subissue>` with
-  `<spec>` as the spec. Skip the loop. If the sub-issue ends **merged**
-  (verified CLOSED), read `WRAP-UP.md` and run its **Close the spec** step
-  (step 4) afterwards — it may have been the spec's last open sub-issue. That
-  one step is all this mode needs from the wrap-up.
+- **Open sub-issues exist → spec mode**: loop over them (below).
+- **No sub-issues → single mode**: run the delivery pipeline once on the
+  issue itself, with no separate spec.
+- **Two arguments**: run the pipeline once on `<subissue>` with `<spec>` as
+  the spec, no loop. If it ends **merged**, read `WRAP-UP.md` and run only its
+  **Close the spec** step (step 4).
 
 ## Progress board (spec mode — not optional)
 
-The user follows the run through the harness task list. Keep it faithful at
-every transition; a stale board defeats its purpose.
+The user follows the run through the harness task list; keep it faithful at
+every transition.
 
-1. **Immediately after mode detection**, create one task per open sub-issue
-   with **TaskCreate**, in sub-issue order: subject `#<N> <short>`,
-   activeForm `Delivering #<N>`. The whole plan must be on the board before
-   the first worker spawns.
-
-   `<short>` is the sub-issue title **trimmed to about six words / 50
-   characters**, cut at a word boundary and with no ellipsis — enough for the
-   user to tell the rows apart, and it never grows. Keep the same `<short>`
-   for that sub-issue's every later rename. The number is the identifier; the
-   words are only a label, and the full title is one `gh issue view` away for
-   anyone who needs it. This is not cosmetic: the harness re-injects the
-   **whole board** into your context on a timer, so every character of every
-   subject is re-read many times over a long run — a board of 25 full titles
-   costs more over a run than the entire spawn traffic it is tracking.
-2. When the delivery pipeline starts on a sub-issue → **TaskUpdate**
-   `status: in_progress`. In parallel mode every wave member goes
-   in_progress as its build spawns, so the board shows exactly what is
-   running concurrently.
+1. **Right after mode detection**, create one task per open sub-issue with
+   **TaskCreate**, in sub-issue order: subject `#<N> <short>`, activeForm
+   `Delivering #<N>`. `<short>` is the title **trimmed to about six words / 50
+   characters** at a word boundary, no ellipsis, and it never grows — the
+   harness re-injects the whole board into your context on a timer.
+2. Pipeline starts on a sub-issue → `status: in_progress`.
 3. Terminal transitions, the moment they happen:
-   - **merged** (sub-issue verified CLOSED) → `status: completed`.
-   - **ready-to-merge** (`merge: manual`, verdict CLEAN) → back to
-     `status: pending` and rename the subject to
-     `#<N> <short> — ready to merge: PR #<PR>`. Not completed — the human
-     still has to merge it.
-   - **escalated** → back to `status: pending` and rename the subject to
-     `#<N> <short> — escalated: <one-line reason>`. Never mark an escalated
-     sub-issue completed — unchecked items at the end are the human's queue.
-4. Sub-issues that never became deliverable (blocked by an escalated one, or
-   by a ready-to-merge one the human hasn't merged yet) stay pending; rename
-   them `#<N> <short> — blocked by #<M>` at wrap-up.
+   - **merged** (verified CLOSED) → `status: completed`.
+   - **ready-to-merge** → back to `pending`, subject
+     `#<N> <short> — ready to merge: PR #<PR>`.
+   - **escalated** → back to `pending`, subject
+     `#<N> <short> — escalated: <one-line reason>`. Never completed.
+4. Sub-issues that never became deliverable stay pending; rename them
+   `#<N> <short> — blocked by #<M>` at wrap-up.
 
-Single mode (no sub-issues) skips the board.
+Single mode skips the board.
 
-**The board is the report — do not narrate the run beside it.** Between the
-run-config line and the wrap-up, a spec run's default output is *nothing*: the
-task list already says which sub-issue is building, which is in review, which
-is merged and which is waiting, and it says it live, without costing a turn.
-Prose that restates it — "wave 1 launched", "builds spawned", a table of the
-tier each sub-issue drew, "5 of 25 merged" — is a second, staler copy of the
-board, and the user has to read past it to reach the part that is not on the
-board. Keep the board current instead; that *is* the progress report.
+**The board is the report — say nothing beside it.** Between the run-config
+line and the wrap-up, a spec run's default output is *nothing*: no wave
+announcements, no tier tables, no running tallies. Only these, each in one or
+two lines:
 
-Six things still get said, each in **one or two lines**, never a table:
-
-- the resolved run config, once, before starting (Run configuration);
-- what you recovered, once, after a resume (Resuming the orchestrator);
-- a switch into the conflict queue (Parallel mode);
-- **how** to merge, the first time a sub-issue lands ready-to-merge under
-  `merge: manual` — once for the run, not once per PR; the wrap-up repeats it
-  for the rest;
-- anything that **stops** the run or needs the human: an escalation and why,
-  a denied permission, a spec too large to size;
-- a direct question from the user, answered directly — the silence rule
-  governs unprompted narration, never a reply.
-
-Everything else the run learns goes where it survives: the board, the PR, the
-issue, the run log, and the wrap-up summary at the end.
+- the run config, once;
+- what you recovered, after a resume;
+- a switch into the conflict queue;
+- **how** to merge, the first time a sub-issue lands ready-to-merge (once per
+  run);
+- anything that **stops** the run or needs the human (an escalation and why, a
+  denied permission, a spec too large);
+- a direct answer to a direct question from the user.
 
 ## Spec loop
 
 Repeat while open sub-issues remain:
 
 1. **Pick the next unblocked sub-issue**: for each open sub-issue (lowest
-   number first), check its blockers without reading full bodies — the
-   "check a blocker's state" operation from the tracker doc. Blockers may
-   be wired as the tracker's **native dependency links**, as a
-   `Blocked by` body section, or both (`/to-tickets` prefers native edges
-   where the tracker has them) — check both. GitHub default:
+   number first), check its blockers without reading full bodies. Blockers
+   may be native dependency links, a `Blocked by` body section, or both —
+   check both, for all candidates in one call. GitHub default:
 
    ```bash
    # native dependencies: count of OPEN blockers (0 or absent = clear)
@@ -403,170 +276,79 @@ Repeat while open sub-issues remain:
    gh issue view <BLOCKER> --json state --jq '.state'
    ```
 
-   Extract the `Blocked by` **section**, never a fixed window around the
-   heading: a `grep -A<n>` reads the wrong number of lines by construction —
-   it drops the fifth blocker of a list of six and swallows the first lines
-   of whatever section follows a list of two.
+   Extract the whole `Blocked by` **section** as above, never a fixed
+   `grep -A<n>` window. Take the first open sub-issue whose blockers are all
+   closed, except:
 
-   Take the first open sub-issue whose blockers are all closed, and:
-
-   - **Skip any sub-issue carrying the `ready-for-human` triage label** (the
-     repo's own string for that role if `docs/agents/triage-labels.md` maps it
-     differently) — from the labels the enumeration returned, plus the ones
-     you applied yourself while escalating this run. That label is the
-     escalation gate: someone already gave up on this sub-issue, and picking it
-     up again buys three more fix cycles against the same wall. The gate is
-     symmetric and it is the whole mechanism: **removing the label re-queues
-     the sub-issue**, there is no other state to reset.
-   - Whatever a gated sub-issue blocks stays blocked, as with any open one.
+   - **Skip any sub-issue labelled `ready-for-human`** (or the repo's string
+     for that role in `docs/agents/triage-labels.md`) — from the enumerated
+     labels plus the ones you applied this run. That label is the escalation
+     gate; **removing it re-queues the sub-issue**.
    - With `merge: manual`, sub-issues you already delivered as ready-to-merge
-     count as done for *your* loop but their dependents stay blocked — skip
-     both.
+     count as done for your loop, and their dependents stay blocked.
 
 2. Run the **delivery pipeline** on it.
-
-3. On **merged** or **ready-to-merge** → next iteration. On
-   **escalated/blocked** → record it, next iteration.
-
-4. When no deliverable sub-issue remains (all closed or ready-to-merge, or
-   the rest are blocked by escalated/unmerged ones) → **wrap-up**.
+3. **merged** / **ready-to-merge** → next iteration. **escalated** / blocked →
+   record it, next iteration.
+4. No deliverable sub-issue left → **Wrap-up**.
 
 ## Parallel mode (`execution: parallel`)
 
-Parallel is the factory default (see Run configuration). The trade-off:
-sequential with `merge: auto` delivers one sub-issue fully before the next
-starts, so each PR branches from a `main` that already contains the previous
-one — no merge conflicts by construction. Parallel trades that guarantee for
-throughput: independent sub-issues are built concurrently, and conflicts
-between their PRs become expected work, resolved by extra merge-fix jobs.
-Note that with `merge: manual` sibling PRs all branch from the same `main`
-regardless of execution mode — sequential buys no conflict guarantee there,
-so parallel costs nothing extra.
+Parallel (the factory default) builds independent sub-issues concurrently and
+accepts conflicts between their PRs as expected work. (Sequential with
+`merge: auto` avoids them by construction: each PR branches from a `main`
+that already holds the previous one. With `merge: manual` siblings branch
+from the same `main` either way.)
 
 Work in **waves**:
 
-1. **Wave = every open sub-issue whose blockers are all closed** (same check
-   as step 1 of the spec loop), minus the ones that step's gate excludes —
-   `ready-for-human` above all, whether this run applied it or an earlier one
-   did.
-2. Run the delivery pipeline on each wave member concurrently, entry points
-   first: the pipeline's **step 0** resolves where each member starts, and only
-   the ones with no open change get built. Read each one's model tier (step 1),
-   then spawn their `code-author` BUILD jobs in parallel (each in its own
-   worktree, `run_in_background: true`). A resumed member goes
-   straight into the review or fix stage alongside them. As each build
-   reports its PR, spawn its `diff-reviewer`; as each reviewer reports,
-   mark that PR ready (step 3 of the pipeline); fix cycles run per PR
-   exactly as in the sequential pipeline. Cap concurrent build/review/fix
-   workers at **3**; queue the rest of the wave.
-3. **Merges stay strictly serial** — never merge two PRs concurrently. With
-   `merge: auto`, merge each PR as it reaches CLEAN. **After every successful
-   merge, refresh the wave's still-open PRs** per the code host's
-   update-branch operation — GitHub default, per open sibling:
-
-   ```bash
-   gh pr update-branch <PR>
-   ```
-
-   It is a remote operation — no local git. Each sibling branched from a
-   `main` that did not contain this merge; left stale, its CI goes red for
-   synchronization, not for a bug, and a full fix cycle ends up doing what
-   this one call does. A sibling whose update fails on a conflict is left
-   alone — but note it: that failure is what puts the PR in the conflict
-   queue (step 4), which is the only place a conflicting PR is worked on.
-   Learning it here rather than at the merge gate is most of the point —
-   spec #994 skipped one refresh and met the conflict forty minutes later,
-   with the queue idle in between.
-
-   **Every still-open member, including the ones mid-fix-cycle.** A PR that
-   is being fixed is exactly the one that will still be open in an hour and
-   exactly the one that goes stale; skipping it because "it is not ready yet"
-   defers the conflict to the moment you most want a clean merge.
-
-   **One PR per Bash call.** Issue the refreshes as separate commands, not as
-   a `for` loop over the wave: a loop that writes to the code host reads as a
-   bulk operation to the permission classifier and gets denied wholesale
-   (observed in spec #994 — the same two calls, run singly, went through
-   untouched).
-
-   Every PR in the wave branched from the same `main`, so any PR merged
-   after the first may conflict: on merge failure **after** the Merge step's
-   checks gate passed, run the merge-fix job (`MERGE-FIX.md`) and retry once.
-   With `merge: manual` there is nothing to serialize — each CLEAN PR just
-   becomes ready-to-merge.
-
-   **The first conflict of the wave closes the parallel phase.** From that
-   moment the wave finishes through a **conflict queue** (below), not
-   concurrently. Conflicts are not independent work: every conflicting PR
-   resolves against the same `main`, and the first one merged invalidates
-   every resolution computed beside it. Two merge-fix workers running at once
-   are one worker and one rewrite waiting to happen.
-4. **Conflict queue.** Once step 3 has seen one conflict, the wave's
-   remaining unmerged PRs form a queue, ordered oldest-PR-first, and it
-   drains **one at a time**:
-
-   - **At most one merge-fix worker is alive in the whole run.** Never spawn
-     a second while one is running, whatever the worker cap allows.
-   - A PR's merge-fix is spawned **only when that PR is at the head of the
-     queue** — i.e. after the previous PR is merged into `main`. Until its
-     turn a queued PR gets **no merge-fix worker**; its conflict is not stale
-     work, it is work not yet started. (Step 3's `gh pr update-branch` refresh
-     still runs on it after every merge — that call is remote, cheap, and
-     often *is* the resolution.)
-   - When the head PR merges, drop it from the queue and try the next one's
-     merge before assuming it still conflicts: the winner's merge, plus the
-     refresh, resolves most of the rest for free. Only a merge that actually
-     fails earns a merge-fix worker.
-   - Everything that is not the merge path — builds, reviews, and review fix
-     cycles, including a queued PR's own — carries on in parallel underneath.
-     The queue serializes conflict resolution, not the wave.
-
-   Say the switch out loud once, in one line, e.g. `#936 conflicts — wave
-   finishing through the conflict queue: #936 → #937 → #938.`
-
-5. When every wave member is delivered (merged, ready-to-merge, or
-   escalated), recompute the unblocked set → next wave. None left →
-   **wrap-up**.
-
-Everything else — context economy, escalation, wrap-up, rules — is unchanged.
+1. **Wave = every open sub-issue whose blockers are all closed**, minus the
+   ones the spec loop's gate excludes.
+2. Run the pipeline on each member concurrently: step 0 first for all of them
+   (one call), read each tier (step 1), spawn the builds in parallel. A
+   resumed member goes straight to review or fix alongside them. As each
+   build reports, spawn its reviewer; as each reviewer reports, mark ready;
+   fix cycles run per PR as in the sequential pipeline. **Cap concurrent
+   build/review/fix workers at 3**; queue the rest.
+3. **Merges are strictly serial** — never two at once. **Never refresh the
+   siblings after a merge.** With #1, #2 and #3 green together, refreshing
+   #2 and #3 when #1 merges, and #2 again when #3 merges, re-runs CI on every
+   open sibling at every merge — quadratic in the wave — for nothing the
+   gate does not already decide. Each PR is handled only at its own checks
+   gate (step 5), right before its merge: if the repo requires up-to-date
+   branches GitHub reports it `BEHIND` and the gate updates **that PR only**,
+   once; if it does not, the PR merges on the green CI it already has. A
+   conflict with a just-merged sibling surfaces as `DIRTY` at that PR's own
+   gate — later than an eager refresh would have shown it, but the conflict
+   queue only works one PR at a time anyway.
+4. **The first conflict of the wave** — `DIRTY` from a gate, or a failed
+   merge — switches the wave to the **conflict queue**: read
+   `MERGE-FIX.md` and follow it. At most one merge-fix worker is ever alive.
+5. Every member delivered (merged, ready-to-merge or escalated) → recompute
+   the unblocked set → next wave. None left → **Wrap-up**.
 
 ## Delivery pipeline (per sub-issue)
 
 ### 0. Entry point — resume, never rebuild
 
-(Pipeline step 0, not the top-level Step 0 that publishes the context docs.
-This is the per-sub-issue resume, reached both on a fresh run and as step B of
-**Resuming the orchestrator**.)
-
-A run can die at any point — a dead session, a compaction, a Ctrl-C — and the
-sub-issues it half-delivered are still open, so re-running `/developer <spec>`
-picks them right back up. What the tracker forgets is how far each one got:
-build from scratch again and you get a second PR for the same sub-issue and a
-second review paying for it. So before building, ask the code host whether a
-change already exists for this sub-issue, per its "open change for this issue"
-operation. GitHub default:
+A dead run leaves its sub-issues open, and re-running `/developer <spec>`
+picks them up — so ask the code host whether a change already exists before
+building; read the model tier (step 1) in the same call. GitHub default:
 
 ```bash
 gh pr list --state open --search '"Closes #<subissue>" in:body' --json number,isDraft
 ```
 
-- **No open PR** → nothing to resume: step 1 (Model tier).
-- **One open PR, no unresolved review threads** → keep its `<PR>`, skip
-  Build, start at step 3 (Review). The reviewer settles its own
-  scope from the PR's review history, so this covers both shapes: a build
-  that was never reviewed (full scope) and one whose review was answered in
-  full but never reached a verdict (incremental). If it comes back
-  `blocked reason=no new commits since the last review`, the previous review
-  was the last word and everything it raised is resolved: treat it as
-  **CLEAN** and go to Merge — here only, because no fix pass ran this cycle
-  to leave findings standing.
-- **One open PR with unresolved review threads** → a review landed and its
-  fixes did not: read the model tier (step 1), then start at step 4 (Fix
-  cycle), counting from cycle 1.
-- **More than one open PR matches** → **escalate**: two open changes for one
-  sub-issue is a human's call, never a pick.
+- **No open PR** → step 1 (Model tier), then Build.
+- **One open PR, no unresolved review threads** → keep `<PR>`, skip Build,
+  go to step 3 (Review); the reviewer settles its own scope. If it comes back
+  `blocked reason=no new commits since the last review`, everything it
+  raised is resolved: treat it as **CLEAN** and go to Merge — here only.
+- **One open PR with unresolved threads** → start at step 4 (Fix cycle),
+  cycle 1, with the tier from step 1.
+- **More than one open PR matches** → **escalate**; never pick one.
 
-GitHub default for the unresolved-thread count:
+Unresolved-thread count, GitHub default:
 
 ```bash
 gh api graphql -f query='
@@ -580,35 +362,26 @@ gh api graphql -f query='
           | select(.isResolved == false)] | length'
 ```
 
-The fix-cycle budget starts fresh on a resume: a PR that already burned cycles
-in the dead run gets three more here. That is deliberate — the alternative is
-reconstructing a counter nothing ever recorded — and the `ready-for-human` gate
-is what stops a sub-issue looping forever across runs.
+A resumed PR gets a fresh three-cycle budget; the `ready-for-human` gate is
+what stops a sub-issue looping across runs.
 
 ### 1. Model tier
 
-The sub-issue carries its own complexity: `/to-tickets` writes a
-`## Complexity` section into every child it creates (the repo's
-`docs/agents/issue-authoring.md` requires it), rated by whoever cut the spec.
-Read that section only — never the body — per the tracker's read-an-issue
-operation. GitHub default:
+Read the sub-issue's `## Complexity` section only — never the body. GitHub
+default:
 
 ```bash
 gh issue view <N> --json body --jq '.body' \
   | awk '/^##[#]* *[Cc]omplexity/{f=1;next} /^#/{f=0} f' | head -3
 ```
 
-- starts with `complex` → **`opus`**
-- anything else — `standard`, an unrecognised word, or no section at all (an
-  older or hand-written ticket) → **`sonnet`**
-
-That is the whole step: no worker is spawned to rate a ticket. The tier is
-fixed for the sub-issue; the fix cycle escalates from it on its own (step 4).
+Starts with `complex` → **`opus`**. Anything else, or no section → **`sonnet`**.
+No worker is spawned to rate a ticket.
 
 ### 2. Build
 
-Spawn `code-author` with `model: <tier>`, `isolation: "worktree"` and
-`run_in_background: true`, then log the spawn row (Workers):
+Spawn `code-author` with `model: <tier>`, `isolation: "worktree"`,
+`run_in_background: true`, then log the spawn row:
 
 > BUILD job. Spec issue #`<spec>`, sub-issue #`<subissue>`.
 > Run the implement-issue skill on the sub-issue. The sub-issue's
@@ -618,34 +391,23 @@ Spawn `code-author` with `model: <tier>`, `isolation: "worktree"` and
 > before it, nothing after it. Whatever deserves a record goes in the PR body,
 > not in your reply. Report only a PR number you have confirmed exists.
 
-- `RESULT blocked …` → **escalate** (see below) and move to the next
-  sub-issue.
-- `RESULT pr=<PR> url=<URL>` → **confirm the PR exists**, then keep `<PR>` and
-  continue:
+- `RESULT blocked …` → **escalate**, next sub-issue.
+- `RESULT pr=<PR> url=<URL>` → **confirm the PR exists** before anything else
+  (a worker's `RESULT` is a claim; this is the one free check):
 
   ```bash
   gh pr view <PR> --json number,state,headRefName
   ```
 
-  Never skip it. A build has reported `pr=<N>` for a number the host 404s on,
-  with its whole implementation sitting uncommitted in its worktree because the
-  publish step never ran at all. A worker's `RESULT` is a claim; this is the one
-  cheap command that turns it into a fact, and the only thing standing between a
-  fabricated line and a reviewer sent after a PR that was never opened. (Change
-  metadata is read per `docs/agents/code-host.md` on another host.)
-
-  On a 404, **do not re-spawn the build** — the work is almost certainly intact
-  in the worker's worktree. Recover the worker per **Resuming the orchestrator**
-  step A: its spawn row holds the `agentId`, `ListAgents` says whether it is
-  still alive, and **SendMessage** tells it what you found and to run its
-  publish step for real, reporting only a number it has verified. If the worker
-  is gone, escalate naming its branch and worktree, so nobody rebuilds on top of
-  work that still exists.
+  On a 404, **never re-spawn the build** — the work is almost certainly
+  uncommitted or unpublished in its worktree. Resume the worker (its spawn row
+  holds the `agentId`; check `ListAgents`) with **SendMessage**, telling it
+  what you found and to run its publish step for real. Worker gone →
+  escalate, naming its branch and worktree.
 
 ### 3. Review
 
-Spawn `diff-reviewer` with `isolation: "worktree"` and
-`run_in_background: true`:
+Spawn `diff-reviewer` with `isolation: "worktree"`, `run_in_background: true`:
 
 > Review PR #`<PR>` by running the review-pr skill on it — its step 1 plus
 > the repo's `docs/agents/code-host.md` give the exact checkout procedure
@@ -655,45 +417,36 @@ Spawn `diff-reviewer` with `isolation: "worktree"` and
 > steps. Your entire final message must be the `RESULT verdict=…` line — the
 > review itself is your output, your reply is not.
 
-Then **mark the PR ready yourself**, whatever the verdict — per the
-code-host doc's mark-ready operation. GitHub default:
+Then **mark the PR ready yourself**, whatever the verdict, unless it already
+is (a re-review, or step 0 saw `isDraft: false`). GitHub default:
 
 ```bash
 gh pr ready <PR>
 ```
 
-Skip it whenever the PR is already ready — a re-review, or a resumed run
-whose step 0 found `isDraft: false`.
-
-- `verdict=CLEAN` → go to **Merge**.
-- `verdict=NEEDS_FIXES` → enter the fix cycle.
-- `RESULT blocked reason=no new commits since the last review …` → the fix
-  pass pushed nothing, so there is nothing to re-review. Check that first:
-  if the PR's head (`gh pr view <PR> --json headRefOid --jq .headRefOid`)
-  is not the one it had before that fix pass spawned, the fixer **did** push
-  and the reviewer misread its anchor — **escalate** rather than burn a
-  cycle on commits nobody reviewed. Otherwise treat it exactly as that
-  cycle's `NEEDS_FIXES`: the previous findings still stand. Do not re-spawn
-  the reviewer — go straight to the next fix cycle (or escalate if the
-  budget is spent).
-- `RESULT blocked` because the change branch is held by another worktree
-  (the worker quotes git's "already used by worktree" error) → a previous
-  worker's worktree wasn't cleaned: run **Cleanup** (step 6) and re-spawn
-  the reviewer, **once per sub-issue** — if it blocks again, escalate.
-- Any other `RESULT blocked` or malformed result → **escalate**, next
-  sub-issue.
+- `verdict=CLEAN` → **Merge** (step 5).
+- `verdict=NEEDS_FIXES` → **Fix cycle** (step 4).
+- `RESULT blocked reason=no new commits since the last review …` → compare
+  the PR head with the sha you noted before the fix pass. **Moved** → the
+  fixer pushed and the reviewer misread its anchor: **escalate**. **Same** →
+  treat it as that cycle's `NEEDS_FIXES` (the findings stand) and go straight
+  to the next fix cycle without re-spawning the reviewer — or **escalate** if
+  that was cycle 3.
+- `RESULT blocked` because the branch is held by another worktree (git's
+  "already used by worktree") → run **Cleanup** (step 6) and re-spawn the
+  reviewer, **once per sub-issue**; blocked again → escalate.
+- Any other `blocked` or a malformed result → **escalate**.
 
 ### 4. Fix cycle (max 3)
 
 For cycle `c` = 1, 2, 3:
 
-1. Fixer model: cycle 1 uses the build tier, each later cycle escalates one
-   tier (sonnet → opus; opus stays opus). A sub-issue resumed straight into
-   this step takes its tier from step 1, like a build.
+1. Fixer model: cycle 1 uses the build tier; each later cycle escalates one
+   tier (sonnet → opus; opus stays opus).
 2. Note the PR's head sha (`gh pr view <PR> --json headRefOid --jq
    .headRefOid`) — step 3's no-new-commits check compares against it. Spawn
-   `code-author` with that model, `isolation: "worktree"` and
-   `run_in_background: true`, then log the spawn row (Workers):
+   `code-author` with that model, `isolation: "worktree"`,
+   `run_in_background: true`, then log the spawn row:
 
    > FIX job. PR #`<PR>`. Run the fix-pr skill to address all review
    > threads — its step 1 plus the repo's `docs/agents/code-host.md` give
@@ -703,335 +456,163 @@ For cycle `c` = 1, 2, 3:
    > `RESULT pr=… url=…` line — what you fixed belongs in the thread replies,
    > not in your reply to me.
 
-   When this cycle was triggered by the **checks gate** (Merge step) rather
-   than by a review verdict, append one line to that prompt naming the
-   failure — `The PR's CI is red: <failing job URL>. Fix the failing checks
-   too; there may be no review threads at all.` — so the fixer does not go
-   looking for threads that do not exist.
+   When the cycle comes from the **checks gate** rather than a review, append:
+   `The PR's CI is red: <job URL>. Fix the failing checks too; there may be no
+   review threads at all.`
 
-   `RESULT blocked …` → **escalate**, next sub-issue (a branch-held-by-
-   worktree blocked gets the same one-shot Cleanup + re-spawn as in step 3).
-3. Re-review: spawn `diff-reviewer` again with the step 3 prompt plus
-   `model: "sonnet"`, and append one line to it:
+   `RESULT blocked …` → **escalate** (a branch-held-by-worktree block gets the
+   same one-shot Cleanup + re-spawn as in step 3).
+3. Re-review: spawn `diff-reviewer` with the step 3 prompt, `model:
+   "sonnet"`, plus one line:
 
    > This is a re-review after fix cycle `<c>`. The skill's step 2 will scope
    > your diff to what landed since the last review — use that scope, and
    > check every previous finding was really fixed in code.
 
-   Do not restate the findings in the prompt: they are on the PR, which is
-   where the reviewer reads them.
+   Do not restate the findings; the reviewer reads them on the PR.
    - `CLEAN` → **Merge**.
    - `NEEDS_FIXES` and `c < 3` → next cycle.
-   - `NEEDS_FIXES` and `c = 3` → **escalate** (do NOT merge), next sub-issue.
+   - `NEEDS_FIXES` and `c = 3` → **escalate** (never merge).
 
 ### 5. Merge
 
-**With `merge: manual`** (the factory default) there is nothing to merge:
-you already marked the PR ready after the review, so record the sub-issue
-as **ready-to-merge**, update its board task (`— ready to merge: PR #<PR>`),
-run **Cleanup** (step 6), record its row (step 7), and move on. The sub-issue
-stays open until the human merges, so its dependents remain blocked this run.
+**`merge: manual`** → nothing to merge: the PR is ready, so record the
+sub-issue as **ready-to-merge**, update its board task, run **Cleanup** (step
+6), record its row (step 7) and move on. The first time this happens in a
+run, say in one line **how** to merge (the code-host doc's merge operation,
+concretely).
 
-Say **how** to merge the **first** time a sub-issue becomes ready-to-merge —
-a bare "ready to merge" leaves the user asking what to do, especially off
-GitHub. State the code-host doc's merge operation concretely, in one line,
-once for the whole run: the board carries every later PR, and the wrap-up
-repeats the command.
+**`merge: auto`** → the merge is pre-authorized. If the permission system
+still asks, say so; if it *denies*, escalate (Rules) — never retry.
 
-**With `merge: auto`**: this merge is pre-authorized — the user opted into
-`merge: auto` in `docs/agents/developer-defaults.md` (or passed
-`--auto-merge` this run), which is standing authorization to merge PRs whose
-review verdict is CLEAN. If the permission system still asks, say exactly
-that; if it *denies*, follow the denial rule under Rules (escalate, never
-retry).
-
-**Checks gate — never merge on red CI.** If `docs/agents/code-host.md`
-declares a CI system, wait for the PR's checks and read their result before
-merging. **This is the step that opens `docs/agents/code-host-ci.md`** (that
-doc's CI annex) if the repo has one — read it now, not at the start of the
-run, and take its wait / read / classify operations from there. GitHub
-default:
+**Checks gate — never merge on red CI.** If `code-host.md` says `CI: none`,
+there is no gate: merge. Otherwise, on a GitHub host the gate is one call to
+the bundled script — read-only, it waits silently and prints a single
+verdict. CI takes longer than a foreground Bash call may run, so run it with
+**`run_in_background: true`** and act on its line when the completion
+notification arrives (in parallel mode, other workers' results keep arriving
+meanwhile — handle them as usual):
 
 ```bash
-# 0. is the branch even mergeable? a conflicting PR never gets a check
-gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus
-# 1. wait until CI has attached at least one check to the current head sha
-for _ in $(seq 20); do
-  [ "$(gh pr view <PR> --json statusCheckRollup --jq '.statusCheckRollup | length')" -gt 0 ] && break
-  sleep 15
-done
-# 2. then wait for them to finish — non-zero here means a check actually failed.
-#    --watch repaints a progress table every 10s; keep all of it out of your
-#    context and read the failures back only if the exit code says there are any.
-gh pr checks <PR> --watch --fail-fast >/dev/null 2>&1 \
-  || gh pr checks <PR> --json name,state,link \
-       --jq '.[] | select(.state != "SUCCESS" and .state != "SKIPPED")'
+bash <skill-dir>/scripts/checks-gate.sh <PR>
 ```
 
-Step 0 comes first and it decides whether the rest runs at all. On **`DIRTY`**
-(GitHub's word for "conflicts with the base") the branch is unmergeable, the
-host will not run checks against it, and steps 1–2 can only spend their five
-minutes to report the absence: leave the gate now and take the conflict path —
-the merge-fix job (`MERGE-FIX.md`), or the conflict queue in parallel mode —
-then re-enter this gate from the top once the resolution is pushed. Field
-evidence (spec #994): two PRs went `DIRTY` after a sibling merged, and each
-burned the full wait to arrive at `no checks reported`, which the infra-red
-rule below then reads as a CI that cannot start. Diagnosing a conflict as
-infra-red escalates a healthy sub-issue and **ends the run** — the most
-expensive misreading this gate can make, from a call that costs one second.
+On another host, read `docs/agents/code-host-ci.md` now (not earlier) and run
+the same sequence with its operations: mergeable state, wait for checks to
+register, wait for them to finish, classify a red — waiting inside an
+`until`/`for` loop or with **Monitor**, never a command that opens with a bare
+`sleep` (the harness blocks it). Act on the verdict:
 
-Step 1 is not optional either. `gh pr checks` exits non-zero for **two**
-different reasons — a check failed, and *no check is registered yet* (`no checks reported
-on the '<branch>' branch`) — and nothing downstream can tell them apart: the
-classify step below needs a `<run-id>` that does not exist yet. The window is
-real and you will hit it, because `gh pr update-branch` (the `BEHIND` path
-below, and parallel mode's post-merge refresh) moves the head sha and CI takes
-a few seconds to attach runs to the new one. Waiting for the checks to appear
-turns that into a wait instead of a red.
+| Verdict | Action |
+|---|---|
+| `GREEN` | Merge. |
+| `BEHIND` | `gh pr update-branch <PR>` (bare, own call), then run the gate again. The script already lets a fresh update settle; `BEHIND` straight after an update → escalate. |
+| `DIRTY` | A conflict, never a red: the merge-fix path (`MERGE-FIX.md`; the conflict queue in parallel mode), then the gate again from the top. |
+| `NO_CHECKS` | **Infra-red** (below): CI is declared, yet nothing ever registered on the change. |
+| `PENDING` | CI still running after an hour: escalate, naming it. |
+| `ERROR …` | Run the gate once more; `ERROR` again → escalate, quoting it. |
+| `RED code run=<id> url=<job>` | **Retry once per PR**: `gh run rerun <id> --failed` (bare), then the gate again. Red again → one more **fix cycle** (step 4) with `<job>` appended to the fixer's prompt, same three-cycle budget. |
+| `RED code url=<link>` | Not an Actions run, so nothing to retry: a **fix cycle** with `<link>`. |
+| `RED infra …` | The code never ran (or no runner ever picked it up): spawn no fixer. **Escalate** naming the cause and go to **Wrap-up** — a CI that cannot start reds every later gate identically. The unblock line: restore the CI, re-run `/developer <spec>`. |
 
-Still no check after the loop's ~5 minutes, in a repo whose code-host doc
-declares CI **and on a branch step 0 said was mergeable** → that is
-**infra-red**: nothing ever picked the change up. Take the infra-red branch
-below. A `DIRTY` branch is never infra-red, however long it waits — that is
-step 0's whole job.
+One retry, never two: a wobbly suite reds a fine change, and one retry is the
+cheapest way to find out — but a retry *loop* merges a genuinely broken
+intermittent test by persistence. **Never read CI logs** to decide: the
+verdict is the whole diagnosis you get; the fixer reads the logs from the job
+URL. Never fall through to the merge on red, however unrelated the failing
+check looks.
 
-**Never open a command with a bare `sleep`** — the harness blocks it, here and
-anywhere else in this skill. Wait inside an `until`/`for` loop like the one
-above, or with the **Monitor** tool.
-
-- **Green** (or the code-host doc declares no CI) → merge.
-- **Red** → this is **not** a conflict (step 0 already ruled that out).
-  First check whether the branch is merely **behind `main`** — a sibling
-  merged after this branch was cut:
-
-  ```bash
-  gh pr view <PR> --json mergeStateStatus --jq .mergeStateStatus   # BEHIND?
-  ```
-
-  On `BEHIND`, run the code host's update-branch operation
-  (`gh pr update-branch <PR>` on GitHub) and re-run this gate — **once per
-  PR**; the red was synchronization, not a bug, and no fixer is needed.
-
-  Still red on an up-to-date branch → **classify the red** before paying
-  for a fixer, per the CI annex's classify-a-red operation. GitHub
-  default (`<run-id>` comes from the failing check's `link`):
-
-  ```bash
-  gh run view <run-id> --json conclusion,jobs --jq '{run: .conclusion,
-    failed: [.jobs[] | select(.conclusion != "success" and .conclusion != "skipped")
-    | {name, steps: (.steps | length)}]}'
-  ```
-
-  - **Code-red** — a failed job executed steps (`steps > 0`): the change
-    was exercised and failed. Before paying for a fixer, **retry the run
-    once**:
-
-    ```bash
-    gh run rerun <run-id> --failed
-    ```
-
-    then re-enter this gate. Green → merge, and no fix cycle was spent.
-    Red again → the failure is real: treat it as one more **fix cycle**
-    (step 4), spawning the fixer with the failing job's URL appended to its
-    prompt. The same three-cycle budget applies; exhausted → **escalate**.
-
-    **Once per PR, and never twice.** A suite whose infrastructure wobbles —
-    a service the tests dial refusing connections, an unhandled teardown
-    error, a timeout — reds a change that is fine, and a fix cycle against
-    it buys nothing; one retry is the cheapest way to find out, cheaper than
-    a worker plus a review. But a retry *loop* merges a genuinely broken
-    intermittent test by persistence, which is worse than spending the
-    cycle. One retry, then believe it.
-  - **Infra-red** — every failed job sits at `steps: 0`, the run concluded
-    `startup_failure`, or no runner ever picked the job up: the code was
-    never exercised, so there is nothing a fixer can fix. Spawn none.
-    **Escalate** the sub-issue naming the cause (runner offline, CI
-    minutes exhausted) and go to **wrap-up**: a CI that cannot start reds
-    every later PR's gate identically, so continuing burns builds that
-    cannot merge. The wrap-up's unblock question is one line: restore the
-    CI (minutes, runner), then re-run `/developer <spec>`.
-  - The CI annex defines no classify operation, or there is no annex and
-    the code-host doc names none (or the host cannot tell) → every red is
-    code-red, as before.
-
-  **Never read CI logs in the main context.** The `--json` query above is the
-  whole diagnosis you are allowed: `gh run view --log-failed`, `--log`, and
-  any grep over them dump raw job output straight into the context this
-  design exists to protect — the same rule as "never read issue or PR bodies
-  yourself" (Context economy), and the reason the fixer is handed the failing
-  job's URL instead of your reading of it. If the `--json` classification is
-  not enough to decide, the answer is the retry above, then the fixer — never
-  a closer look.
-
-  Merging a red PR is the one failure this gate exists to prevent, so never
-  fall through to the merge command on red — not even when the failing check
-  looks unrelated.
-
-Without this gate a repo with no branch protection merges its own red build,
-and a repo *with* required checks fails the merge for a reason that is not a
-conflict — which is exactly what makes the merge-fix job (`MERGE-FIX.md`, and
-the failure branch further down this step) the wrong answer to it.
-
-Never touch local git state — your checkout may be in use by the user. Merge
-remotely, per the code-host doc's merge operation. GitHub default:
+**The merge.** Never touch local git state — merge remotely, per the
+code-host doc. GitHub default, **exactly** in this form, alone in its own Bash
+call (no pipe, no `2>&1 | head`, no `;`/`&&`), because the merge-approval hook
+matches only the bare command and anything else goes to the auto-mode
+classifier, which denies it:
 
 ```bash
 gh pr merge <PR> --merge
 ```
 
-Run it **exactly** in that form, alone in its own Bash call — no pipe, no
-`2>&1 | head`, no `;`/`&&`, and not chained with the issue check below. The
-merge-approval hook (`hooks/approve-merge.sh`) only matches the bare command,
-and an allow rule only covers a compound command when every piece matches one;
-anything else falls to the auto-mode classifier, which denies the merge.
+No `--delete-branch`: it also tries to delete the local branch, which the
+build worker's worktree still holds. Step 6 deletes the remote branch.
 
-Do **not** pass `--delete-branch`: it also tries to delete the *local* branch,
-which is always still checked out in the build worker's worktree, so it fails
-noisily every time. The remote branch is deleted in Cleanup (step 6), after
-the worktrees are gone.
-
-Then make sure the sub-issue is closed. If the code host auto-closes linked
-issues (see `docs/agents/code-host.md`), just verify, in a separate Bash
-call — GitHub default:
-
-```bash
-gh issue view <subissue> --json state --jq '.state'   # expect CLOSED
-```
-
-If there is **no auto-close** (issues on a different tracker than the code
-host, or a local tracker), close the sub-issue yourself per the tracker
-ops, with a comment naming the merged change.
-
-If the merge fails **after** the checks gate passed, it is a conflict with a
-previously merged change: read `MERGE-FIX.md` and dispatch the job it
-describes, then merge again. In parallel mode this conflict is also what
-switches the wave to its **conflict queue** (Parallel mode, step 4) — the job
-below is spawned for one PR at a time, never for every conflicting sibling at
-once. That file also covers the conflict a human hits
-on their own merge under `merge: manual` — the answer is the same job, never
-the main context.
+A merge that fails **after** a `GREEN` gate is a conflict with a just-merged
+change: read `MERGE-FIX.md`, dispatch its job (in parallel mode, through the
+conflict queue), then merge again. The same file covers a conflict the human
+hits on their own merge under `merge: manual` — always the merge-fix job,
+never the main context.
 
 ### 6. Cleanup
 
-The harness only auto-removes a worker's worktree when it is **unchanged** —
-build and fix workers always leave a branch, commits, and `node_modules`
-behind, so without this step every sub-issue leaks worktrees until the disk
-fills. Run it whenever a sub-issue finishes — **merged, ready-to-merge, or
-escalated** — everything is pushed by then, so nothing local is worth
-keeping.
+Run it whenever a sub-issue finishes — merged, ready-to-merge or escalated.
+Build and fix workers always leave a branch, commits and `node_modules`
+behind; without this every sub-issue leaks a worktree.
 
-All removal mechanics live in the bundled script
-`scripts/cleanup-worktrees.sh` (next to this SKILL.md — under the plugin
-root when installed as a plugin). **Never improvise `git worktree remove`,
-`git branch -D`, or any other repair yourself** — the script is the only
-sanctioned way to touch local git state here. It removes only the linked
-worktrees and local branches matching what you pass, refuses by construction
-to touch the primary checkout, keeps any worktree with uncommitted changes,
-and deletes a branch only when its commits are on a remote — nothing it
-deletes is ever the only copy of work. Every refusal is a `KEPT` line naming
-its reason: treat those like `WARN` lines — carry them into the wrap-up
-summary verbatim, and never re-run with broader flags or improvised git to
-force what the script declined. If it finds the primary in detached HEAD
-it prints a `WARN` line and leaves it alone (that is the fingerprint of a
-worker having escaped its worktree — carry the WARN into your wrap-up
-summary, do not "fix" the checkout).
+All removal goes through the bundled `scripts/cleanup-worktrees.sh` — **never
+improvise `git worktree remove`, `git branch -D` or any repair yourself**. It
+removes only what matches, never the primary checkout, keeps dirty worktrees,
+and deletes a branch only when its commits are on a remote. Every refusal is
+a `KEPT` line with its reason and every anomaly a `WARN` line (a detached
+primary checkout means a worker escaped its worktree): carry them into the
+wrap-up verbatim, never re-run with broader flags, never "fix" the checkout.
+
+After a **merge**, the closing bookkeeping is **one** call — verify the
+issue closed, clean up, check the remote branch and record the row (step 7).
+GitHub default:
 
 ```bash
-BRANCH=$(gh pr view <PR> --json headRefName --jq .headRefName)   # skip if no PR
-HEAD_SHA=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
+gh issue view <subissue> --json state --jq '"issue=" + .state'   # expect CLOSED
+B=$(gh pr view <PR> --json headRefName --jq .headRefName)
+H=$(gh pr view <PR> --json headRefOid --jq .headRefOid)
 bash <skill-dir>/scripts/cleanup-worktrees.sh \
-  --branch "$BRANCH" --branch "fix/pr-<PR>*" \
-  --branch "agent/issue-<subissue>-*" --sha "$HEAD_SHA"
+  --branch "$B" --branch "fix/pr-<PR>*" \
+  --branch "agent/issue-<subissue>-*" --sha "$H" 2>&1 | grep -vE '^(REMOVED|DELETED) '
+git ls-remote --exit-code --heads origin "$B" >/dev/null; echo "remote-branch-exit=$?"
+echo "<step 7 row>" >> .scratch/developer-run-<spec>.log
 ```
 
-(The two `gh pr view` lines are the GitHub default for the change-metadata
-operation — on another host get branch and head sha per
-`docs/agents/code-host.md`.)
+- `issue=` not `CLOSED` and the host auto-closes → check again once; still
+  open → close it per the tracker ops with a comment naming the merged
+  change. No auto-close on this host → close it yourself, always.
+- `remote-branch-exit=0` → the branch is still there: delete it in a
+  **separate**, bare call. `2` → the host already did; skip it.
 
-(A blocked build that never opened a PR has no `$BRANCH`/`$HEAD_SHA` — drop
-those flags; the `agent/issue-<subissue>-*` pattern still catches its
-worktree. Its never-pushed branch comes back `KEPT (tip not on any remote)` —
-that is the guard working, not a failure: the branch is the only copy of
-whatever the build did. Leave it and report it.)
+  ```bash
+  git push origin --delete "<branch>"
+  ```
 
-If the sub-issue was **merged**, also delete the remote branch now (the merge
-deliberately skipped `--delete-branch`, and `cleanup-worktrees.sh` only ever
-deletes *local* branches):
+For a **ready-to-merge or escalated** sub-issue, run only the cleanup line
+(and record the row): the remote branch and the PR stay. A blocked build with
+no PR has no `$B`/`$H` — drop those flags; its never-pushed branch comes back
+`KEPT (tip not on any remote)`, which is the guard working: leave it and
+report it. On another host get branch and head sha per
+`docs/agents/code-host.md`.
 
-```bash
-git ls-remote --exit-code --heads origin "$BRANCH"
-```
-
-Exit code 0 → the branch is still there; delete it in a **separate** Bash call
-(a code-host write — see the last rule under **Rules**). Exit code 2 → the
-host already deleted it; skip the push.
-
-```bash
-git push origin --delete "$BRANCH"
-```
-
-Ask before you push: many hosts delete the head branch themselves on merge, and
-against one of those a bare `git push origin --delete` fails with `remote ref
-does not exist` on **every** merge of the run. That noise is indistinguishable
-from a delete that failed for a reason worth knowing, which is the whole cost of
-leaving it unguarded.
-
-Matching strictly on this sub-issue's branches/sha is what makes this safe in
-parallel mode — other wave members' worktrees never match. On an escalated or
-ready-to-merge sub-issue the remote branch and open PR are untouched; only
-local state goes.
-
-A review that ran before a fix cycle left its worktree detached at a sha the
-fixes have since superseded, so it never matches `--sha` here. That is
-expected: the wrap-up sweep removes those — do not chase them now, and do not
-improvise extra flags for them.
+A reviewer's worktree detached at a sha a later fix superseded never matches
+`--sha`; the wrap-up sweep removes it — do not chase it.
 
 ### 7. Record the row
 
-The moment a sub-issue reaches its terminal state — **merged**,
-**ready-to-merge**, or **escalated** — append its ledger row to this run's log,
-before touching the next sub-issue:
+The moment a sub-issue goes terminal — **merged**, **ready-to-merge** or
+**escalated** — its ledger row goes into the run log (inside the step 6 block
+after a merge), before you touch the next sub-issue:
 
-```bash
-mkdir -p .scratch
-echo "$(date +%F) spec=#<spec> sub=#<N> model=<tier> effort=<effort> pr=#<PR> verdict=<CLEAN|—> cycles=<n> mergefix=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>" \
-  >> .scratch/developer-run-<spec>.log
+```
+<date> spec=#<spec> sub=#<N> model=<tier> effort=<effort> pr=#<PR> verdict=<CLEAN|—> cycles=<n> mergefix=<n> wave=<w|—> outcome=<merged|ready-to-merge|escalated>
 ```
 
-(`effort=` is the reasoning effort the build ran at — the `code-author`
-definition pins it (`medium` today), so copy that value; it exists so rows
-stay comparable across runs if the pin ever changes. `mergefix=` counts the
-merge-fix workers this PR needed — `0` for a PR that merged on its first
-try. It is a separate number from `cycles=` because it prices a different
-thing: `cycles` is the ticket being hard, `mergefix` is the *wave* being
-expensive, and only that field lets a later reader of the ledger say "this spec's
-tickets all rewrite the same files — deliver it sequentially". `verdict=—` /
-`wave=—`
-where the field does not apply — an escalated sub-issue that never got a
-CLEAN, sequential mode. `pr=none` for a build that never opened one.)
+`effort=` is the build's reasoning effort as pinned in the `code-author`
+definition (`medium` today). `cycles=` counts fix cycles (the ticket being
+hard), `mergefix=` merge-fix workers (the wave being expensive). `—` where a
+field does not apply; `pr=none` for a build that never opened one. Rows with
+`outcome=` are what the wrap-up and a resume read; spawn rows have none.
 
-Write it here and the wrap-up reads facts instead of recalling them: a run that
-survives ten sub-issues, a context compaction, and a resume (step 0) still
-reports the exact tier, PR and cycle count of the first one. The row is the
-same one the wrap-up hands the harvest and the same one the chat summary
-tabulates — write it once, correctly, now.
-
-This row and the `event=spawned` rows from the Workers section share the file,
-and the difference is the `outcome=` field: every row written here carries one,
-no spawn row does. That is what the wrap-up filters on when it hands the
-harvest the run's record, and what a resume filters on when it looks for
-sub-issues still in flight.
-
-The log is a run artifact, not tracked work: **never stage it**. The
-context-docs publish (the top-level Step 0) and the local-tracker
-`chore(tracker):` commits both name their own paths, so neither picks it up.
+The log is a run artifact: **never stage it**.
 
 ## Escalation
 
-When a sub-issue is blocked, non-convergent after 3
-fix cycles, or unmergeable, apply the `ready-for-human` triage label to the
-sub-issue and comment on both the sub-issue and the spec, per the tracker
-ops. GitHub default:
+When a sub-issue is blocked, non-convergent after 3 fix cycles, or
+unmergeable, apply the `ready-for-human` label and comment on the sub-issue
+and the spec, per the tracker ops. GitHub default:
 
 ```bash
 gh issue edit <subissue> --add-label "ready-for-human"
@@ -1039,102 +620,52 @@ gh issue comment <subissue> --body "Escalated by /developer: <reason>. PR: <url 
 gh issue comment <spec> --body "Sub-issue #<subissue> escalated: <one-line reason>."
 ```
 
-Leave the PR open (never merge an unclean PR). Run the **Cleanup** step
-(step 6) — the local worktrees go, the remote branch and PR stay — record the
-row (step 7), then continue the loop with the next unblocked sub-issue.
-
-The label is what makes the escalation outlive this session: the pick (spec
-loop step 1) skips a `ready-for-human` sub-issue on every future run, until a
-human removes it.
+Leave the PR open (never merge an unclean PR), run **Cleanup** (step 6),
+record the row (step 7), and continue with the next unblocked sub-issue. The
+label makes the escalation outlive this session: every future pick skips it
+until a human removes it.
 
 ## Wrap-up
 
-When no deliverable sub-issue remains — all closed or ready-to-merge, or the
-rest blocked by escalated/unmerged ones — **read `WRAP-UP.md` and follow it**.
-It holds the seven closing steps (reconcile the board, harvest + ledger, final
-sweep, close the spec, push notification, chat summary, execution report). It
-is read once, here, at the end of the run.
+When no deliverable sub-issue remains, **read `WRAP-UP.md` and follow it**
+(reconcile the board, harvest + ledger, final sweep, close the spec, push
+notification, chat summary, execution report). It is read once, here.
 
 ## Rules
 
-- Resolve the run configuration (execution + merge) once, before mode
-  detection, and stick to it for the whole run — flags > repo defaults >
-  factory defaults (parallel, manual).
-- In sequential mode, one sub-issue is fully delivered (merged,
-  ready-to-merge, or escalated) before the next starts. In parallel mode,
-  builds/reviews/fixes may overlap, but merges are always one at a time.
-- Never run the merge operation (`gh pr merge`, `glab mr merge`, …) when
-  the resolved config says `merge: manual` — ready + CLEAN is the terminal
-  state there, even if merging seems convenient.
-- Unattended: never stop to ask the user anything mid-loop. Escalate via
-  labels/comments and keep going.
-- **The agent docs are read-only to this pipeline.** `AGENTS.md`, `CLAUDE.md`,
-  `CONTEXT-MAP.md`, `docs/adr/` and everything under `docs/agents/` are
-  instructions the run obeys, not state it maintains — a run that rewrites its
-  own instructions changes every future run, unattended and unreviewed. Two
-  exceptions, both narrow: `docs/agents/delivery-ledger.md`, the run history the
-  harvest appends to (wrap-up step 2), and Step
-  0's commit of context docs, which publishes edits **the human already made**
-  and authors nothing. Everything else a run learns is *proposed* in the
-  summary and applied by a human, or by `/setup-developer-skills` for the
-  parts its templates own. This binds the workers too: say so in their prompts
-  when a job goes anywhere near these files.
-- Every worker spawn is `run_in_background: true`, in both execution modes.
-  Never hold your turn open waiting for a worker to finish.
-- Cap the output of every command you run, and never leave a watching or
-  streaming command's progress unredirected — see **Context economy**. Your
-  context is the one resource the whole run shares. Code-host writes are the
-  exception (next rule).
-- Every code-host write the orchestrator runs — `gh pr merge`, `gh pr ready`,
-  `gh pr update-branch`, `git push origin --delete` (or their `docs/agents/code-host.md`
-  equivalents) — is a **bare command in its own Bash call**: no pipe, no
-  `2>&1 | head`, no `;`/`&&`, no verification chained after it. Permission
-  rules and the merge hook match the whole command, so a chained write loses
-  its pre-approval and goes to the auto-mode classifier. Their output is a
-  line or two anyway.
-- In spec mode, keep the board current and say nothing beside it — no wave
-  announcements, no tier tables, no running tallies. Six exceptions, all
-  one-liners, listed under **Progress board**.
-- While a run is in flight, no prompt that reaches you is a no-op — a bare
-  "continue" is a resume, not a question. Reconstruct and take the next step
-  per **Resuming the orchestrator**; never answer that no response is needed.
-- Before rebuilding anything, check whether its worker is still alive
-  (`ListAgents`) and resume it with **SendMessage**. Re-spawning a live
-  worker's job pays twice for work that was never lost.
-- Never act on a `RESULT pr=…` you have not confirmed exists — one `gh pr view`
-  after every build, before the reviewer is spawned. A worker's report is a
-  claim until you check it, and this is the only claim you can check for free.
-- Each worker *starts* stateless: pass everything it needs in its prompt; never
-  assume a fresh spawn can see prior steps. A worker resumed with SendMessage
-  is the one exception — it still holds its own context.
-- Never run `git checkout`, `git pull`, or any state-changing git command in
-  the main context — the only exceptions are Step 0's scoped commit+push of
-  context docs, the `cleanup-worktrees.sh` script (steps 6 and wrap-up),
+- Unattended: never stop to ask the user mid-loop. Escalate via labels and
+  comments and keep going.
+- Sequential: one sub-issue fully delivered before the next starts. Parallel:
+  builds, reviews and fixes overlap; merges are always one at a time, and at
+  most one merge-fix worker is ever alive.
+- Never merge under `merge: manual`. Never merge a change whose checks gate
+  did not say `GREEN` — on a repo whose `code-host.md` says `CI: none` there
+  is no gate.
+- Marking ready and merging are yours, never a worker's; posting the review is
+  the reviewer's, never yours. Never author or edit review content.
+- Never act on a `RESULT pr=…` you have not confirmed exists.
+- Each fresh worker starts stateless: pass everything it needs in its prompt.
+  A worker resumed with SendMessage still holds its own context.
+- **The agent docs are read-only to this pipeline.** `AGENTS.md`,
+  `CLAUDE.md`, `CONTEXT-MAP.md`, `docs/adr/` and `docs/agents/` are
+  instructions the run obeys, not state it maintains. Two narrow exceptions:
+  `docs/agents/delivery-ledger.md` (the harvest appends to it) and Step 0's
+  commit of edits the human already made. Anything else a run learns is
+  *proposed* in the summary. Tell workers so when a job goes near these files.
+- Never run `git checkout`, `git pull` or any state-changing git command in
+  the main context, except Step 0's scoped commit+push, `cleanup-worktrees.sh`,
   the merged-branch `git push origin --delete`, and — local tracker only —
-  the scoped `.scratch/` tracker-write commits from `LOCAL-HOST.md`. If the
-  script warns that the primary checkout is detached, report it — never
-  repair it.
-- Only spawn the fix worker when the review said `NEEDS_FIXES` or the
-  checks gate found the change's CI **code-red** *and* the one retry it
-  allows came back red too — an infra-red (the failing job never executed)
-  escalates and ends the run instead.
-- Retry a red CI run exactly once per PR, never twice, and never diagnose it
-  by reading its logs in the main context.
-- Never merge a change whose CI checks are red, whatever the merge policy
-  and however unrelated the failing check looks.
-- Never resolve merge conflicts in the main context — not even when the
-  user hands you one interactively. That is always the merge-fix job's
-  work, in its own worktree.
-- Never run two merge-fix workers at once. Conflicting PRs drain through the
-  conflict queue one at a time, each one's merge-fix spawned only after the
-  previous PR is in `main` — parallel merge-fixes resolve against a `main`
-  that the winner is about to move, so all but one are rewritten.
-- Marking ready and merging are yours, never a worker's; posting the review
-  is the reviewer's, never yours. Never author, edit, or amend review
-  content in the main context.
-- If a permission is denied — a worker reports one (posting the review,
-  pushing, commenting), or your own code-host write is denied (marking
-  ready, merging, …) — never re-run the denied action yourself or re-shape
-  it into a different command: that is tunneling around the denial and will
-  also be blocked. Treat the sub-issue as blocked: **escalate** it and
-  continue the loop.
+  the `.scratch/` tracker commits from `LOCAL-HOST.md`.
+- Never resolve merge conflicts in the main context, not even when the user
+  hands you one: that is always the merge-fix job's.
+- If a permission is denied — to a worker (posting the review, pushing) or to
+  you (marking ready, merging, …) — never re-run or re-shape the denied
+  action: **escalate** the sub-issue and continue.
+- Every code-host write you run — `gh pr merge`, `gh pr ready`,
+  `gh pr update-branch`, `gh run rerun`, `git push origin --delete` (or their
+  `docs/agents/code-host.md` equivalents) — is a **bare command in its own
+  Bash call**: no pipe, no `2>&1 | head`, no `;`/`&&`, no verification
+  chained, and one PR per call — never a loop over several. Permission rules
+  and the merge hook match the whole command, and a bulk or chained write
+  goes to the auto-mode classifier, which denies it. Their output is a line
+  or two anyway.

@@ -8,8 +8,9 @@ it out, reviewing the diff and merging need nothing from here.
 
 Three operations read the same checks, for different readers.
 
-- **Wait for the checks and gate the merge** (the orchestrator, before
-  merging):
+- **Wait for the checks and gate the merge** (before merging; the
+  orchestrator runs the bundled `checks-gate.sh` instead, which does this,
+  the mergeable probe and the classification below in one call):
 
   ```bash
   gh pr checks <PR> --watch --fail-fast   # exits non-zero if any check fails
@@ -45,7 +46,10 @@ Three operations read the same checks, for different readers.
   the job never started (runner offline, Actions minutes exhausted) and
   the red says nothing about the code.
 
-<!-- Anything else this repo's readers need in order to interpret a red — what
-green does and does not cover, which lanes run when, how to reproduce the
-suite locally — belongs here or in the repo's testing docs, never back in
-`code-host.md`: that file is read at the top of every worker's first turn. -->
+<!-- Keep this file to the operations above. Anything else readers need to
+interpret a red — what green does and does not cover, which lanes run when,
+how to reproduce the suite locally — belongs in the repo's testing docs,
+linked from here in one line: every reader of this annex pays for all of it,
+and on a non-GitHub host that includes the orchestrator, once per run. Never
+put it back in `code-host.md` either: that file is read at the top of every
+worker's first turn. -->

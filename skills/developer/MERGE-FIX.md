@@ -5,11 +5,12 @@ the merge-fix job's spawn prompt and the two situations that call for it.
 
 ## When to dispatch it
 
-1. **A merge you ran failed** (pipeline step 5) because the change conflicts
-   with a previously merged one. In parallel mode this is routine, not
-   exceptional: every wave member branched from the same `main`, so any change
-   merged after the first may conflict. Budget **one merge-fix per conflicting
-   change** before escalating.
+1. **The change conflicts with `main`** (pipeline step 5): its checks gate
+   said `DIRTY`, or a merge you ran after a `GREEN` gate failed. In parallel
+   mode this is routine, not exceptional: every wave member branched from the
+   same `main`, so any change merged after the first may conflict. Budget
+   **one merge-fix per conflicting change** against an unchanged `main`
+   before escalating.
 2. **The human's own merge hit a conflict** under `merge: manual` — mid-run or
    after wrap-up — and they bring it to you. Never resolve it in the main
    context: that fills the context this pipeline exists to protect. Have them
@@ -29,11 +30,36 @@ work is thrown away. Running three of them concurrently does not deliver three
 PRs — it delivers one and queues two rewrites.
 
 So in parallel mode the first conflict switches the wave to the **conflict
-queue** (SKILL.md, Parallel mode, step 4), and this job is spawned only for
-the PR at the head of it, only after the previous PR is merged. Before
-spawning, always **try the plain merge again first**: the PR that just merged
-often carried the conflict away with it, and `gh pr update-branch` handles most
-of what is left for free. Only a merge that actually fails earns a worker.
+queue** (below), and this job is spawned only for the PR at the head of it,
+only after the previous PR is merged. Before spawning, always **try the plain
+merge again first**: the PR that just merged often carried the conflict away
+with it, and `gh pr update-branch` handles most of what is left for free. Only
+a merge that actually fails earns a worker.
+
+## The conflict queue (parallel mode)
+
+The first conflict of a wave — a `DIRTY` from the checks gate, or a failed
+merge — closes the wave's parallel merge phase. Conflicts
+are not independent work: every conflicting PR resolves against the same
+`main`, and the first one merged invalidates every resolution computed beside
+it. From then on the wave's remaining unmerged PRs form a queue, ordered
+oldest-PR-first, and it drains **one at a time**:
+
+- **At most one merge-fix worker is alive in the whole run**, whatever the
+  worker cap allows.
+- A PR's merge-fix is spawned **only when that PR is at the head of the
+  queue** — after the previous PR is in `main`. Until its turn a queued PR
+  gets no merge-fix worker; its conflict is work not yet started.
+- When the head PR merges, drop it and run the next one's checks gate before
+  assuming it still conflicts: the winner's merge plus an update-branch
+  resolves most of the rest for free. Only a merge that actually fails, or a
+  gate that still says `DIRTY`, earns a merge-fix worker.
+- Everything that is not the merge path — builds, reviews, review fix cycles,
+  including a queued PR's own — carries on in parallel underneath. The queue
+  serializes conflict resolution, not the wave.
+
+Say the switch out loud once, in one line, e.g. `#936 conflicts — wave
+finishing through the conflict queue: #936 → #937 → #938.`
 
 ## The job
 
@@ -79,18 +105,23 @@ Spawn a `code-author` with model `opus`, `isolation: "worktree"` and
 > `RESULT pr=… url=… base=<the sha you rebased onto> strategy=<rebase|merge>`
 > line — nothing before it, nothing after it.
 
-When it reports, check the base **before** merging:
+When it reports, check the base **before** anything else:
 
 ```bash
 git ls-remote origin main        # still BASE?
 ```
 
-- **`main` is still at BASE** → merge the PR. If that merge fails again, the
-  resolution was genuinely wrong: **escalate**.
+The worker pushed a new head, so every path below goes through the **checks
+gate** (SKILL.md, step 5) before any merge — never merge straight after a
+merge-fix.
+
+- **`main` is still at BASE** → run the gate. `DIRTY` again, or a merge
+  after `GREEN` that fails again, means the resolution was genuinely wrong:
+  **escalate**.
 - **`main` has moved** (another PR merged while the worker ran) → the
-  resolution is stale through no fault of the worker. Try
-  `gh pr update-branch <PR>` and merge; if it still conflicts, spawn the job
-  once more against the new base. **A stale-base failure does not consume the
+  resolution is stale through no fault of the worker. Run the gate (it
+  reports `BEHIND` or `DIRTY`, and `BEHIND` takes an update-branch as usual);
+  if it still says `DIRTY`, spawn the job once more against the new base. **A stale-base failure does not consume the
   one-retry budget** — that budget counts attempts against an unchanged
   `main`, and burning it on a moving base escalates PRs that had nothing
   wrong with them. Two consecutive stale bases mean something else is merging

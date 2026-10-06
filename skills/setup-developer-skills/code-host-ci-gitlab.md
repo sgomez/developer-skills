@@ -35,7 +35,10 @@ checking it out, reviewing the diff and merging need nothing from here.
 > test against. If a command's shape has drifted, `glab <cmd> --help` is
 > authoritative — fix the command here in this doc, not in the skills.
 
-<!-- Anything else this repo's readers need in order to interpret a red — what
-green does and does not cover, which lanes run when, how to reproduce the
-suite locally — belongs here or in the repo's testing docs, never back in
-`code-host.md`: that file is read at the top of every worker's first turn. -->
+<!-- Keep this file to the operations above. Anything else readers need to
+interpret a red — what green does and does not cover, which lanes run when,
+how to reproduce the suite locally — belongs in the repo's testing docs,
+linked from here in one line: every reader of this annex pays for all of it,
+and on a non-GitHub host that includes the orchestrator, once per run. Never
+put it back in `code-host.md` either: that file is read at the top of every
+worker's first turn. -->

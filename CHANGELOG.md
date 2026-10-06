@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **The orchestrator costs a fraction of what it did.** Measured on a
+  seven-ticket spec, the orchestrator alone read 10 M tokens — 37 % of the
+  run — over 99 turns, each one re-reading a context that started at 45 k
+  because the skill was 1,140 lines. Its workers' reports were already one
+  line; the cost was its own size times its own turns. Now:
+  - `SKILL.md` is 45 % shorter. The resume procedure moved to `RESUME.md`
+    and the conflict queue to `MERGE-FIX.md`, both read only when needed,
+    and the field anecdotes and the rules that repeated the body are gone.
+  - The checks gate is one call on GitHub: the new
+    `scripts/checks-gate.sh <PR>`, run in the background, probes
+    mergeability, waits for the checks and classifies a red, then prints a
+    single verdict (`GREEN`, `BEHIND`, `DIRTY`, `NO_CHECKS`, `PENDING`,
+    `RED code …`, `RED infra …`). The red path used to take up to seven
+    turns. It is read-only, so re-runs, updates and merges stay bare
+    commands. Allow it like `cleanup-worktrees.sh` (see the README). On the
+    way it closes three holes: a run re-run to green is no longer judged by
+    its old failed attempt, checks that sit queued with no runner are
+    infra-red instead of an hour's wait, and a code-red in any failing
+    workflow outranks an infra-red in another.
+  - On GitHub the orchestrator no longer reads `docs/agents/code-host-ci.md`.
+    Anything a repo added there for its readers (lanes to ignore, known
+    flakes) still reaches the workers, but not the gate.
+  - A repo whose `code-host.md` says `CI: none` skips the gate again, as the
+    template always promised, instead of waiting minutes for checks that
+    never come.
+  - Closing a merged sub-issue is one call: issue check, worktree cleanup,
+    remote-branch probe and ledger row together.
+- **Siblings are no longer refreshed after every merge.** Updating every
+  open wave PR whenever one merged re-ran CI on all of them each time — with
+  #1, #2 and #3 green together, #2 and #3 ran again after #1, and #2 a third
+  time after #3. Now a PR is touched only at its own gate: updated once if
+  GitHub reports it `BEHIND` (repos that require up-to-date branches),
+  otherwise merged on the CI it already passed. The trade-off: a conflict
+  with a just-merged sibling now shows up at that PR's own gate rather than
+  right after the merge, and on a repo that does not require up-to-date
+  branches a semantic clash between two green PRs surfaces in `main`'s CI.
+- The CI annex templates now say to keep repo-specific CI guidance in the
+  testing docs: every reader of the annex pays for all of it.
+
 ### Fixed
 - **Workers stop losing turns to command shapes the worktree sandbox
   refuses.** Every `git fetch … && git checkout …` the workers were shown —

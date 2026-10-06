@@ -5,8 +5,8 @@
 # Keeps raw CI job output out of the orchestrator's context. `gh run view
 # --log-failed` and friends dump whole job logs into the one context the whole
 # design protects — in a field run, six such calls diagnosing a single flaky
-# suite are what compacted it. The Merge step's `gh run view --json
-# conclusion,jobs` classification is the entire diagnosis the orchestrator is
+# suite are what compacted it. The Merge step's checks gate (checks-gate.sh
+# on GitHub) classification is the entire diagnosis the orchestrator is
 # meant to make; past that the answer is the one allowed retry, then a fixer,
 # which reads the logs in its own disposable context and already receives the
 # failing job's URL. SKILL.md says this; this hook is what makes it real.
@@ -62,6 +62,6 @@ jq -nc '{
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
     permissionDecision: "deny",
-    permissionDecisionReason: "Raw CI logs must not enter the orchestrator context during a /developer run. Classify the red with the Merge step gh run view --json conclusion,jobs query instead. If that is not enough to decide, take the one allowed rerun, and if it comes back red hand the failing job URL to a fixer — it reads the logs in its own context, which is what keeps this one small."
+    permissionDecisionReason: "Raw CI logs must not enter the orchestrator context during a /developer run. Classify the red with the checks gate of the Merge step (skills/developer/scripts/checks-gate.sh on GitHub) instead. If that is not enough to decide, take the one allowed rerun, and if it comes back red hand the failing job URL to a fixer — it reads the logs in its own context, which is what keeps this one small."
   }
 }'

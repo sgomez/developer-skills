@@ -225,7 +225,8 @@ once for every project):
 {
   "permissions": {
     "allow": [
-      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)"
+      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)",
+      "Bash(bash <plugin-root>/skills/developer/scripts/checks-gate.sh:*)"
     ]
   }
 }
@@ -235,8 +236,9 @@ once for every project):
   the reviews API (the diff-reviewer posts the inline review) and
   `gh pr ready` (the orchestrator flips the PR out of draft),
   `gh pr comment` (fix-pr replies to threads, escalation comments),
-  `gh pr merge` (the orchestrator's auto-merge), and `cleanup-worktrees.sh`
-  (the wrap-up sweep).
+  `gh pr merge` (the orchestrator's auto-merge), `cleanup-worktrees.sh`
+  (the wrap-up sweep) and `checks-gate.sh` (the read-only CI gate before
+  each merge).
 
 Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
 blast radius small; the ready/comment/merge rules are gh-subcommand-scoped
@@ -313,14 +315,16 @@ agents/                     # subagents, auto-loaded by the plugin route
 skills/
   developer/                # orchestrator: spec loop, fix cycles, merge policy
     LOCAL-HOST.md           # read only when the host/tracker is local
-    MERGE-FIX.md            # read at the first merge conflict
+    RESUME.md               # read only when resuming an interrupted run
+    MERGE-FIX.md            # read at the first merge conflict (+ conflict queue)
     WRAP-UP.md              # read once, when the loop ends
+    scripts/                # cleanup-worktrees.sh, checks-gate.sh (GitHub CI gate)
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply
   setup-developer-skills/   # one-time repo setup (incl. run-defaults template)
     code-host-*.md          # code-host templates (github / gitlab / local)
-    code-host-ci-*.md       # deferred CI annex, opened only at the checks gate
+    code-host-ci-*.md       # deferred CI annex for workers (and non-GitHub gates)
     delivery-ops-*.md       # issue-tracker Delivery operations templates
     issue-authoring-*.md    # deferred annex, read only when creating issues
 ```
