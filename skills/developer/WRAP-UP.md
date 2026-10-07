@@ -1,227 +1,66 @@
-# Wrap-up
+# Report
 
-Read this file when the loop is over — no deliverable sub-issue remains (all
-closed or ready-to-merge, or the rest are blocked by escalated/unmerged ones).
-It runs **once per run**; nothing here is needed while sub-issues are still in
-flight.
+Read this file when the workflow's completion notification arrives. The
+workflow already did the wrap-up work — harvest and ledger, final sweep,
+closing the spec — and its result object holds everything below:
+`subIssues` (number, title, blockers, outcome, reason, pr, model, cycles,
+mergefix, wave, notes), `harvest`, `wrapUp` (the sweep's lines and whether
+the spec closed), or `error` when the plan refused to start.
 
-With a **local** tracker or code host, `LOCAL-HOST.md` (already read at the
-start of the run) overrides the harvest push, the sweep flags, and the merge
-commands in the summary.
+With a **local** tracker or code host, `LOCAL-HOST.md` gives the merge
+commands for the summary.
 
-## 1. Reconcile the task board
-
-Every task must be completed or renamed per the Progress board rules — nothing
-left silently in_progress.
-
-## 2. Harvest discoveries and record the run
-
-Record this run's outcome in the repo's delivery ledger, and collect what the
-workers learned. Skip only when the run produced no changes.
-The **ledger rows** the harvest worker needs are already written — read them,
-do not reconstruct them:
-
-```bash
-grep 'outcome=' .scratch/developer-run-<spec>.log
-```
-
-Pass those lines **verbatim**. Each terminal transition wrote its own row
-(delivery pipeline step 7), so this file is the run's record even where your
-own recall has been compacted away. The filter is what keeps the
-`event=spawned` rows out: those exist so a resume can find a worker mid-flight
-(SKILL.md, **Resuming the orchestrator**), they say nothing about outcomes and
-they do not belong in the ledger. Only if a sub-issue you know went terminal
-has no row — a step 7 that was denied or interrupted — write that one row now,
-from what you still hold, and say so in the chat summary.
-
-Spawn one `code-author` with `model: sonnet`, `isolation: "worktree"` and
-`run_in_background: true`, then log the spawn row (SKILL.md, Workers) with
-`job=harvest`:
-
-> HARVEST job. This run delivered PRs #`<list every PR of the run — merged,
-> ready-to-merge, or escalated>`. Create branch `agent/harvest-<spec>` from
-> origin/main, then do two things on it:
->
-> **(a) Record the run in the ledger.** Append these rows verbatim to the
-> `## Run log` section of `docs/agents/delivery-ledger.md`, creating the
-> file if it does not exist (with a one-line title and a `## Run log`
-> section):
->
-> ```
-> <the ledger rows, one per delivered sub-issue>
-> ```
->
-> `docs/agents/delivery-ledger.md` is the **only** file you may write, and
-> its `## Run log` section is the only part of it you may touch. Not `AGENTS.md`,
-> not any other doc under `docs/agents/`, not a stale sentence you can prove
-> wrong — those belong to `/setup-developer-skills` and to the human. Step (b)
-> is how anything else gets proposed.
->
-> **(b) Propose discoveries — do not apply them.** For each PR read its body
-> and comments per the repo's `docs/agents/code-host.md` (GitHub default:
-> `gh pr view <PR> --json body,comments`) and collect the `## Discoveries`
-> entries. Compare them against the repo's agent docs (`AGENTS.md` and
-> everything under `docs/agents/`), read-only. Keep only entries that repeat
-> across PRs, correct a doc the code has outgrown, or would clearly have saved
-> another worker real work; drop one-off trivia. Write the survivors to
-> `<primary-checkout>/.scratch/developer-discoveries-<spec>.md` — one entry
-> each as:
->
-> ```
-> ### <one-line title>
-> Doc: <path the change belongs in, or "new doc: <suggested path>">
-> Evidence: PR #<n> (and #<n>…)
-> Proposed: <the edit, concretely enough to apply without re-reading the PRs>
-> ```
->
-> Nothing qualifies → do not create the file. Either way the ledger append
-> from (a) still stands.
->
-> That path is **absolute and outside your worktree** — substitute the
-> orchestrator's checkout root, which is where the run log already lives.
-> Writing it inside the worktree would lose it twice over: the cleanup pass
-> deletes the worktree, and an uncommitted file there makes the cleanup
-> refuse instead.
->
-> Commit **only** `docs/agents/delivery-ledger.md`, as
-> `docs(agents): record spec #<spec> run`, and push with
-> `git push origin HEAD:main` — never check out main. If the push is
-> rejected, fetch and rebase once, then push again; if it still fails, stop
-> and report it. Your entire final message must be the
-> `RESULT discoveries=<n> ledger=<appended|failed>` line — nothing before it,
-> nothing after it.
-
-On `ledger=appended`, **archive** the run log — never delete it:
-
-```bash
-mkdir -p .scratch/archive
-mv .scratch/developer-run-<spec>.log \
-   ".scratch/archive/developer-run-<spec>-$(date +%Y%m%dT%H%M%S).log"
-```
-
-Its rows now live in the committed ledger, so moving it out of the way is what
-stops the next run re-appending them; deleting it was never what achieved that.
-And reaching this file is **not** proof the run is over: a human can lift an
-escalation minutes later and the loop runs on for hours, at which point those
-rows are gone and the next harvest rebuilds them from recall — the path this
-step calls an exception. The archive costs a few KB and keeps the run
-reconstructible. On any other result, leave the log where it is — it is the
-only copy.
-
-This job is best-effort: if it reports blocked, note it in the summary and move
-on.
-
-## 3. Final sweep
-
-One last pass of the cleanup script, catching the harvest worktree and anything
-a half-failed pipeline left behind — including reviewer worktrees detached at
-shas that later fix cycles superseded, and worker branches with improvised
-names: the sweep removes every worker worktree under `.claude/worktrees/` by
-path, branch or detached.
-
-```bash
-bash <skill-dir>/scripts/cleanup-worktrees.sh --sweep
-```
-
-Trust the script's final line, not your expectation of it. Claim a clean
-sweep only on `leftover=0`; if it prints `LEFTOVER` lines, those worktrees
-survived the pass — include them verbatim in the chat summary. If it prints
-a `WARN` line (primary checkout detached, or sitting on a worker branch),
-include it verbatim too — never repair the primary checkout yourself.
-
-`held=<n>` is not a leak and does not spoil `leftover=0`: that many worktrees
-are locked by workers whose process is still alive, and they go when those
-processes do. Report it as what it is — a worker of this run still running,
-named by its `HELD`/`KEPT` lines — and do not try to force it out.
-
-The sweep matches worker worktrees by path (`.claude/worktrees/`) only, and
-deletes only the branches of the worktrees it removes in this pass — it will
-not reap worker-named branches left over from other runs, touch a worktree
-elsewhere in the repo, remove a worktree with uncommitted changes, or delete
-a branch whose commits are not on the remote. Those refusals are `KEPT`
-lines with reasons; include them verbatim in the summary. If it exits
-non-zero with an `ABORT` line, its `--max-branches` safety cap tripped: it
-removed the worktrees but deleted **no** branches (nothing was lost — every
-listed branch is on the remote). Do not blindly re-run with a higher cap —
-paste the `WOULD-DELETE` list into the summary and leave the branches for the
-human, unless every one is unmistakably this run's own work.
-
-If the permission system **denies the sweep** (its pattern-matched removal can
-trip the auto-mode classifier), do not retry it: check `git worktree list`, and
-if leftovers remain run targeted `--branch`/`--sha` passes for the sub-issues
-this run delivered — the same shape already used in pipeline step 6. Nothing
-left → just note the denial and move on.
-
-## 4. Close the spec
-
-A spec whose sub-issues are all delivered is itself done; leaving it open makes
-the tracker lie. Re-enumerate the spec's children per the tracker ops (the same
-operation as Mode detection — never trust the run's own bookkeeping alone:
-sub-issues may have been closed before this run or outside it). If **every**
-sub-issue is CLOSED, close the spec per the tracker ops with a comment. GitHub
-default:
-
-```bash
-gh issue close <spec> --comment "Closed by /developer: all <N> sub-issues delivered and merged."
-```
-
-If any sub-issue is still open (ready-to-merge under `merge: manual`,
-escalated, or blocked), leave the spec open and say why in the chat summary.
-Skip this step in single mode when the issue itself was the spec — it already
-closed on merge.
-
-## 5. Push notification
+## 1. Push notification
 
 Via the PushNotification tool:
 `Spec #<spec>: <N> merged, <M> escalated, <K> still blocked.` — with
 `merge: manual`, use
 `Spec #<spec>: <N> ready to merge, <M> escalated, <K> still blocked.`
-If step 4 closed the spec, use
+If the spec was closed, use
 `Spec #<spec> completed and closed: <N> sub-issues merged.`
 
-## 6. Chat summary
+## 2. Chat summary
 
-One table, built from the run log's terminal (`outcome=`) rows: sub-issue,
-model used, PR, fix cycles, merge-fixes, wave (parallel mode), outcome.
-When `mergefix=` is non-zero on much of a parallel wave, say so in a line
-under the table — the wave's members were rewriting the same files, and that
+One table: sub-issue, model, PR, fix cycles, merge-fixes, wave (parallel
+mode), outcome. When `mergefix` is non-zero on much of the run, say so in a
+line under the table — the sub-issues were rewriting the same files, and that
 is the run's own evidence for delivering the next spec of that shape
 sequentially.
 
+Carry `notes` (cleanup `KEPT`/`WARN` lines) and `wrapUp` verbatim where they
+report anything but a clean sweep: `LEFTOVER`, `KEPT`, `WARN`, `ABORT`
+lines, or a denied sweep. `held=<n>` is a worker still alive, not a leak.
+Never repair the primary checkout yourself.
+
 List escalated sub-issues with reasons, and say how to put one back in play:
-**remove its `ready-for-human` label and re-run `/developer <spec>`** — the
-label is the only thing holding it out of the pick, and the re-run resumes
-whatever change it already has instead of building a second one.
+**remove its escalation label and re-run `/developer <spec>`** — the re-run
+resumes whatever change it already has instead of building a second one.
+Sub-issues the run never started (`blocked`) are listed with their blocker.
 
 When anything escalated, **end the summary with the decisions themselves**:
 one direct question per escalated sub-issue, phrased so a one-line reply
 unblocks it — "close #363 as a duplicate of #349, or narrow it to a remaining
 gap?", "re-cut #368 with /to-tickets — three fix cycles never converged?".
-You already know exactly
-what each escalation is waiting on; do not make the human interview you to
-find out.
 
-With `merge: manual`, list the ready-to-merge changes **in dependency order** —
-that is the human's merge queue, and merging in that order minimizes conflicts
-— and give the **exact commands** per the code-host doc's merge operation. End
-the queue with its final step: once the last sub-issue is closed, close the
-spec itself per the tracker ops (`gh issue close <spec>` on GitHub). Sibling
-changes branched from the same `main` may conflict on merge — say so, and point
-at the escape hatch: abort the half-merge and ask you to run the **merge-fix
-job** (`MERGE-FIX.md`) on that change; a worker resolves it in its own
-worktree, never the main context.
+With `merge: manual`, list the ready-to-merge changes **in dependency order**
+(from `blockers`) — that is the human's merge queue — and give the **exact
+commands** per the code-host doc's merge operation. End the queue with
+closing the spec once its last sub-issue is closed (`gh issue close <spec>`
+on GitHub). Sibling changes branched from the same `main` may conflict on
+merge — point at the escape hatch: abort the half-merge and ask you for the
+merge-fix job (SKILL.md, step 3).
 
-**Surface the harvest's proposals.** On `discoveries=<n>` with `n > 0`, read
-`.scratch/developer-discoveries-<spec>.md` and list each entry under a
-**Proposed doc changes** heading: title, target doc, and the one-line edit.
-They are proposals, not changes — no agent doc was modified by this run, and
-say so. Applying one is the human's call (or `/setup-developer-skills` for
-anything the templates own). On `discoveries=0`, one line: the run surfaced
-nothing worth promoting.
+**Proposed doc changes.** `harvest.reason` carries `discoveries=<n>`. On
+`n > 0`, read `.scratch/developer-discoveries-<spec>.md` and list each entry:
+title, target doc, the one-line edit. They are proposals — no agent doc was
+modified by this run, and say so. On `0`, one line: nothing worth promoting.
+A harvest that did not report `ledger=appended` leaves the run log in
+`.scratch/` — say so.
 
-## 7. Execution report
+## 3. Execution report
 
-How the run actually unfolded. In parallel mode, one line per wave listing the
-jobs that ran concurrently and their outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 —
-2 merged, 1 escalated, 1 merge-fix on #14`. In sequential mode, the delivery
-order with any merge-fix jobs noted.
+In parallel mode, one line per wave (dependency depth) listing its
+sub-issues and outcomes, e.g. `Wave 2: #12 ∥ #14 ∥ #15 — 2 merged, 1
+escalated, 1 merge-fix on #14`. A sub-issue starts as soon as its own
+blockers merge, so waves overlap; they describe the dependency shape, not
+time slots. In sequential mode, the delivery order with any merge-fixes.

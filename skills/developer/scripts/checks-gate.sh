@@ -24,7 +24,13 @@
 # skips the gate altogether.
 #
 # Usage:
-#   checks-gate.sh <PR>
+#   checks-gate.sh <PR> [--max-wait <seconds>]
+#
+# --max-wait caps the wait the way CHECKS_GATE_MAX_WAIT does: a caller that
+# cannot wait an hour in one call (a foreground Bash call is capped at ten
+# minutes) passes a shorter cap and re-runs the gate on PENDING. A flag, not
+# the variable, so the call keeps the bare `bash …/checks-gate.sh` shape the
+# permission rule matches.
 #
 # Verdicts (one line on stdout; the exit code names it too):
 #   GREEN                  (0) every check settled as success/neutral/skipped.
@@ -64,8 +70,13 @@
 #   CHECKS_GATE_MAX_WAIT       cap on waiting for checks/runs    (default 3600)
 set -uo pipefail
 
+usage() { echo "usage: checks-gate.sh <PR> [--max-wait <seconds>]" >&2; exit 2; }
 pr="${1:-}"
-[[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: checks-gate.sh <PR>" >&2; exit 2; }
+[[ "$pr" =~ ^[0-9]+$ ]] || usage
+if [[ $# -gt 1 ]]; then
+  [[ "$2" == "--max-wait" && "${3:-}" =~ ^[0-9]+$ && $# -eq 3 ]] || usage
+  CHECKS_GATE_MAX_WAIT="$3"
+fi
 
 POLL="${CHECKS_GATE_POLL:-15}"
 STATE_TRIES="${CHECKS_GATE_STATE_TRIES:-8}"
@@ -194,7 +205,7 @@ elif [[ -n "$infra" ]]; then verdict "$infra"
 elif [[ -z "${CHECKS_GATE_REGATED:-}" ]]; then
   # Every failing run is green now (re-run since the rollup was read): the
   # rollup was stale. Gate once more from the top.
-  CHECKS_GATE_REGATED=1 exec bash "$0" "$pr"
+  CHECKS_GATE_REGATED=1 CHECKS_GATE_MAX_WAIT="$MAX_WAIT" exec bash "$0" "$pr"
 else
   verdict "PENDING"
 fi

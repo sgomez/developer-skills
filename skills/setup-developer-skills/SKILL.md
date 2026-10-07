@@ -332,11 +332,15 @@ them in.
       "Bash(gh pr ready:*)",
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
-      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
+      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
+      "Workflow"
     ]
   }
 }
 ```
+
+`Workflow` lets `/developer` launch its orchestration workflow without a
+prompt; it is required in `-p` (headless) runs, where nobody can answer one.
 
 and in `.claude/settings.local.json`, with `<plugin-root>` resolved to this
 plugin's installed location (the directory two levels above this SKILL.md):
@@ -345,7 +349,9 @@ plugin's installed location (the directory two levels above this SKILL.md):
 {
   "permissions": {
     "allow": [
-      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)"
+      "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)",
+      "Bash(bash <plugin-root>/skills/developer/scripts/checks-gate.sh:*)",
+      "Bash(bash <plugin-root>/skills/developer/scripts/spec-plan.sh:*)"
     ]
   }
 }
@@ -358,10 +364,10 @@ cycles).
 **GitLab**: the analogous rules —
 `"Bash(glab mr update:*)"`, `"Bash(glab mr note:*)"`,
 `"Bash(glab mr merge:*)"`,
-`"Bash(glab api projects/*/merge_requests/*)"` — plus the same
+`"Bash(glab api projects/*/merge_requests/*)"`, plus `"Workflow"` — and the same
 cleanup-worktrees.sh rule in `.claude/settings.local.json`.
 
-**Local / Other**: no merge or review-posting rules apply (local never
+**Local / Other**: `"Workflow"` as above; no merge or review-posting rules apply (local never
 auto-merges and its review is a committed file; for other hosts derive the
 allowlist from the commands recorded in `docs/agents/code-host.md`) — but
 **still offer the cleanup-worktrees.sh rule**: the wrap-up's `--sweep` is a

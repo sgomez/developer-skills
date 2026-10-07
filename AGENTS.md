@@ -14,7 +14,9 @@ This repo is a Claude Code plugin (a "marketplace" with a single plugin).
   and the whole plugin fails to load. The manifest key is only for hook files
   kept somewhere else.
 - `tests/` — regression tests for the bundled scripts (plain bash, no
-  framework; run directly, e.g. `bash tests/cleanup-worktrees.test.sh`).
+  framework; run directly, e.g. `bash tests/cleanup-worktrees.test.sh`), plus
+  `node tests/developer-workflow.test.mjs` for the `/developer` workflow's
+  scheduling (fake agents, no network).
 - `.claude-plugin/plugin.json` — the plugin manifest and **canonical version**.
 - `.claude-plugin/marketplace.json` — marketplace entry; points at `./`. The
   schema *allows* a per-plugin `version`, but we deliberately omit it so

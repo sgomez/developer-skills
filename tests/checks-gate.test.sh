@@ -83,6 +83,8 @@ status_red='{"__typename":"StatusContext","context":"ext","state":"FAILURE","tar
 
 scenario usage
 run_gate abc; assert_rc 2
+RC=0; PATH="$TMP/bin:$PATH" bash "$SCRIPT" 42 --max-wait x >/dev/null 2>&1 || RC=$?; assert_rc 2
+RC=0; PATH="$TMP/bin:$PATH" bash "$SCRIPT" 42 --bogus 5 >/dev/null 2>&1 || RC=$?; assert_rc 2
 
 scenario dirty
 state 1 DIRTY
@@ -119,6 +121,13 @@ state 1 CLEAN; rollup 1 "[$running]"
 OUT=""; RC=0
 OUT="$(PATH="$TMP/bin:$PATH" FIX="$FIX" CHECKS_GATE_POLL=1 CHECKS_GATE_STATE_TRIES=1 \
   CHECKS_GATE_REGISTER_TRIES=1 CHECKS_GATE_MAX_WAIT=1 bash "$SCRIPT" 42)" || RC=$?
+assert_out "PENDING"
+
+scenario max-wait-flag
+state 1 CLEAN; rollup 1 "[$running]"
+OUT=""; RC=0
+OUT="$(PATH="$TMP/bin:$PATH" FIX="$FIX" CHECKS_GATE_POLL=1 CHECKS_GATE_STATE_TRIES=1 \
+  CHECKS_GATE_REGISTER_TRIES=1 CHECKS_GATE_MAX_WAIT=3600 bash "$SCRIPT" 42 --max-wait 1)" || RC=$?
 assert_out "PENDING"
 
 scenario red-code

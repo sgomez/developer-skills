@@ -29,10 +29,16 @@ build → review → fix → merge — and pings you when it's done.
   should run in this repo and writes `docs/agents/developer-defaults.md`;
   per-run flags (`--parallel`/`--sequential`, `--auto-merge`/`--no-auto-merge`)
   override it. Factory defaults: **parallel execution, manual merge**.
-- **Parallel by default, sequential on demand** — independent sub-issues
-  (per `Blocked by` order) are built concurrently in waves; merge conflicts
-  between sibling PRs are resolved by an extra opus fix worker before each
-  (always serialized) merge. `sequential` delivers one sub-issue fully before
+- **Orchestrated in code** — the pipeline runs as a Claude Code dynamic
+  workflow (`skills/developer/workflow.js`): dependency order, worker cap,
+  fix cycles, checks gate and merges are the script's control flow, not a
+  model re-reading a growing context on every worker result. Requires
+  dynamic workflows enabled in `/config`.
+- **Parallel by default, sequential on demand** — up to three build, review
+  and fix workers run at once, and a sub-issue starts the moment its
+  `Blocked by` sub-issues merge; merge conflicts between sibling PRs are
+  resolved one at a time by an extra opus worker before each (always
+  serialized) merge. `sequential` delivers one sub-issue fully before
   the next — with auto-merge, each PR then branches from a `main` that
   already contains the previous one, so merges never conflict.
 - **Model-tiered** — `/to-tickets` rates each sub-issue as it cuts the spec
@@ -226,7 +232,8 @@ once for every project):
   "permissions": {
     "allow": [
       "Bash(bash <plugin-root>/skills/developer/scripts/cleanup-worktrees.sh:*)",
-      "Bash(bash <plugin-root>/skills/developer/scripts/checks-gate.sh:*)"
+      "Bash(bash <plugin-root>/skills/developer/scripts/checks-gate.sh:*)",
+      "Bash(bash <plugin-root>/skills/developer/scripts/spec-plan.sh:*)"
     ]
   }
 }
@@ -237,8 +244,8 @@ once for every project):
   `gh pr ready` (the orchestrator flips the PR out of draft),
   `gh pr comment` (fix-pr replies to threads, escalation comments),
   `gh pr merge` (the orchestrator's auto-merge), `cleanup-worktrees.sh`
-  (the wrap-up sweep) and `checks-gate.sh` (the read-only CI gate before
-  each merge).
+  (the wrap-up sweep), `checks-gate.sh` (the read-only CI gate before
+  each merge) and `spec-plan.sh` (the read-only planning call).
 
 Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
 blast radius small; the ready/comment/merge rules are gh-subcommand-scoped
@@ -313,12 +320,11 @@ agents/                     # subagents, auto-loaded by the plugin route
   code-author.md            # builder/fixer — model from the sub-issue's complexity
   diff-reviewer.md          # merge gate — pinned opus, effort: high
 skills/
-  developer/                # orchestrator: spec loop, fix cycles, merge policy
+  developer/                # launcher: run config, then the workflow, then the report
+    workflow.js             # the orchestrator: dependency order, fix cycles, gate, merges
     LOCAL-HOST.md           # read only when the host/tracker is local
-    RESUME.md               # read only when resuming an interrupted run
-    MERGE-FIX.md            # read at the first merge conflict (+ conflict queue)
-    WRAP-UP.md              # read once, when the loop ends
-    scripts/                # cleanup-worktrees.sh, checks-gate.sh (GitHub CI gate)
+    WRAP-UP.md              # read once, when the workflow reports
+    scripts/                # spec-plan.sh, checks-gate.sh (GitHub), cleanup-worktrees.sh
   implement-issue/          # issue → branch → TDD → checks → draft PR
   review-pr/                # diff review → inline review → verdict
   fix-pr/                   # address review threads → push → reply

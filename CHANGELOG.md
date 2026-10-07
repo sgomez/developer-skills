@@ -10,6 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **`/developer` runs as a dynamic workflow.** The orchestrator was a model
+  that woke on every worker result and re-read its whole context to choose
+  the next step: on spec #964 that was 120 turns and 11 M tokens, a third of
+  the run, for decisions that are plain control flow. They now are:
+  `skills/developer/workflow.js` holds the dependency order, the
+  three-worker cap, fix cycles, the checks gate, serial merges, the conflict
+  queue, escalation and the wrap-up. Models run only where judgement or a
+  shell is needed — the same workers for build, review and fix, and Haiku
+  agents with a one-prompt context for planning, gating, merging and
+  bookkeeping. `SKILL.md` is now a launcher: publish the context docs,
+  resolve the run config, launch the workflow, report its result.
+  - A sub-issue starts the moment its own blockers merge, instead of waiting
+    for the rest of its wave.
+  - The new `scripts/spec-plan.sh` does mode detection, the blocker check and
+    the per-sub-issue resume probe in one read-only call that prints JSON.
+  - `checks-gate.sh` takes `--max-wait <seconds>`, so a caller limited to
+    ten-minute calls re-runs it on `PENDING` while keeping the command shape
+    the permission rule matches.
+  - `RESUME.md` and `MERGE-FIX.md` are gone: a session resumes with the
+    workflow's `resumeFromRunId`, a new one re-plans from the code host, and
+    the merge-fix job lives in the workflow (launch it with `mergeFix: <PR>`
+    for a conflict on the human's own merge).
+  - Requires dynamic workflows (`/config`). `/setup-developer-skills` now
+    allows `Workflow`, `checks-gate.sh` and `spec-plan.sh`.
+  - `tests/developer-workflow.test.mjs` runs the script with fake agents and
+    checks the scheduling: the cap, dependency order, serial merges, one
+    merge-fix at a time with green siblings merging past it, resume,
+    escalation.
 - **The orchestrator costs a fraction of what it did.** Measured on a
   seven-ticket spec, the orchestrator alone read 10 M tokens — 37 % of the
   run — over 99 turns, each one re-reading a context that started at 45 k
