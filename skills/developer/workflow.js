@@ -188,16 +188,16 @@ const shortTitle = title => {
 }
 
 // ── Merge-fix only (the human's conflict under merge: manual) ───────────
-// base: the branch the PR merges into. mergeIn: merge the base into the
-// branch instead of rebasing — the integration branch is made of merge
-// commits, and the spec PR's history is the sub-issues' own.
-const MERGE_FIX = (pr, base = 'main', mergeIn = false) => `MERGE-FIX job. PR #${pr} cannot be merged into ${base} (conflict with a previously merged change). In your worktree get the PR branch per the fix-that-pushes checkout in \`docs/agents/code-host.md\` (GitHub default: \`git fetch origin pull/${pr}/head:fix/pr-${pr}\`, then \`git checkout fix/pr-${pr}\` as a separate call — never joined with \`&&\`, which the worktree sandbox refuses; do not use \`gh pr checkout\` or check out the branch by name, another worktree may hold it). If git also refuses \`fix/pr-${pr}\`, use \`fix/pr-${pr}-merge\` in both commands; never any other name, the cleanup matches on \`fix/pr-${pr}*\`.
+// base: the branch the PR merges into. The base is merged into the PR branch,
+// never rebased onto: a rebase needs a force-push, which the auto-mode
+// classifier refuses as destructive often enough to escalate sub-issues whose
+// conflict was already resolved. The PR's diff on the code host stays its own
+// work either way.
+const MERGE_FIX = (pr, base = 'main') => `MERGE-FIX job. PR #${pr} cannot be merged into ${base} (conflict with a previously merged change). In your worktree get the PR branch per the fix-that-pushes checkout in \`docs/agents/code-host.md\` (GitHub default: \`git fetch origin pull/${pr}/head:fix/pr-${pr}\`, then \`git checkout fix/pr-${pr}\` as a separate call — never joined with \`&&\`, which the worktree sandbox refuses; do not use \`gh pr checkout\` or check out the branch by name, another worktree may hold it). If git also refuses \`fix/pr-${pr}\`, use \`fix/pr-${pr}-merge\` in both commands; never any other name, the cleanup matches on \`fix/pr-${pr}*\`.
 
-Then \`git fetch origin ${base}\` and ${mergeIn
-  ? `merge \`origin/${base}\` into the branch (\`git merge origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. A merge, not a rebase: this branch is an integration branch made of merge commits, and its history stays as it is.`
-  : `rebase the branch onto \`origin/${base}\` (\`git rebase origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. Rebase, not a merge of ${base} into the branch: the PR's diff has to stay the PR's own work. If the rebase is the wrong shape for this branch (merge commits of its own, or the same hunk conflicting on every commit of a long chain), \`git rebase --abort\`, merge \`origin/${base}\` in instead, and say which you did in reason.`}
+Then \`git fetch origin ${base}\` and merge \`origin/${base}\` into the branch (\`git merge origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. A merge, never a rebase: the push below must not need force, and the PR's diff stays its own work either way. When the same thing was built twice — on the base and in this PR — keep one, the base's unless the PR's is the one the spec asks for, and move the PR's callers onto it.
 
-Run the project checks. Then read the PR's branch name with \`gh pr view ${pr} --json headRefName --jq .headRefName\`, and push with \`git push --force-with-lease origin HEAD:<that name>\` (without the force flag if you merged): the name written in literally, the command bare in a call of its own — no \`$(…)\`, no pipe. A force-push to any other branch name is refused, and must be. On a local code host rebase onto local \`main\`; committing is publishing, there is nothing to push. ${STRUCTURED}`
+Run the project checks. Then read the PR's branch name with \`gh pr view ${pr} --json headRefName --jq .headRefName\`, and push with \`git push origin HEAD:<that name>\`: the name written in literally, the command bare in a call of its own — no \`$(…)\`, no pipe, never \`--force\` or \`--force-with-lease\`. On a local code host merge local \`${base}\` instead; committing is publishing, there is nothing to push. ${STRUCTURED}`
 
 if (A.mergeFix) {
   const m = await agent(MERGE_FIX(A.mergeFix), {
@@ -493,7 +493,7 @@ async function mergePath(s) {
       s.mergefix++
       fixBase = merges
       fixModel = s.mergefix === 1 ? 'sonnet' : 'opus'
-      const f = await work(MERGE_FIX(s.pr, base, !!s.isSpec), {
+      const f = await work(MERGE_FIX(s.pr, base), {
         label: `merge-fix #${s.pr} (${s.mergefix})`, phase: s.phase, agentType: 'developer-skills:code-author',
         model: fixModel, isolation: 'worktree', schema: WORK,
       })

@@ -35,7 +35,10 @@ Changes staged on the `next` branch, published as a new version once ready.
   - `review-pr` checks for tests that would still pass with the behaviour
     they name broken.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after
-    a blocked or wrong resolution, runs on Opus.
+    a blocked or wrong resolution, runs on Opus. They merge the base into
+    the PR branch instead of rebasing, so they never force-push: the
+    auto-mode classifier refused force-pushes as destructive and escalated
+    sub-issues whose conflict was already resolved.
   - `/setup-developer-skills` says what each merge policy now authorizes —
     sub-issues reach the integration branch unattended under `manual` too —
     and its code-host templates name the integration branch as a base. It

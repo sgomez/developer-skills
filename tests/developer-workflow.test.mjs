@@ -363,7 +363,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
       const pr = Number((l.match(/#(\d+)/) || [])[1])
       if (l.startsWith('merge-fix')) {
         models.push(o.model)
-        ok(/git rebase origin\/developer\/spec-1/.test(p), 'a sub-issue rebases onto the integration branch')
+        ok(/git merge origin\/developer\/spec-1/.test(p) && !/--force/.test(p.replace(/never `--force`[^.]*/, '')), 'a sub-issue merges the integration branch in, no force-push')
       }
       if (l.startsWith('gate ') && (pr === 103 || pr === 104)) {
         const fixes = s.n[`merge-fix #${pr} (1)`] || 0
