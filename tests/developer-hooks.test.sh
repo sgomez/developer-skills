@@ -3,6 +3,7 @@
 #
 #   hooks/require-background-workers.sh    — no foreground worker spawns
 #   hooks/no-ci-logs-in-orchestrator.sh    — no raw CI logs in the main context
+#   hooks/approve-push.sh                  — a fixer's push onto its own PR (allow)
 #   hooks/approve-merge.sh                 — the sanctioned merges (allow, not
 #                                            deny; a fake gh stands in)
 #
@@ -21,6 +22,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BG_HOOK="$ROOT/hooks/require-background-workers.sh"
 CI_HOOK="$ROOT/hooks/no-ci-logs-in-orchestrator.sh"
 MERGE_HOOK="$ROOT/hooks/approve-merge.sh"
+PUSH_HOOK="$ROOT/hooks/approve-push.sh"
 
 command -v jq >/dev/null 2>&1 || { echo "SKIP: jq not installed" >&2; exit 0; }
 
@@ -217,6 +219,65 @@ FAKE_BASE=agent/developer/spec-7
 T="merge/integration-branch-from-a-worker-deferred"
 FAKE_ROLLUP='[]'
 run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$TMP/worker")"
+assert_silent
+
+# ---------------------------------------------------------------------------
+# approve-push.sh
+# ---------------------------------------------------------------------------
+
+# The fake gh answers `pr view --json headRefName` with $FAKE_HEAD.
+cat > "$TMP/bin/gh" <<'GH'
+#!/usr/bin/env bash
+case "$*" in
+  *headRefName*) echo "$FAKE_HEAD" ;;
+  *) exit 1 ;;
+esac
+GH
+export FAKE_HEAD=agent/developer/spec-1
+git -C "$REPO" worktree add -q "$TMP/fixer" -b agent/developer/fix-pr-16 >/dev/null 2>&1
+
+T="push/fixer-onto-its-spec-pr-allowed"
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$TMP/fixer")"
+assert_rc0; assert_allow
+
+T="push/fixer-onto-its-issue-pr-allowed"
+FAKE_HEAD=agent/developer/issue-3
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/issue-3' "$TMP/fixer")"
+assert_allow
+
+T="push/onto-another-prs-branch-deferred"
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$TMP/fixer")"
+assert_silent
+FAKE_HEAD=agent/developer/spec-1
+
+T="push/force-or-extra-flags-deferred"
+run "$PUSH_HOOK" "$(bash_call 'git push --force origin HEAD:agent/developer/spec-1' "$TMP/fixer")"
+assert_silent
+run "$PUSH_HOOK" "$(bash_call 'git push origin +HEAD:agent/developer/spec-1' "$TMP/fixer")"
+assert_silent
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1 2>&1 | tail -3' "$TMP/fixer")"
+assert_silent
+
+T="push/onto-main-deferred"
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:main' "$TMP/fixer")"
+assert_silent
+
+T="push/from-the-primary-checkout-deferred"
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$REPO")"
+assert_silent
+
+T="push/from-a-non-fix-branch-deferred"
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$TMP/worker")"
+assert_silent
+
+T="push/fix-branch-variant-allowed"
+git -C "$REPO" worktree add -q "$TMP/fixer2" -b agent/developer/fix-pr-16-merge >/dev/null 2>&1
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$TMP/fixer2")"
+assert_allow
+
+T="push/gh-failure-deferred"
+FAKE_HEAD=''
+run "$PUSH_HOOK" "$(bash_call 'git push origin HEAD:agent/developer/spec-1' "$TMP/fixer")"
 assert_silent
 
 # ---------------------------------------------------------------------------

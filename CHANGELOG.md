@@ -60,6 +60,13 @@ Changes staged on the `next` branch, published as a new version once ready.
     of the keyboard hook and a test that cannot fail as notes, and the fixer
     acted on the one blocking finding alone. Outside the spec PR a `[fix]`
     does not start a fix cycle of its own.
+  - A new hook, `approve-push.sh`, approves a fix or merge-fix worker's
+    `git push origin HEAD:agent/developer/<spec|issue>-<N>` — exact form,
+    no force, from a linked worktree on `agent/developer/fix-pr-<PR>`, and
+    only onto that PR's own head branch. On lab-05 the auto-mode classifier
+    denied the spec PR fixer's push as "Modify Shared Resources", after
+    letting the same push through on lab-04: the spec escalated with its
+    fix committed and never published.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after
     a blocked or wrong resolution, runs on Opus. They merge the base into
     the PR branch instead of rebasing, so they never force-push: the
