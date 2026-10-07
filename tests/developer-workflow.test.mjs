@@ -139,6 +139,8 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
       if (l === 'branch') ok(/refs\/heads\/agent\/developer\/spec-1/.test(p), 'pushes agent/developer/spec-1')
       if (l === 'build #2') ok(/Base branch: `agent\/developer\/spec-1`/.test(p), 'the build is told its base')
       if (l === 'build #2') ok(/on branch `agent\/developer\/issue-2`/.test(p), 'the build is told its branch name')
+      if (l === 'build #2') ok(/merge `origin\/agent\/developer\/spec-1` into your branch/.test(p) && /never a rebase/.test(p), 'the build merges the integration tip in before its PR')
+      if (l === 'build #2') ok(/Read the spec issue #1 in full/.test(p), 'the build reads the whole spec')
       if (l === 'merge #102') ok(/--branch "agent\/developer\/fix-pr-102" --branch "agent\/developer\/fix-pr-102-\*" --branch "agent\/developer\/issue-2"/.test(p), 'cleanup by exact names, no glob that also hits #1020')
       if (l === 'harvest') ok(/`agent\/developer\/harvest-1`/.test(p), 'the harvest branch is under agent/developer/')
       if (l === 'merge #102') ok(/gh pr ready 102/.test(p), 'an ungated sub-issue PR is marked ready before its merge')
@@ -169,7 +171,8 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     tickets: [t(2), t(3)],
     on: (l, p, _s, o) => {
       models[l] = o.model
-      if (l === 'review #900') { ok(/delivers spec #1 whole/.test(p), 'the spec review knows what it reviews'); return { verdict: 'NEEDS_FIXES' } }
+      if (l === 'review #900') { ok(/delivers spec #1 whole/.test(p), 'the spec review knows what it reviews'); ok(/Check the combinations/.test(p), 'the spec review tests sub-issues together'); return { verdict: 'NEEDS_FIXES' } }
+      if (l === 're-review #900 (1)') ok(/whatever the fix changed in a shared mechanism/.test(p), 'the spec re-review checks what the fix changed')
       return undefined
     },
   })

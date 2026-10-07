@@ -60,6 +60,20 @@ Changes staged on the `next` branch, published as a new version once ready.
     of the keyboard hook and a test that cannot fail as notes, and the fixer
     acted on the one blocking finding alone. Outside the spec PR a `[fix]`
     does not start a fix cycle of its own.
+  - On a spec, each build reads the whole spec, not just its extract, and
+    merges the integration branch's tip into its own branch before opening
+    its PR: what landed while it worked is reused, not duplicated, and
+    where its screens meet another sub-issue's it makes them work together.
+    On lab-05 sub-issues #7 and #8, built side by side, each wrote its own
+    `useActionKeys`; the two landed without a conflict and the spec PR did
+    not compile. `/implement-spec`, whose result was better, asks its
+    implementers for that same merge.
+  - The spec PR's review checks combinations: where sub-issues share a
+    mechanism, the cases with two of them active at once, each confirmed
+    with a throwaway test. Its re-review does the same for whatever the fix
+    changed in a shared mechanism — on lab-05 the fixer's merge of the two
+    hooks let an inline confirmation answer keys meant for a dialog opened
+    on top of it, and the re-review only checked the findings were gone.
   - A new hook, `approve-push.sh`, approves a fix or merge-fix worker's
     `git push origin HEAD:agent/developer/<spec|issue>-<N>` — exact form,
     no force, from a linked worktree on `agent/developer/fix-pr-<PR>`, and

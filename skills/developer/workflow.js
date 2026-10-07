@@ -323,7 +323,9 @@ async function localCleanup(s) {
 
 const REVIEW_PROMPT = pr => `Review PR #${pr} by running the review-pr skill on it — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Post the review (inline comments + summary) as a single COMMENT submission — never an approval event — and do not mark the PR ready or merge; those are the orchestrator's. ${STRUCTURED}`
 
-const SPEC_PR_NOTE = `\n\nThis PR delivers spec #${SPEC} whole: its sub-issues were built one by one and merged into \`${BRANCH}\` without a review of their own, so this is the only review the spec gets. Review it against the spec issue and every sub-issue it closes.`
+const SPEC_PR_NOTE = `\n\nThis PR delivers spec #${SPEC} whole: its sub-issues were built one by one and merged into \`${BRANCH}\` without a review of their own, so this is the only review the spec gets. Review it against the spec issue and every sub-issue it closes.
+
+Sub-issues that share a mechanism (a hook, a component, a listener, a store) were each checked alone, if at all. Check the combinations: the cases where two of them are active at once, one inside or on top of the other. Confirm each one with a throwaway test you write and run in your worktree, then delete — never commit or push it — and report every combination that misbehaves as [blocking]. On a re-review, do the same for whatever the fix changed in a shared mechanism: a fix there can break a combination that worked before.`
 
 async function review(s, rereview) {
   for (let attempt = 0; ; attempt++) {
@@ -548,7 +550,9 @@ async function deliver(t) {
     const b = await work(
       `BUILD job. Spec issue #${SPEC}, sub-issue #${s.n}.
 Run the implement-issue skill on the sub-issue, on branch \`${ISSUE_BRANCH(s.n)}\` — that exact name, not the skill's default. If the remote already has it (an earlier attempt whose PR was closed), report blocked naming it; never push over it. The sub-issue's \`## Spec extract\` section carries the spec decisions that apply to it — read the full spec issue only if that section is missing.${INTEG ? `
-Base branch: \`${BRANCH}\`, the spec's integration branch, not main. Fetch it, branch from \`origin/${BRANCH}\` and open the PR with \`${BRANCH}\` as its base: wherever the skill says main, read \`${BRANCH}\`. It already holds the sub-issues this one depends on.` : ''}
+Base branch: \`${BRANCH}\`, the spec's integration branch, not main. Fetch it, branch from \`origin/${BRANCH}\` and open the PR with \`${BRANCH}\` as its base: wherever the skill says main, read \`${BRANCH}\`. It already holds the sub-issues this one depends on.
+Read the spec issue #${SPEC} in full as well, whatever the extract says: the other sub-issues are built in parallel with yours, on the same code, and the spec is what says how they fit together.
+Before you push and open the PR, fetch \`${BRANCH}\` again and merge \`origin/${BRANCH}\` into your branch (a merge, never a rebase): sub-issues built alongside yours may have landed since you started. Resolve any conflict, and wherever they added something yours duplicates — a helper, a hook, a component — keep theirs and drop yours. Where your work and theirs now meet (a screen of yours inside one of theirs, or the other way round), make them behave together and test that. Run the checks again after the merge.` : ''}
 Whatever deserves a record goes in the PR body. Report only a PR number you have confirmed exists. ${STRUCTURED}`,
       { label: `build #${s.n}`, phase: s.phase, agentType: 'developer-skills:code-author', model: s.tier, isolation: 'worktree', schema: WORK },
     )

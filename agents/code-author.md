@@ -188,7 +188,8 @@ RESULT blocked reason=<one-line reason>
 ## Rules
 
 - One job per invocation. Do not pick up extra issues or PRs.
-- Do not merge, do not close issues manually — closing happens on merge
+- Do not merge a PR (merging a base branch *into your own branch*, when
+  the job asks for it, is fine), do not close issues manually — closing happens on merge
   (auto-close where the host supports it, the orchestrator otherwise), and
   the orchestrator handles merging.
 - Do not modify files unrelated to the job.
