@@ -14,7 +14,11 @@ A run on a remote host (GitHub, GitLab) never needs this file.
 
 - **Local tracker** — add `.scratch` to the paths of both the
   `git status --porcelain` check and the `git add`: the tracker and change
-  files live there and workers read them through their own checkout.
+  files live there and workers read them through their own checkout. Exclude
+  the run's own artifacts from both with the pathspecs
+  `':!.scratch/developer-*' ':!.scratch/archive'` — the workflow copy
+  (`developer-workflow.js`), the run log and the discoveries file are never
+  committed.
 - There is no remote, so there is no push: the commit alone publishes, since
   linked worktrees share the repo.
 

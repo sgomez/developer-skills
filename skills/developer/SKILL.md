@@ -80,8 +80,16 @@ State it in one line, e.g.
 
 ## 3. Launch the workflow
 
-Call **Workflow** with `scriptPath: "<skill-dir>/workflow.js"` (this skill's
-own directory, absolute) and `args`:
+The Workflow tool only runs a script path inside the working directory, and
+this skill lives in the plugin's install directory. Copy the script into the
+repo's `.scratch/` first (a run artifact, never staged):
+
+```bash
+mkdir -p .scratch && cp <skill-dir>/workflow.js .scratch/developer-workflow.js
+```
+
+Then call **Workflow** with `scriptPath: "<root>/.scratch/developer-workflow.js"`
+(absolute) and `args`:
 
 | Arg            | Value |
 |----------------|-------|
