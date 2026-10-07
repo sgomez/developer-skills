@@ -136,7 +136,10 @@ run the project's checks once after the fix, in step 3.
 
 ### 3. Implement fixes
 
-- Address every unresolved comment
+- Address every unresolved comment, except those labelled `[note]`: a review
+  by review-pr labels each finding, and `[blocking]` and `[fix]` are both
+  work for you. A `[fix]` the summary lists without an inline thread is work
+  too. Leave `[note]` findings alone unless the task prompt asks for them
 - Keep changes minimal — only what feedback requests
 - Do not refactor unrelated code
 - While iterating on a fix, run **only the test file covering it**, with the

@@ -179,6 +179,40 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(st.n['gate #900'] === 1 && st.n['merge #900'] === 1, 'through the gate')
 }
 {
+  const { st, spec } = await run('spec-review-fix-findings-only', {
+    tickets: [t(2)],
+    on: (l, p) => {
+      if (l === 'review #900') return { verdict: 'CLEAN', fixes: 2 }
+      if (l === 'fix #900 (1)') ok(/\[blocking\] and \[fix\] findings/.test(p), 'the fixer is told which findings are its work')
+      return undefined
+    },
+  })
+  ok(st.n['fix #900 (1)'] === 1 && !st.n['re-review #900 (1)'], 'CLEAN with [fix] findings → one fixer, no re-review')
+  ok(spec.outcome === 'merged' && st.n['gate #900'] === 1, 'then the gate and the merge')
+}
+{
+  const { st, spec } = await run('spec-review-fix-findings-fixer-blocked', {
+    tickets: [t(2)],
+    on: l => {
+      if (l === 'review #900') return { verdict: 'CLEAN', fixes: 1 }
+      if (l === 'fix #900 (1)') return { status: 'blocked', reason: 'denied' }
+      return undefined
+    },
+  })
+  ok(spec.outcome === 'merged' && !st.n['escalate #1'], 'a stuck fixer for [fix] findings does not stop the merge')
+}
+{
+  const { st } = await run('spec-review-clean-no-fixes', { tickets: [t(2)] })
+  ok(!st.n['fix #900 (1)'], 'CLEAN with no [fix] findings → no fixer')
+}
+{
+  const { st } = await run('sub-issue-fix-findings-ignored', {
+    tickets: [t(2)], mode: 'single',
+    on: l => (l === 'review #102' ? { verdict: 'CLEAN', fixes: 3 } : undefined),
+  })
+  ok(st.n['review #102'] === 1 && !st.n['fix #102 (1)'], 'outside the spec PR, [fix] findings stay on the PR')
+}
+{
   const { st, spec } = await run('spec-pr-resumed', {
     tickets: [t(2, { integrated: true }), t(3)],
     integration: { exists: true, pr: { number: 900, unresolved: 0 } },

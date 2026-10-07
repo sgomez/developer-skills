@@ -153,9 +153,10 @@ unresolved thread from the last review, per the code-host doc's read-feedback
 operation, and for each one decide whether the new commits actually address it
 — a reply that says "fixed" is a claim, the diff is the evidence. A finding
 still standing is a finding again: repeat it (a reply on its thread, not a new
-inline comment) and it blocks. This is what pays for not re-reading the rest of
-the change: nothing merges without every previous finding being answered in
-code.
+inline comment) with its label unchanged — a standing `[blocking]` blocks, a
+standing `[fix]` does not. This is what pays for not re-reading the rest of
+the change: nothing merges without every previous `[blocking]` finding
+answered in code.
 
 Then review the scope diff. Check for:
 - **Correctness bugs** — logic errors, off-by-ones, null/undefined, wrong types
@@ -166,8 +167,9 @@ Then review the scope diff. Check for:
 - **Tests that do not test** — a new or changed test that would still pass
   with the behaviour it names broken: it reaches the result by another path,
   asserts before an asynchronous result arrives, or leans on a default that
-  does the work anyway. Ask of each one what would make it fail. Blocking
-  when it is the only test of an acceptance criterion
+  does the work anyway. Ask of each one what would make it fail.
+  `[blocking]` when it is the only test of an acceptance criterion, `[fix]`
+  otherwise — never a note
 - **Security** — injection, unvalidated input, exposed secrets
 - **Simplification** — dead code, duplication, over-engineering
 - **Refactoring smells** (never blocking) — Fowler's catalogue: mysterious
@@ -238,16 +240,27 @@ with its quietest reporter (`--reporter=dot`, `--silent`) — a green suite's
 per-test output is pure context cost. On a red run, re-run **only** the
 failing file or test name to get the detail you need to write the finding.
 
-Separate findings into **actionable** (require a code change: bugs, spec
-violations — missing/wrong requirements, scope creep — failing checks,
-missing acceptance criteria, security) and **notes** (style preferences,
-questions, nice-to-haves, refactoring smells). Only actionable findings
-block.
+Label **every** finding with exactly one severity, written first, as is,
+whatever language the review is in:
+
+- **`[blocking]`** — stops the merge: bugs, spec violations (missing or wrong
+  requirements, scope creep), failing checks, missing acceptance criteria,
+  security, a test that is the only one of a criterion and cannot fail.
+- **`[fix]`** — does not stop the merge, but the change should not stay this
+  way and the fixer will do it: duplication of a mechanism the change
+  already has, a weak test that does not test what it names, dead code the
+  change leaves behind. Say what to do, so the fix needs no interpretation.
+- **`[note]`** — nobody acts on it: style preferences, questions,
+  nice-to-haves, refactoring smells, anything harmless.
+
+Only `[blocking]` findings block. When unsure between `[fix]` and `[note]`,
+ask whether you would want it changed before this lands; if you would not
+mind either way, it is a note.
 
 ### 4. Post the review
 
-For each actionable finding, post an inline review comment on the exact
-line, per the code-host doc's post-review operation; group everything into
+For each `[blocking]` and `[fix]` finding, post an inline review comment
+on the exact line, label first, per the code-host doc's post-review operation; group everything into
 one review submission where the host supports it. GitHub default — use
 `line` + `side` (`position` is deprecated) and `-F` for the numeric field:
 
@@ -255,15 +268,15 @@ one review submission where the host supports it. GitHub default — use
 gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
   --method POST \
   -f event="COMMENT" \
-  -f body="<overall summary, including non-blocking notes>" \
+  -f body="<overall summary: every finding with its label, grouped by label>" \
   -f "comments[][path]"="<file>" \
   -F "comments[][line]"=<line> \
   -f "comments[][side]"="RIGHT" \
   -f "comments[][body]"="<finding>"
 ```
 
-If no actionable findings: post a review whose summary starts with a clear
-"CLEAN" (non-blocking notes may go in the body). Never use an approval
+If no `[blocking]` findings: post a review whose summary starts with a clear
+"CLEAN" (`[fix]` and `[note]` findings still go in it). Never use an approval
 event (`APPROVE`, `glab mr approve`, …) — the pipeline authors changes
 under the same identity that reviews them; on GitHub self-approval is
 rejected outright (HTTP 422), and everywhere the CLEAN summary is the
@@ -287,8 +300,8 @@ gh pr ready <PR>
 - Settle the scope before reading anything: a re-review reads the diff since
   the last reviewed sha, never the whole change again
 - Under incremental scope, untouched code is out of bounds for new findings —
-  it was already reviewed. Every previous finding, on the other hand, must be
-  confirmed fixed in code before the review can be CLEAN
+  it was already reviewed. Every previous `[blocking]` finding, on the other
+  hand, must be confirmed fixed in code before the review can be CLEAN
 - Never push code changes — review only (exception: a local code host's
   review lives in the change file; committing that one file is the review)
 - One review submission, not comment-by-comment (where the host can batch)
@@ -301,4 +314,5 @@ gh pr ready <PR>
 - Never wait on a pipeline that is still running — report on the diff, name the
   pending checks, and let the merge gate settle them
 - Unattended: never ask the user anything; when unsure whether a finding
-  blocks, ask "would this stop me merging?" — if not, it's a note
+  blocks, ask "would this stop me merging?" — if not, it is `[fix]` or
+  `[note]`

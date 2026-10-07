@@ -119,6 +119,7 @@ const REVIEW = {
   type: 'object',
   properties: {
     verdict: { enum: ['CLEAN', 'NEEDS_FIXES', 'blocked'] },
+    fixes: { type: 'integer', description: 'how many findings the review labelled [fix]' },
     reason: { type: 'string' },
     noNewCommits: { type: 'boolean', description: 'blocked because nothing landed since the last review' },
     held: { type: 'boolean', description: 'blocked because git says the branch is already used by another worktree' },
@@ -353,8 +354,10 @@ async function review(s, rereview) {
 
 // Fix cycles until the re-review says CLEAN. Returns null when clean, or the
 // escalation reason. `ci` is a failing job URL when the cycle comes from the
-// checks gate rather than a review.
-async function fixUntilClean(s, ci) {
+// checks gate rather than a review. `once` runs a single fix with no
+// re-review: a CLEAN review's [fix] findings do not block, so nothing waits
+// on a verdict about them.
+async function fixUntilClean(s, ci, once) {
   for (;;) {
     if (s.cycles >= MAX_FIX_CYCLES) return `not clean after ${MAX_FIX_CYCLES} fix cycles`
     s.cycles++
@@ -363,7 +366,7 @@ async function fixUntilClean(s, ci) {
     let f
     for (let attempt = 0; ; attempt++) {
       f = await work(
-        `FIX job. PR #${s.pr}. Run the fix-pr skill to address all review threads — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Your local branch is \`${FIX_BRANCH(s.pr)}\` (\`-r2\`, \`-r3\`… when it is held), not \`fix/pr-${s.pr}\`. Pushing the fixes and replying to the review threads are part of your delegated task.${extra} ${STRUCTURED}`,
+        `FIX job. PR #${s.pr}. Run the fix-pr skill to address the review's [blocking] and [fix] findings — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Your local branch is \`${FIX_BRANCH(s.pr)}\` (\`-r2\`, \`-r3\`… when it is held), not \`fix/pr-${s.pr}\`. Pushing the fixes and replying to the review threads are part of your delegated task.${extra} ${STRUCTURED}`,
         {
           label: `fix #${s.pr} (${s.cycles})`, phase: s.phase, agentType: 'developer-skills:code-author',
           model: s.cycles === 1 ? s.tier : 'opus', isolation: 'worktree', schema: WORK,
@@ -379,6 +382,7 @@ async function fixUntilClean(s, ci) {
       break
     }
     if (!f || f.status !== 'pr') return `fix cycle ${s.cycles} blocked: ${f?.reason ?? 'worker died'}`
+    if (once) return null
     // A sub-issue on the integration branch has no review of its own: the
     // fix answers threads an earlier run left, and the spec PR's review is
     // the verdict.
@@ -672,6 +676,12 @@ Use the title as printed, with any double quote replaced by a single one. Report
           spec.verdict = 'NEEDS_FIXES'
           const why = await fixUntilClean(spec, null)
           if (why) return escalate(spec, why)
+        } else if (r.fixes > 0) {
+          // Nothing blocks, but the review asked for changes: one fixer
+          // does them, and the checks gate judges the result. A fixer that
+          // gets nowhere leaves them on the PR — they never blocked.
+          const why = await fixUntilClean(spec, null, true)
+          if (why) log(`spec PR #${spec.pr}: [fix] findings left on the PR (${why})`)
         }
         spec.verdict = 'CLEAN'
       }

@@ -70,9 +70,9 @@ defaults — **the operations below override them.**
 - **Post a review**: append a `## Review N` section to the change file,
   opening it with a `Reviewed at <sha>` line (`git rev-parse HEAD` — the
   anchor the next review's scope hangs on), then
-  one `- [ ] \`<file>:<line>\` — <finding>` item per actionable finding,
-  then a summary paragraph (non-blocking notes included; start it with
-  "CLEAN" when nothing blocks). Commit **only the change file** — the one
+  one `- [ ] \`<file>:<line>\` — [blocking|fix] <finding>` item per
+  `[blocking]` or `[fix]` finding, then a summary paragraph (`[note]`
+  findings included; start it with "CLEAN" when nothing is `[blocking]`). Commit **only the change file** — the one
   write a reviewer is allowed.
 - **Mark ready**: set `Status: ready` in the change file (same commit as
   the review).

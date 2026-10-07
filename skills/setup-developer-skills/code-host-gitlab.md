@@ -72,7 +72,7 @@ operations below override them**.
   `glab api "projects/:id/merge_requests/<MR>/discussions"` for inline
   threads — a thread is unresolved while any note has `"resolved": false`.
 - **Post a review**: GitLab has no batched review submission. Post each
-  actionable finding as a positioned discussion:
+  `[blocking]` or `[fix]` finding, label first, as a positioned discussion:
 
   ```bash
   # diff_refs come from: glab api "projects/:id/merge_requests/<MR>" --jq .diff_refs
@@ -86,7 +86,7 @@ operations below override them**.
 
   If a positioned discussion is rejected (line not in the diff), fall back
   to an unpositioned discussion whose body starts with `` `<file>:<line>` ``.
-  Then post the overall summary (including non-blocking notes) as a plain
+  Then post the overall summary (every finding with its label) as a plain
   note: `glab mr note <MR> --message "..."`. Never use `glab mr approve` —
   the summary note starting with "CLEAN" is the approval signal.
 - **Is the change mergeable?** (the orchestrator, before waiting on anything

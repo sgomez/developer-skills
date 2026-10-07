@@ -39,7 +39,8 @@ build → review → fix → merge — and pings you when it's done.
 - **One integration branch, one whole-spec review** — sub-issues are built
   from the tip of `agent/developer/spec-<N>` and merged into it with no review of
   their own; the spec PR into `main` is reviewed once, whole, and fixed by a
-  single worker. Reviewed one PR at a time, sub-issues each grow their own
+  single worker — the blocking findings and the `[fix]` ones the review asks
+  for even when nothing blocks. Reviewed one PR at a time, sub-issues each grow their own
   copy of a shared helper and nobody sees how their screens interact. A
   single issue gets its own PR and its own review.
 - **Parallel by default, sequential on demand** — up to three build and fix

@@ -89,13 +89,15 @@ do it "to be sure".
 
 ## Verdict semantics
 
-- **NEEDS_FIXES** — only for findings that require a code change: correctness
-  bugs, spec violations (requirements missing, implemented wrong, or scope
-  creep the issue never asked for), failing checks, missing acceptance
-  criteria, security problems.
-- **CLEAN** — everything else. Style preferences, questions, nice-to-haves,
-  and refactoring smells go in the review body as non-blocking notes; they do
-  not flip the verdict. If it wouldn't stop you merging, it's CLEAN.
+The review-pr skill labels every finding `[blocking]`, `[fix]` or `[note]`.
+
+- **NEEDS_FIXES** — at least one `[blocking]` finding: correctness bugs,
+  spec violations (requirements missing, implemented wrong, or scope creep
+  the issue never asked for), failing checks, missing acceptance criteria,
+  security problems.
+- **CLEAN** — no `[blocking]` finding. `[fix]` findings do not flip the
+  verdict, but count them: the orchestrator may send a fixer for them. If it
+  wouldn't stop you merging, it's CLEAN.
 
 ## Output (required)
 
@@ -107,11 +109,11 @@ the fixer will read them.
 
 - If the review posted findings that require code changes:
   ```
-  RESULT verdict=NEEDS_FIXES pr=<number> summary=<one line>
+  RESULT verdict=NEEDS_FIXES pr=<number> fixes=<number of [fix] findings> summary=<one line>
   ```
-- If the review posted no actionable findings:
+- If the review posted no `[blocking]` findings:
   ```
-  RESULT verdict=CLEAN pr=<number> summary=<one line>
+  RESULT verdict=CLEAN pr=<number> fixes=<number of [fix] findings> summary=<one line>
   ```
 - If you could not perform the review at all (escaped worktree, denied
   permissions, unreachable PR, or no new commits since the last review):

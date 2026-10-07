@@ -51,6 +51,15 @@ Changes staged on the `next` branch, published as a new version once ready.
     accepts: nobody waits on that CI, but it still burns runner time.
   - `review-pr` checks for tests that would still pass with the behaviour
     they name broken.
+  - `review-pr` labels every finding `[blocking]`, `[fix]` or `[note]`.
+    `[fix]` is for what does not stop the merge but should not land as is —
+    a duplicated mechanism, a test that does not test what it names — and
+    `fix-pr` does it as it does `[blocking]`; `[note]` is left alone. A
+    CLEAN spec PR review with `[fix]` findings gets one fixer with no
+    re-review before the gate. On lab-04 the spec review left a private copy
+    of the keyboard hook and a test that cannot fail as notes, and the fixer
+    acted on the one blocking finding alone. Outside the spec PR a `[fix]`
+    does not start a fix cycle of its own.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after
     a blocked or wrong resolution, runs on Opus. They merge the base into
     the PR branch instead of rebasing, so they never force-push: the
