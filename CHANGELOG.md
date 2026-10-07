@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **`/setup-developer-skills` recommends the Claude Code settings; you edit
+  them.** It no longer writes `.claude/settings.json` or
+  `.claude/settings.local.json`. It prints the rules for your code host,
+  explains what each one is for, and lets you choose where they go:
+  - the project's shared file;
+  - the project's personal file;
+  - `~/.claude/settings.json`, to configure every project at once.
+
+  It also lists the entries earlier versions had you add and that nothing
+  uses any more, for you to delete:
+  - the `autoMode` merge authorization from 0.4 and 0.9–0.10, replaced by
+    the merge hook;
+  - script rules pinned to one plugin version, which stop matching at the
+    next update (use `*` for the version);
+  - the copies of the agents that versions up to 0.15 put in
+    `.claude/agents/`.
+- **Claude Code only.** The pipeline depends on Claude Code's workflows,
+  plugin hooks, subagent model tiers and worktree isolation. The README no
+  longer documents installing on Google Antigravity (Gemini).
 - **`implement-issue` builds red before green, and proves it.** TDD was one
   line among 300, and the builds skipped it: on spec #964 the Opus build wrote
   its tests and its code and ran the tests for the first time at the end, and
@@ -231,6 +250,12 @@ Changes staged on the `next` branch, published as a new version once ready.
   `gh pr ready`, `gh pr update-branch`, `git push origin --delete`) is now a
   bare command in its own Bash call, exempt from the output cap, with its
   verification in a separate call.
+
+### Documentation
+- The README covers the hooks the plugin ships and the three settings scopes,
+  and lists dynamic workflows among the requirements. `tdd` moves from
+  recommended to optional, since `implement-issue` carries its own
+  red-before-green loop.
 
 ## [0.24.0] - 2026-09-19
 

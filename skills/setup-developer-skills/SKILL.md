@@ -1,6 +1,6 @@
 ---
 name: setup-developer-skills
-description: Configure this repo for the /developer unattended spec-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md and its phase annexes (GitHub, GitLab or local first-class; anything else as freeform), installs the dispatcher/code-author/diff-reviewer agents, ensures the triage labels exist, and asks for the run defaults written to docs/agents/developer-defaults.md. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
+description: Configure this repo for the /developer unattended spec-delivery pipeline — patches the issue tracker doc with the pipeline's Delivery operations, writes docs/agents/code-host.md and its phase annexes (GitHub, GitLab or local first-class; anything else as freeform), checks the code-author/diff-reviewer agents are loaded, ensures the triage labels exist, asks for the run defaults written to docs/agents/developer-defaults.md, and recommends the Claude Code settings (project or global) for the user to edit, obsolete entries included. Requires /setup-matt-pocock-skills to have run first (refuses otherwise). Run once before first use of /developer.
 disable-model-invocation: true
 ---
 
@@ -40,7 +40,7 @@ follow for this skill:
   sentence in it looks stale. If something in it is now wrong, say so in the
   chat summary and let the user decide; correcting it is not what an update
   was asked to do. The one exception is material a **plugin feature that no
-  longer exists** put there: step 7 retires it, from a fixed list.
+  longer exists** put there: step 8 retires it, from a fixed list.
 - **A core file and its annexes, never one long file.** Every worker reads
   `code-host.md` and `issue-tracker.md` **whole, in its first turn**, before
   looking at a line of code — so those two pay for their length once per
@@ -323,43 +323,46 @@ the first line, set the two answered values in the fenced block).
 the two questions with the current values as the recommended options, and
 rewrite the file.
 
+### 7. Recommend the Claude Code settings
+
 **Regardless of the merge choice**, the pipeline's code-host writes will
 hit permission prompts — and with nobody at the keyboard a single denial
-escalates the sub-issue instead of delivering it. Offer to add the
-allowlist and the auto-mode context, split across two files because they
-are read from different scopes (merge with existing content in both):
+escalates the sub-issue instead of delivering it. Recommend the settings
+below; **never write a settings file yourself**. `~/.claude/settings.json`,
+`.claude/settings.json` and `.claude/settings.local.json` are the user's:
+print the blocks, say which file each one goes in, and let the user edit.
 
-- **`.claude/settings.json`** (shared, committable) — the
-  `permissions.allow` rules for the host CLI. Narrow allow rules (fixed
-  subcommands) resolve **before** the auto-mode classifier and keep the
-  review / mark-ready / comment writes from being classified. The **merge is
-  the exception**: in auto mode the classifier re-evaluates the pipeline's
-  unattended `gh pr merge` as a "merge without human approval" pattern and
-  denies it *even when* `gh pr merge` is allow-listed. That single command is
-  handled deterministically by this plugin's PreToolUse hook
-  (`hooks/approve-merge.sh`) — it grants a PreToolUse `allow`, which runs
-  before the classifier, and fires only in `merge: auto` repos — or, in any
-  repo, for a merge into a spec's integration branch (`agent/developer/spec-<N>`),
-  which `/developer` does unattended whatever the merge policy. The
-  `gh pr merge` allow rule below still spares a prompt when the pipeline runs
-  outside auto mode.
-- **`.claude/settings.local.json`** (per-project too, but gitignored) —
-  the allow rule for the bundled cleanup script: it embeds this machine's
-  absolute plugin path, which would break for teammates if committed. A
-  user who prefers configuring once may put it in `~/.claude/settings.json`
-  instead (the plugin path is the same for all their projects).
+Explain the three scopes and let the user pick (merge with what is already
+there — never replace a file):
 
-Write `permissions` rules only — never an `autoMode` block.
+- **Project, shared — `.claude/settings.json`** (committed): the host CLI
+  rules and `Workflow`. The whole team gets them.
+- **Project, personal — `.claude/settings.local.json`** (gitignored): the
+  same rules for a user who does not want to commit them, and the bundled
+  scripts' rules, which embed this machine's plugin path.
+- **Global — `~/.claude/settings.json`**: every project on this machine.
+  The scripts' rules, the `gh pr` subcommand rules and `Workflow` are safe
+  here and need configuring only once. The reviews-API rule names one repo:
+  keep it in the project, or widen it to `repos/*/pulls/*/reviews*` globally.
 
-**Expect a permission prompt on these writes.** `.claude/` settings files
-are protected paths: no allow rule pre-approves writing them. Show the
-user the exact JSON before writing; their approval at the prompt is the
-authorization. If the write is denied, do **not** retry or route around
-it — print the blocks and the target file paths and have the user paste
-them in.
+Why each rule exists, so the user can judge it:
 
-**GitHub** (replace OWNER/REPO from `git remote -v`) — in
-`.claude/settings.json`:
+- Narrow allow rules (fixed subcommands) resolve **before** the auto-mode
+  classifier and keep the review / mark-ready / comment writes from being
+  classified.
+- The **merge** and the fixer's **push onto a PR's head branch** need no
+  rule in auto mode: the classifier would deny them even when allow-listed,
+  so this plugin's PreToolUse hooks (`hooks/approve-merge.sh`,
+  `hooks/approve-push.sh`) approve exactly the pipeline's own forms. The
+  `gh pr merge` rule still spares a prompt outside auto mode; keep it even
+  with `merge: manual`, since sub-issues merge into the integration branch
+  unattended either way.
+- `Workflow` lets `/developer` launch its orchestration workflow without a
+  prompt; it is required in `-p` (headless) runs.
+- The `git push` rule creates a spec's integration branch from `main` — the
+  exact command, nothing wider.
+
+**GitHub** (replace OWNER/REPO from `git remote -v`):
 
 ```json
 {
@@ -376,13 +379,12 @@ them in.
 }
 ```
 
-`Workflow` lets `/developer` launch its orchestration workflow without a
-prompt; it is required in `-p` (headless) runs, where nobody can answer one.
-The `git push` rule is the creation of a spec's integration branch from
-`main` — the exact command, nothing wider.
-
-and in `.claude/settings.local.json`, with `<plugin-root>` resolved to this
-plugin's installed location (the directory two levels above this SKILL.md):
+The bundled scripts, with `<plugin-root>` resolved to this plugin's
+installed location (the directory two levels above this SKILL.md). An
+installed plugin lives under a directory named after its version
+(`…/plugins/cache/sgomez/developer-skills/0.25.0/`), so **replace that
+segment with `*`**: a rule pinned to one version stops matching at the next
+update.
 
 ```json
 {
@@ -396,24 +398,45 @@ plugin's installed location (the directory two levels above this SKILL.md):
 }
 ```
 
-Keep the merge rule even with `merge: manual`: sub-issues are merged into
-the spec's integration branch unattended either way — the policy governs
-only the spec PR into `main`.
-
 **GitLab**: the analogous rules —
 `"Bash(glab mr update:*)"`, `"Bash(glab mr note:*)"`,
 `"Bash(glab mr merge:*)"`,
-`"Bash(glab api projects/*/merge_requests/*)"`, plus `"Workflow"` — and the same
-cleanup-worktrees.sh rule in `.claude/settings.local.json`.
+`"Bash(glab api projects/*/merge_requests/*)"`, plus `"Workflow"` and the
+integration-branch push — and the same scripts' rules.
 
-**Local / Other**: `"Workflow"` as above; no merge or review-posting rules apply (local never
-auto-merges and its review is a committed file; for other hosts derive the
-allowlist from the commands recorded in `docs/agents/code-host.md`) — but
-**still offer the cleanup-worktrees.sh rule**: the wrap-up's `--sweep` is a
-pattern-matched worktree removal, exactly the shape the auto-mode
-classifier denies, and local runs hit it like any other.
+**Local / Other**: `"Workflow"`; no merge or review-posting rules apply
+(local never auto-merges and its review is a committed file; for other
+hosts derive the allowlist from the commands recorded in
+`docs/agents/code-host.md`) — but **still recommend the cleanup-worktrees.sh
+rule**: the wrap-up's `--sweep` is a pattern-matched worktree removal,
+exactly the shape the auto-mode classifier denies.
 
-### 7. Retire what the plugin no longer uses
+Never recommend an `autoMode` block.
+
+**Obsolete entries.** Read the three files (those that exist) and list what
+an earlier version of this plugin had users add and nothing uses any more —
+for each one, the file, the entry, and why it goes. The user deletes them;
+you do not:
+
+- An **`autoMode` block** whose `allow` sentence authorizes merging pull
+  requests for `/developer` (recommended in 0.4 and 0.9–0.10). The
+  `approve-merge.sh` hook replaced it, and free-text authorizations widen
+  what the classifier lets through.
+- **`Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)`**
+  (pre-release builds): integration branches now live under
+  `agent/developer/`.
+- **Script rules pinned to one plugin version** (a version number where the
+  `*` should be), or pointing at a path that no longer exists: they match
+  nothing. Replace them with the `*` form above.
+- **Copies of the old agents in `.claude/agents/`** — `dispatcher.md`,
+  `code-author.md`, `diff-reviewer.md` — installed by versions up to 0.15,
+  before the plugin shipped its own. The pipeline uses the plugin's
+  namespaced agents; the copies are stale, and `dispatcher` no longer
+  exists.
+
+Say nothing about entries you do not recognise as this plugin's.
+
+### 8. Retire what the plugin no longer uses
 
 An update brings the template parts up to date, but a feature the plugin has
 dropped leaves its artifacts behind in the repo — sections, knobs and index
@@ -448,12 +471,13 @@ removed.
 When a future release drops a feature that wrote into the repo, it adds its
 entry here.
 
-### 8. Report
+### 9. Report
 
 Summarise what was set up — tracker, code host, chosen defaults, the CI
 files edited to skip integration-branch changes (uncommitted, for them to
-review and commit), and what step 7 retired — and remind the user of the
-flow:
+review and commit), the settings recommended in step 7 with the scope the
+user picked, the obsolete settings entries listed for them to delete, and
+what step 8 retired — and remind the user of the flow:
 
 1. Grill/discuss a feature → `/to-spec` publishes the spec (PRD) issue.
 2. `/to-tickets <spec>` breaks it into child issues discoverable by the

@@ -69,24 +69,21 @@ build → review → fix → merge — and pings you when it's done.
 > `--auto-merge`) and it **merges to `main` unattended** when the reviewer
 > verdict is CLEAN — the `diff-reviewer` (Opus) is then the only gate.
 
-## Claude Code first
+## Claude Code only
 
-The full pipeline runs **only on Claude Code**. The skills follow the
-cross-agent `SKILL.md` convention, but everything that makes the pipeline
-work is Claude-specific: the subagent definitions (`agents/*.md` frontmatter
-with `model:`/`effort:`), the Agent-tool orchestration with per-spawn model
-override and **worktree isolation**, and the push notification at the end.
-Other agentic tools (Cursor, Codex, etc.) use different agent file formats
-and have no equivalent of these primitives.
-
-The worker agents and skills (not the orchestration) also run on
-**Google Antigravity** — see [Antigravity](#antigravity) below.
+developer-skills is a Claude Code plugin and runs only on Claude Code. The
+pipeline is built on Claude-specific pieces: the plugin's subagents
+(`agents/*.md` with `model:` and `effort:`), the dynamic workflow that
+orchestrates them, per-spawn model tiers, worktree isolation, the plugin's
+PreToolUse hooks and the push notification at the end. Other agentic tools —
+Cursor, Codex, Gemini or Antigravity — have no equivalent, and are not
+supported.
 
 ## Install
 
 ### The Claude Code plugin
 
-Installs the skills **and the three subagents** in one step:
+Installs the skills, **the two subagents** and the hooks in one step:
 
 ```
 /plugin marketplace add sgomez/developer-skills
@@ -147,7 +144,7 @@ for everything.)
 | `setup-matt-pocock-skills` | **Required.** Creates `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`, which every skill here reads. |
 | `to-spec` | **Required.** Publishes the spec (PRD) issue the pipeline consumes. Replaces `to-prd` (renamed in mattpocock/skills v1.1). |
 | `to-tickets` | **Required.** Breaks the spec into sub-issues with `Parent` / `Blocked by` ordering (native sub-issue and blocking links where the tracker has them). Replaces `to-issues` / `to-plan`. |
-| `tdd` | Recommended. `implement-issue` follows TDD where tests exist. |
+| `tdd` | Optional. `implement-issue` carries its own red-before-green loop; `tdd` is for when you build by hand. |
 | `grill-with-docs` | Recommended. The spec interview for repos with a codebase: a `/grilling` session that also writes `CONTEXT.md` and ADRs — exactly the context docs `/developer`'s Step 0 publishes for its workers. Uses `grilling` + `domain-modeling`. |
 | `grilling` / `grill-me` | The interview primitive behind `grill-with-docs`; `grill-me` is the stateless variant for when there's no codebase yet. |
 | `domain-modeling` | Used by `grill-with-docs` for the glossary / ADR vocabulary. |
@@ -187,9 +184,11 @@ Matt's first.
    equivalent) exist.
 5. Ask for the repo's run defaults — parallel vs sequential execution,
    auto vs manual merge — and write them to
-   `docs/agents/developer-defaults.md`. If you pick auto-merge, it offers to
-   pre-approve the needed CLI permissions (see below) so the unattended
-   merge doesn't die on a permission prompt.
+   `docs/agents/developer-defaults.md`.
+6. Recommend the Claude Code settings the unattended run needs, for the
+   project or globally, and list the entries an earlier version had you add
+   that nothing uses any more (see below). It never edits your settings: you
+   do.
 
 **Issues and code are independent axes**: issues can live on GitHub, GitLab,
 local markdown under `.scratch/` (all first-class), or anywhere you can
@@ -204,17 +203,19 @@ host runs with `merge: manual` only.
 reviews, marking PRs ready, commenting, merging — hit permission prompts by
 default. With nobody at the keyboard, one denial means the worker reports
 blocked and the sub-issue gets escalated instead of merged.
-`/setup-developer-skills` offers to write this configuration for you (the
-merge rules only when you chose `merge: auto`), adapted to your code host —
-split across two files because they are read from different scopes.
-Expect a permission prompt when it writes them — `.claude/` settings are
-protected paths, so your approval at that prompt is the authorization (on
-a denial, the skill prints the blocks for you to paste by hand). The
-GitHub version by hand (replace `OWNER/REPO`; GitLab is the same shape
-with the `glab` equivalents):
 
-**`.claude/settings.json`** (shared, committable — pre-approves the `gh`
-calls; explicit allow rules resolve *before* the auto-mode classifier runs):
+`/setup-developer-skills` recommends the rules below, adapted to your code
+host, and **you add them yourself** — it never writes a settings file. Pick
+the scope:
+
+| File | Scope | Good for |
+|---|---|---|
+| `.claude/settings.json` | This project, committed | The host CLI rules and `Workflow`, for the whole team |
+| `.claude/settings.local.json` | This project, only you (gitignored) | The same rules if you'd rather not commit them; the scripts' rules |
+| `~/.claude/settings.json` | Every project on this machine | Configure once: the scripts, the `gh pr` rules and `Workflow` |
+
+The GitHub rules (replace `OWNER/REPO`, or use `repos/*/pulls/*/reviews*` in
+the global file; GitLab is the same shape with the `glab` equivalents):
 
 ```json
 {
@@ -224,17 +225,17 @@ calls; explicit allow rules resolve *before* the auto-mode classifier runs):
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
-      "Bash(git push origin refs/remotes/origin/main:refs/heads/agent/developer/spec-*)"
+      "Bash(git push origin refs/remotes/origin/main:refs/heads/agent/developer/spec-*)",
+      "Workflow"
     ]
   }
 }
 ```
 
-**`.claude/settings.local.json`** (still per-project, but gitignored —
-this rule embeds `<plugin-root>`, the plugin's install path on *this*
-machine, which would break for teammates if committed; put it in
-`~/.claude/settings.json` instead if you'd rather allow the bundled script
-once for every project):
+The bundled scripts. `<plugin-root>` is the plugin's install path on your
+machine; put `*` where its version goes
+(`~/.claude/plugins/cache/sgomez/developer-skills/*`), or the rule stops
+matching at the next update:
 
 ```json
 {
@@ -248,37 +249,35 @@ once for every project):
 }
 ```
 
-- **`permissions.allow`** pre-approves exactly the writes the pipeline needs:
-  the reviews API (the diff-reviewer posts the inline review) and
-  `gh pr ready` (the orchestrator flips the PR out of draft),
-  `gh pr comment` (fix-pr replies to threads, escalation comments),
-  `gh pr merge` (the orchestrator's auto-merge), `cleanup-worktrees.sh`
-  (the wrap-up sweep), `checks-gate.sh` (the read-only CI gate before
-  each merge) and `spec-plan.sh` (the read-only planning call).
+What each rule is for:
 
-Scoping the reviews-API rule to your repo (rather than `gh api:*`) keeps the
-blast radius small; the ready/comment/merge rules are gh-subcommand-scoped
-and safe to allow globally in `~/.claude/settings.json` if you prefer.
+- **The reviews API and `gh pr ready` / `comment` / `merge`:** the review
+  worker posts its review, the orchestrator marks the PR ready, the fixer
+  replies to threads and the orchestrator merges.
+- **The `git push`:** creates a spec's integration branch from `main`, with
+  that exact command and nothing wider.
+- **`Workflow`:** launches the orchestration without a prompt. It is
+  required in headless (`-p`) runs.
+- **The scripts:** the read-only planning call, the CI gate before each
+  merge, and the wrap-up's worktree cleanup.
 
-## Antigravity
+In auto mode the classifier would deny the unattended merge and the fixer's
+push onto a PR's branch, even when they are on the allow list. The plugin's
+PreToolUse hooks (`hooks/approve-merge.sh` and `hooks/approve-push.sh`)
+approve exactly the pipeline's own forms of those two commands, so no
+`autoMode` block is needed.
 
-The Antigravity CLI (`agy`) imports Claude Code plugins natively, so the
-whole repo installs straight from GitHub — skills and agents included:
+**Remove from earlier versions** — `/setup-developer-skills` lists them if it
+finds them:
 
-```bash
-agy plugin install https://github.com/sgomez/developer-skills
-```
-
-It clones the repo into `~/.gemini/config/plugins/developer-skills` and
-converts the Claude-format `agents/*.md` and `skills/` on load. Reinstall to
-update; `agy plugin list` / `agy plugin uninstall developer-skills` to manage.
-
-Caveats: all five skills are imported, including the `/developer`
-orchestrator, and Antigravity does have worktree isolation for agents. What
-it lacks is per-spawn model tiers and `effort:` — subagents run on
-Antigravity's own models, so a sub-issue's `## Complexity` rating
-doesn't steer which model builds it. The unattended loop is
-best-effort outside Claude Code.
+- An `autoMode` block that authorizes merging PRs for `/developer`, from
+  0.4 and 0.9–0.10. The merge hook replaced it.
+- Script rules pinned to one plugin version, or pointing at a path that no
+  longer exists.
+- `Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)`,
+  from pre-release builds. The branch now lives under `agent/developer/`.
+- `.claude/agents/dispatcher.md`, `code-author.md` and `diff-reviewer.md`,
+  copied into the repo by versions up to 0.15. The plugin ships its own.
 
 ## Requirements
 
@@ -288,7 +287,7 @@ best-effort outside Claude Code.
   authenticated), and **local** (markdown issues under `.scratch/`, changes
   as local branches — no remote needed). Other trackers/hosts work as
   freeform configuration.
-- Claude Code with subagents and worktree isolation (any recent version).
+- Claude Code with subagents, worktree isolation and dynamic workflows enabled in `/config`.
 - **git ≥ 2.31.** Workers run in linked worktrees and check they are really in
   one — via `git rev-parse --path-format=absolute` — before checking anything
   out. Without that flag the check cannot tell a worktree from a subdirectory
@@ -328,6 +327,11 @@ you. (Not sure which skill fits? `/ask-matt`.)
 agents/                     # subagents, auto-loaded by the plugin route
   code-author.md            # builder/fixer — model from the sub-issue's complexity
   diff-reviewer.md          # merge gate — pinned opus, effort: high
+hooks/                      # PreToolUse hooks, auto-loaded by the plugin
+  approve-merge.sh          # lets the pipeline's own merge past auto mode
+  approve-push.sh           # lets a fixer push onto the PR it was sent to fix
+  no-ci-logs-in-orchestrator.sh  # keeps raw CI logs out of the orchestrator
+  require-background-workers.sh  # refuses foreground worker spawns
 skills/
   developer/                # launcher: run config, then the workflow, then the report
     workflow.js             # the orchestrator: dependency order, fix cycles, gate, merges
