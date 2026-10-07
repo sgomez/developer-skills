@@ -5,403 +5,205 @@ description: Implements an issue end-to-end: fetches the spec from the project i
 
 # Implement Issue
 
-Full issue → PR → close flow, locally.
+Issue → branch → test-first code → checks → draft PR. One issue per invocation.
 
-**Contract docs.** The issue mechanics come from the repo's
-`docs/agents/issue-tracker.md` (its `## Delivery operations` section) and
-the change mechanics from `docs/agents/code-host.md` — read those two files
-first if present. The commands below are the **GitHub factory defaults**
-(`gh`), used verbatim when those docs are absent or confirm GitHub; when a doc
-defines a different mechanic for an operation, the doc wins. "PR" below
-means whatever the code host calls a reviewable change (pull request,
-merge request, branch + change file).
+**Contract docs.** Issue mechanics come from `docs/agents/issue-tracker.md`
+(its `## Delivery operations`), change mechanics from `docs/agents/code-host.md`.
+Read those two first if present; where they define an operation, they win over
+the `gh` defaults below. "PR" means whatever the code host calls a reviewable
+change. Their annexes (`code-host-ci.md`, `issue-authoring.md`) are for later
+phases — implementing an issue needs neither.
 
-**Their annexes are deferred, not optional.** Those two docs link phase
-annexes — `code-host-ci.md` when a change's CI has to be waited on, read or
-classified; `issue-authoring.md` when issues are being *created*, which this
-skill never does. **Do not read an annex at the start**: open it at the step
-that names it, and not before. Implementing an issue and publishing a draft
-change needs nothing from either.
+## What the work is judged on
 
-## Invoke
+1. **It does what the issue asks, the way the spec decided.** Every
+   acceptance criterion, built to the interfaces and seams the spec's
+   Implementation and Testing Decisions fix. Where the issue is part of a
+   larger spec, your code has to fit the rest of it: reuse what already exists
+   instead of adding a second version of it.
+2. **Every behaviour has a test that fails without it.** Proven, not assumed:
+   you saw it fail (see *Red before green*).
+3. **The change is as small as the issue allows.** Refactor-level cleanups
+   belong to the review, not here.
 
-```
-/implement-issue          # lists open issues to pick from
-/implement-issue 42       # implements issue #42 directly
-/implement-issue 17       # if #17 has sub-issues, picks the first unblocked open one
-```
+Everything else in this skill is how to get there without wasting the session.
 
-One sub-issue per invocation — keeps sessions short and focused.
+## Red before green
+
+One behaviour at a time: write its test, **run it and watch it fail**, write
+only the code that makes it pass, run it green, next behaviour. Never write the
+tests in bulk and the code after; never write code before its test has been
+seen red.
+
+The red run is the proof the test can fail. A test that passes before the code
+exists tests nothing: the behaviour comes by another path, or the test never
+reaches it — an assertion that runs before an async result lands, a key
+pressed with the focus already on the button so the browser's own handling
+passes it, a mock that answers whatever is asked. Rewrite it until it is red
+for the right reason (the message names the missing behaviour, not a typo or
+an import), then implement.
+
+A good test:
+- exercises behaviour through the public seam — what a user or caller sees —
+  never internals, so it survives a refactor;
+- takes its expected values from the spec or a worked example, never
+  recomputed the way the code computes them;
+- fails when the behaviour it names breaks, and only then.
+
+When your change moves what an **existing** test exercises (a listener to
+another target, a handler to another component), make that test fail once
+against a deliberately broken version of your code, then restore it: a test a
+refactor left green may no longer be able to fail.
+
+Where no test can come first — pure wiring, config, no harness for it — say so
+in the PR's Test plan rather than skipping silently.
 
 ## Flow
 
-### 1. Select issue
+### 1. Select the issue
 
-**If an orchestrator (e.g. /developer) already told you which sub-issue to
-implement, skip selection entirely** — verify the issue is open and go to
-step 2. The checks below are for interactive use, where the given ref may
-be a parent. Enumerate its children per the tracker doc — GitHub default:
+**When a caller (e.g. /developer) named the issue, skip this step** — check
+it is open and go on.
 
-```bash
-gh api graphql -f query='
-{
-  repository(owner:"OWNER", name:"REPO") {
-    issue(number: ISSUE_NUM) {
-      subIssues(first: 50) {
-        pageInfo { hasNextPage }
-        nodes { number title state }
-      }
-    }
-  }
-}' --jq '.data.repository.issue.subIssues'
-```
+Interactively: if the given issue has sub-issues (GitHub:
+`gh api graphql` on `issue.subIssues(first: 50) { pageInfo { hasNextPage } nodes { number title state } }`),
+pick the first open one whose blockers — native dependency links and any
+"Blocked by" list in its body — are all closed. Over 50 children: stop and
+report, the parent should be split. Nothing unblocked: report and stop. With no
+ref, list open issues labelled `ready-for-agent` (or the repo's mapping in
+`docs/agents/triage-labels.md`) and pick bugs > tracer bullets > polish >
+refactors, or ask.
 
-If `hasNextPage` is `true`, **stop and report**: a parent with more than 50
-children should be split, not worked through — and picking from a truncated
-list would silently ignore the rest.
+### 2. Read the issue
 
-If sub-issues exist, pick the first unblocked one. Blockers may be wired as the tracker's native dependency links, as a "Blocked by" section in the sub-issue body, or both (`/to-tickets` prefers native edges where the tracker has them) — check both, per the tracker doc's blocker-state operation. GitHub default:
+Once, with its comments, into a file — GitHub:
+`gh issue view <N> --json title,body,comments > /tmp/issue-<N>.json`, then read
+the file. (`gh issue view --comments` comes back empty inside a /developer
+worktree.)
 
-```bash
-gh api repos/OWNER/REPO/issues/<N> --jq '.issue_dependencies_summary.blocked_by // 0'  # open native blockers; 0 = clear
-gh issue view <BLOCKER> --json state --jq '.state'  # each body-listed blocker must be "CLOSED"
-```
+The issue's `## Spec extract` carries the spec decisions that apply to it;
+read the parent spec only when that section is missing — unless the caller
+tells you to read it anyway.
 
-Pick the first open sub-issue where all blockers are closed. If none are unblocked, report to user and stop.
-
-If no sub-issues exist, implement the issue directly.
-
-**If no ref given**, list open issues carrying the AFK-ready triage label per the tracker doc — GitHub default:
+### 3. Branch and bootstrap
 
 ```bash
-gh issue list --state open --label "ready-for-agent" --json number,title,labels \
-  --jq '.[] | "#\(.number) \(.title)"'
-```
-
-(`ready-for-agent` is the triage vocabulary from `docs/agents/triage-labels.md`; use the repo's mapping if it differs.)
-
-Priority order: **bugs > tracer bullets > polish > refactors**. Pick highest-priority unblocked issue, or ask user to confirm.
-
-### 2. Read spec
-
-Read the issue with its comments per the tracker doc, **once** — GitHub
-default:
-
-```bash
-gh issue view <N> --json title,body,comments > /tmp/issue-<N>.json
-```
-
-then read that file. Not `gh issue view <N> --comments`: inside a /developer
-worktree the sandbox returns it **empty with exit 0**, and builds in the field
-re-fetched the issue four or five times before trying another shape.
-
-Read the full body, acceptance criteria, and all comments.
-
-**The issue is the spec — the parent is the fallback.** A well-formed ticket
-carries a `## Spec extract` section with the parent's Implementation and
-Testing Decisions that apply to it, copied verbatim (the tracker doc requires
-it of `/to-tickets`). When that section is there, build from it and **do not
-read the parent**: the rest of the parent's body is decisions for *other*
-tickets, and it competes for context with the code you still have to explore.
-
-Read the full parent spec only when the section is **missing** (an older
-ticket, or one written by hand) — then pull it per the `## Parent` section in
-the issue body, and treat that as the exception it is.
-
-### 3. Create branch
-
-```bash
-# slug = issue title lowercased, spaces→dashes, max 50 chars
-# <N> = the issue ref, slugified if it isn't a plain number
 git fetch origin main
-git checkout -b agent/issue-<N>-<slug> origin/main
+git checkout -b agent/issue-<N>-<slug> origin/main   # slug: title, lowercased, dashed, ≤50 chars
 ```
 
-(On a local code host there is no `origin` — branch from local `main`
-instead: `git checkout -b agent/issue-<N>-<slug> main`. The code-host doc
-names the base.)
+- **A branch name from the caller** replaces `agent/issue-<N>-<slug>`.
+- **A base branch from the caller** (e.g. a spec's integration branch)
+  replaces `main` everywhere: fetch it, branch from `origin/<base>`, open the
+  PR against it.
+- Local code host (no `origin`): branch from local `main` / `<base>`.
+- Never `git checkout main` — in a linked worktree it is held by the primary
+  checkout.
+- As a /developer worker, first confirm you are in a linked worktree:
+  `git rev-parse --path-format=absolute --git-dir --git-common-dir` must print
+  two different paths (keep `--path-format=absolute`). The same path twice
+  means you are in the user's checkout: stop and report blocked.
 
-**A branch name from the caller** replaces `agent/issue-<N>-<slug>`
-everywhere in this skill: /developer names its builds
-`agent/developer/issue-<N>`, a name any of its agents can derive from the
-issue number alone.
-
-**A base branch other than main.** When the caller names one — /developer
-delivers a spec on its integration branch, `agent/developer/spec-<N>` — it replaces
-`main` everywhere in this skill: fetch it, branch from `origin/<base>`, read
-`origin/<base>` wherever this skill says `origin/main`, and open the change
-with `--base <base>`. It holds the work this issue builds on that `main` does
-not have yet.
-
-Never `git checkout main` — when running in a linked worktree (the /developer
-pipeline always does), `main` is checked out in the primary worktree and the
-command fails. Branching straight from `origin/main` works everywhere.
-
-As a /developer worker, confirm you really are in a linked worktree before
-branching: `git rev-parse --path-format=absolute --git-dir --git-common-dir`
-prints two different paths there. The same path twice means you escaped into
-the user's primary checkout — stop and report blocked instead of branching
-there. (Interactive use in the primary checkout is fine.)
-
-Keep `--path-format=absolute`: without it git prints whichever form is
-shortest from your cwd, so from a subdirectory of the primary checkout you get
-`/abs/path/.git` and `../.git` — two different strings for the same repo, and
-the check silently clears you to touch the user's checkout.
-
-**Branch before you explore.** A linked worktree is created from the *local*
-main, which can lag `origin/main` — source read before this step may be
-missing already-merged work and send you down a stale path.
-
-In a fresh worktree, right after branching:
-
-1. Install dependencies (`pnpm install --reporter=silent` or the project's
-   equivalent) — worktrees do not share `node_modules`, and missing deps
-   produce misleading typecheck/test failures in packages you never touched.
-   Install **quietly**: the log is hundreds of lines you will never read, and
-   when the install fails the tail says why. Where the tool has no quiet flag,
-   redirect to a file (`> /tmp/install.log 2>&1`) and read only that tail, only
-   on failure.
-2. Run any prerequisite build the project's agent docs call out (e.g. a shared
-   contract package the apps consume from `dist` — check `AGENTS.md` /
-   `CLAUDE.md` for the exact command).
-
-All file reads and edits use paths inside the worktree (relative to cwd) —
-never absolute paths into the primary checkout.
+Branch **before** reading any source — a fresh worktree starts from the local
+main, which can lag. Then install dependencies quietly
+(`pnpm install --reporter=silent` or the project's equivalent; no quiet flag →
+redirect to a file and read its tail only on failure) and run any prerequisite
+build `AGENTS.md` / `CLAUDE.md` names. All paths stay inside the worktree.
 
 ### 4. Implement
 
-- Before grepping for prior art, check the repo's agent docs (`AGENTS.md` /
-  `CLAUDE.md` and anything they link under `docs/agents/` — e.g. pattern
-  recipes naming golden files to copy). Only explore for what the docs
-  don't already answer.
-- Explore relevant source files before writing any code
-- Follow the parent spec's **Implementation Decisions** and **Testing
-  Decisions** where present: build to the interfaces it fixes, write tests
-  at the pre-agreed seams (external behaviour, not implementation details),
-  and reuse the prior-art tests it names
-- Build test-first, red before green (below). Leave refactor-level cleanups
-  to the review phase — the reviewer flags them; don't overload the
-  implementation session
-- Keep change as small as possible — only what the issue requires
+Explore first, through the repo's own map: `AGENTS.md` / `CLAUDE.md` and what
+they link under `docs/agents/`; where they prescribe a zone map or an index
+command (`just outline <path>`, ctags…), that is binding — use it rather than
+`cat` on large files, never truncate it or silence its errors, and batch
+several lookups in one call. Read each file whole **once**; afterwards use
+`grep -n` / `sed -n`. Never re-read a file to check your own edit.
 
-**Red before green — every test you add, no exceptions.** One behaviour at a
-time: write its test, **run it and watch it fail**, then write only the code
-that makes it pass, run it green, and move to the next behaviour. Never write
-the tests in bulk and the implementation after, and never write code before
-its test has been seen red.
+Then the red → green loop above, running **only the test file you are working
+on** with the project's quietest reporter (`pnpm test <file> --reporter=dot`
+or the project's form). A red run: re-run just that file or test for its
+output, never the suite.
 
-The red run is the proof the test can fail. A test that passes before the
-code exists tests nothing — the behaviour is already there by another path,
-or the test never reaches it: an assertion that runs before an async result
-lands, a key pressed with the focus already on the button so the browser's
-own handling passes it, a mock that answers whatever is asked. Rewrite it
-until it is red for the right reason (the failure message names the missing
-behaviour, not a typo or an import), then implement.
+### 5. Checks
 
-The same goes for tests you **change**: when your change moves what an
-existing test exercises (a listener to another target, a handler to another
-component), make that test fail once against a deliberately broken version
-of your code, then restore it. A test left green by a refactor of what it
-was guarding is a test that can no longer fail.
+After the last loop is green, once each:
 
-Where no test can be written first — pure wiring, a config change, a
-behaviour the project has no harness for — say so in the PR's Test plan
-rather than skipping silently.
+1. Typecheck and the full suite — **unless the repo's pre-push hook runs
+   them** (`lefthook.yml`, `.husky/pre-push`, `.pre-commit-config.yaml`); then
+   the push in step 7 is that run.
+2. The formatter's **writing** form (`biome check --write .`, `cargo fmt --all`,
+   …), always — a hook only checks.
+3. The lint gate (the repo's own recipe — `just lint`, a `package.json`
+   script…), unless the pre-push hook runs it.
 
-**Read the repo's map first, then its index — and only then grep.** Where the
-agent docs prescribe a way to read code — a zone map, an index/outline command
-(`just outline <path>`, `ctags`, whatever it is called) — that method is
-**binding, not advice**: read the zone's map whole, and use the index command
-to locate symbols instead of `cat`-ing a large file. Where the repo has none,
-`grep -n` over definitions (`^\s*\(pub \)\?\(fn\|class\|def\|struct\|func\|export\)`)
-is your index. Then batch: several index or `grep -n` calls in one command
-separated by `echo ===`, rather than one call per question — each call costs a
-whole turn, and in a field build 60 chained one-question calls came to 7m40s of
-a 18-minute build, against 2m30s for the same exploration done in batches.
+Commands without a quiet reporter: `<cmd> > /tmp/check.log 2>&1; echo "exit=$?"`,
+and grep the log only when the exit is non-zero. Never pipe a gate into `tail`:
+it throws the exit code away. A green gate is never re-run to confirm it.
 
-**Never truncate an index or silence its errors.** `| head -2` and
-`2>/dev/null` on the command that tells you where everything is throw away the
-one thing you asked for. If the index comes back empty, your invocation is
-wrong — fix it (usually a missing path argument, or the wrong cwd) instead of
-falling back to `cat` and grepping blind for the next seven minutes. That is
-the exact shape that made the slow build slow.
+Fix every failure. If you cannot, see **Blocked**.
 
-**Run the tests you are working on, not all of them.** Each red → green loop
-runs **only the affected test file**, with the project's quietest reporter:
+### 6. Commit
 
-```bash
-pnpm test <path/to/the.test.ts> --reporter=dot   # or --silent, per the project
-```
-
-The full suite runs **once**, at the end of this step, after the last loop is
-green — together with the typecheck:
-
-```bash
-pnpm typecheck
-pnpm test --reporter=dot
-```
-
-(See `AGENTS.md` / `CLAUDE.md` for this project's exact commands and its quiet
-reporter.)
-
-**Unless a pre-push hook already runs it.** When the repo's hook config
-(`lefthook.yml`, `.husky/pre-push`, `.pre-commit-config.yaml`'s `pre-push`
-stage…) shows the pre-push hook running the typecheck and the full suite,
-skip this final run — and the lint gate below — and let the push in step 6 be
-that run. Running both is the same gate twice on the same commit: in the
-field every build ran the suite, then paid for it again inside `git push`,
-80–125 s each time. Do still run the writing formatter below: a hook only
-checks. If the hook rejects the push, fix what it names, amend the commit
-(nothing was published yet), and push again.
-
-The suite printed after every loop is what actually exhausts a
-worker's context — far more than any source file — and it tells you nothing the
-one file didn't. When a run comes back red, re-run **just the failing file or
-test name** for its output; never the suite.
-
-**Where the project has no quiet reporter** — `cargo test`, `go test`, most
-build steps — keep the log out of your context but keep the **verdict**:
-
-```bash
-<the command> > /tmp/check.log 2>&1; echo "exit=$?"
-grep -nEi 'error|FAILED|test result' /tmp/check.log | tail -30   # only when exit≠0
-```
-
-**Never pipe the command into `tail`.** The pipe throws the exit code away and
-returns whatever printed last, which on a multi-step recipe is the next step's
-output: a field build read a coverage table instead of its verdict and re-ran
-the whole gate three more times, 2m32s to recover one bit it had already
-computed. Once the gate is green it stays green — never re-run it to confirm.
-
-Fix all failures before proceeding. If you cannot fix them, see **Blocked** below.
-
-**Read each file once.** The other half of the same problem, and in a measured
-build the larger half: 58% of that worker's tool output was re-reading source it
-had already read, one test file **seven times**. So: read a file whole once,
-and afterwards go back to it with `grep -n '<symbol>'` or `sed -n '<from>,<to>p'`
-— never a second `cat -n` of the whole thing. Never re-read a file to confirm
-your own edit; the harness echoes the edited region back to you and that echo is
-the confirmation. And prefer one edit per coherent change to five edits on
-consecutive lines, since every edit pays for that echo.
-
-**Then run the project's formatter and its lint gate, before you commit.** The
-suite passing is not the same as the change being publishable: a build once
-pushed code that was green on 974 tests and red on `cargo fmt --check`, and it
-cost a full review → fix → re-review cycle to put back a whitespace change the
-formatter would have made in a second.
-
-Find the commands where the project keeps them — `AGENTS.md`, `CLAUDE.md`, or
-the runner it uses (`justfile`, `Makefile`, `package.json` scripts). Do not
-reconstruct CI's list of checks from its workflow files: run the repo's own
-recipe, whatever it is called.
-
-Run the **writing** form first, then the checking one:
-
-```bash
-cargo fmt --all          # or: biome check --write . / prettier -w / ruff format
-just lint                # or whatever the repo calls its lint gate
-```
-
-That order matters. A formatter's output is not an opinion to be reviewed — it
-is derivable from the source, so anything it can fix by itself must never reach
-a reviewer. A linter's findings are not derivable, so those you read and fix.
-
-Where the repo installs a **pre-push hook** that runs the lint gate, skip the
-checking form here (see above) — the push runs it. Never push past a hook with
-`--no-verify`.
-
-### 5. Commit
-
-Single commit, conventional format:
+One commit, Conventional Commits, body lines ≤ 100 characters:
 
 ```
 <type>(<scope>): <short description>
 
 Implements #<N>: <issue title>
-- <key decision 1>
-- <key decision 2>
+- <key decision>
 ```
 
-Wrap body lines at 100 characters — commitlint's conventional config rejects
-longer lines (`body-max-line-length`).
+### 7. Publish
 
-### 6. Publish the change (push + open PR)
-
-Publish a **draft** change per the code-host doc, linked to the issue for
-closing. GitHub default:
+A **draft** PR linked to the issue for closing — GitHub:
 
 ```bash
-git push origin agent/issue-<N>-<slug>
+git push origin <branch>
 
-gh pr create \
-  --draft \
-  --base main \
+gh pr create --draft --base <base> \
   --title "<type>(<scope>): <short description>" \
   --body "Closes #<N>
 
 ## What changed
-<brief summary>
+<brief summary; any judgement call on an ambiguous point>
 
 ## Test plan
-- [ ] <acceptance criterion 1> — <test name>, seen red first
-- [ ] <acceptance criterion 2> — <test name>, seen red first
+- [ ] <acceptance criterion> — <test name>, seen red first
 
 ## Discoveries
-<see below — omit the section when empty, the normal case>"
+<omit when empty, the normal case>"
 ```
 
-**Run the push bare, in a call of its own, with the Bash tool's maximum
-timeout (`timeout: 600000`)** — a gate-running pre-push hook outlasts the
-2-minute default. No `> log; echo $?`, no `| tail`, no `cd` or variables in
-front: the worktree sandbox refuses the compound shapes outright, and a pipe
-throws the exit code away. The tool reports a non-zero exit by itself; that is
-the verdict. When the hook's output is long the harness saves it to a file —
-search that file in a separate call, and only when the push failed.
+Run the push alone, bare, with the Bash tool's maximum timeout
+(`timeout: 600000`) — a gate-running pre-push hook outlasts the default, and the
+worktree sandbox refuses compound shapes. If the hook rejects the push, fix,
+amend (nothing was published), push again. Never `--no-verify`.
 
-Whatever the host, the change body keeps this shape — `Closes <ref>`,
-`## What changed`, `## Test plan`, optional `## Discoveries` — the
-orchestrator's harvest depends on it. Use the issue's tracker ref in
-`Closes`; whether that auto-closes anything is the code-host doc's call.
+Keep the body's shape whatever the host — `Closes <ref>`, `## What changed`,
+`## Test plan`, optional `## Discoveries`: the orchestrator's harvest reads it.
 
-**Discoveries** is how hard-won knowledge outlives your context: an
-orchestrator harvests these sections across PRs and promotes what repeats
-into the repo's agent docs. List only things that meet **both** bars:
+**Discoveries** are for the next agent: one line each, naming files or
+commands, only for something that no repo doc answered **and** that cost you
+something (a failed approach, a pattern reverse-engineered from several
+files, a doc contradicting the code). Most PRs have none.
 
-- no repo doc (`AGENTS.md` / `CLAUDE.md`, `docs/agents/`, `docs/stack-notes`,
-  `CONTEXT.md`) answered it, **and**
-- it actually cost you something — a failed approach, reverse-engineering a
-  pattern from several files, or finding that a doc contradicts the code.
+### 8. Done
 
-One line each, written for the next agent (name files/commands, not your
-journey). Everyday exploration does not qualify; most PRs should have **no**
-Discoveries section.
-
-### 7. Done
-
-Do **not** close the issue manually. If the code host auto-closes linked issues on merge (GitHub/GitLab with issues in the same repo — see the code-host doc), `Closes #<N>` handles it; otherwise closing after the merge belongs to whoever merges (the orchestrator under /developer, the human interactively). The parent issue stays open until all sub-issues are merged.
+Do not close the issue. `Closes #<N>` closes it on merge where the host
+supports that; otherwise whoever merges closes it.
 
 ## Blocked
 
-If you cannot implement (missing context, unfixable failures, external dependency), comment on the issue per the tracker doc — GitHub default:
-
-```bash
-gh issue comment <N> --body "Blocked: <specific reason>. <what is needed to unblock>."
-```
-
-Do **not** close the issue. Stop and report. When running unattended, do not
-wait for an answer — the blocking comment plus your final report is the output.
+When you cannot finish (missing context, unfixable failures, an external
+dependency), comment on the issue — GitHub:
+`gh issue comment <N> --body "Blocked: <reason>. <what would unblock it>."` —
+and stop. Do not close it. Unattended, do not wait for an answer.
 
 ## Rules
 
-- One sub-issue per invocation — always check for sub-issues before treating an issue as standalone
-- Red before green: no code before its test has been run and seen failing;
-  a test that passes on its first run is rewritten, not kept
-- Run the project's formatter (writing form) and lint gate before committing —
-  a formatting finding in a review costs a whole fix cycle to undo work a
-  formatter does in a second.
-- Run each gate **once** and read its exit code (`> /tmp/check.log 2>&1; echo
-  "exit=$?"`), never `| tail`. A green gate is never re-run to confirm it.
-- Never bypass git hooks (`--no-verify`, `-n`). If a pre-push check fails in a package your change didn't touch, first suspect missing installs in the worktree (`pnpm install`); if it is genuinely broken on `origin/main`, report **Blocked** instead of pushing around the gate
-- No commented-out code or TODO comments in committed code
-- Do not modify files unrelated to the issue
-- Never close the issue manually — closing happens on merge (auto-close where the host supports it, otherwise by whoever merges)
+- One issue per invocation.
+- No code before its test has been seen failing; a test green on its first
+  run is rewritten, not kept.
+- Never bypass git hooks. A pre-push failure in a package you did not touch:
+  suspect missing installs first; genuinely broken on the base branch → Blocked.
+- No commented-out code, no TODOs.

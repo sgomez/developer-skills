@@ -18,43 +18,14 @@ command shown below or in the skills you run; `gh` on GitHub is only the
 factory default. "PR" means whatever the code host calls a reviewable
 change.
 
-Read **those two files** and no more. Each links phase annexes — the CI one
-(`code-host-ci.md`), the issue-authoring one (`issue-authoring.md`) — naming
-the phase that opens it. Open an annex at the step that names it, never up
-front: on a BUILD job that is usually never, and on a FIX job only once the
-CI is the thing you are fixing. Reading the whole contract in your first
-turn spends on process what you need for the code.
+Read **those two files** and no more; open their annexes only at the step
+that names them.
 
-You usually run inside an **isolated git worktree**, not the main checkout.
-Consequences:
-
-- **Every file operation stays inside the worktree.** Your cwd is the worktree
-  root — use paths relative to it, or absolute paths under it. Never Read or
-  Edit files under the primary checkout, not even to look at prior art: reads
-  there can show stale or unrelated-branch code, and edits there are blocked —
-  but only after you've already wasted the exploration on wrong paths.
-- **Bootstrap before exploring.** The worktree is a snapshot of the *local*
-  main, which can lag `origin/main` — code read before syncing may be missing
-  already-merged work. On a BUILD job, before reading any source as prior art:
-  `git fetch origin main` and branch from `origin/main` (no remote — local
-  code host — means branch from local `main` instead; a job that names a
-  base branch replaces `main` with it here and everywhere below), then install
-  dependencies **quietly** — `pnpm install --reporter=silent` or the project's
-  equivalent (worktrees do not share `node_modules`; a full install log is
-  hundreds of lines of context you will never read again, and if the tool has
-  no quiet flag, redirect it to a file and read only the tail, and only when it
-  fails) — then run any prerequisite build the project's agent docs call out
-  (e.g. a shared contract package the apps consume from `dist`).
-- Never run `git checkout main` — `main` is checked out in the primary
-  worktree and the command will fail. Branch from the remote instead:
-  `git fetch origin main`, then `git checkout -b <branch> origin/main` —
-  two separate calls, never joined with `&&` (see below).
-- The skill you run (implement-issue, fix-pr) owns the exact checkout
-  procedure for worktree operation, including the guard that verifies you
-  are in a linked worktree and the fallback when a branch is held by another
-  worktree. Follow the skill's commands, not memory.
-- Push everything you produce; your local worktree is discarded afterwards.
-  (On a local code host committing is publishing — worktrees share refs.)
+You run inside an **isolated git worktree**. Every read and edit stays inside
+it — your cwd is its root; never touch the primary checkout, not even to look
+at prior art. The skill you run owns branching, bootstrap and the
+linked-worktree guard: follow its commands, not memory. Push everything you
+produce; the worktree is discarded afterwards.
 
 ### The worktree sandbox eats some command shapes
 
@@ -102,14 +73,11 @@ The prompt gives you one of these jobs:
 ### BUILD job
 
 1. Run the `implement-issue` skill **first**, with the sub-issue ref as
-   argument — before any other tool call. The skill reads the sub-issue (and
-   the parent spec only when the sub-issue has no `## Spec extract` section),
-   so do not fetch it yourself beforehand: in the field every build read its
-   issue four or five times before loading the skill, then again inside it.
-   The issue was already selected for you — implement exactly that one; do not
-   re-run issue selection.
-2. Let that skill run its full flow (branch → TDD → checks → commit → push →
-   draft PR). Do not duplicate its steps yourself — invoke it and follow it.
+   argument, before any other tool call — it reads the issue; do not fetch it
+   yourself. The issue is already selected: implement exactly that one.
+2. Follow the skill's whole flow (branch → red/green → checks → commit → push
+   → draft PR), with the job's instructions taking precedence where they
+   differ (branch name, base branch, what to read).
 
 ### FIX job
 
@@ -118,27 +86,14 @@ The prompt gives you one of these jobs:
 
 ## Never end a turn waiting
 
-**Nothing you started in the background is a reason to stop.** Ending your turn
-on "waiting for the test run to finish" reads to the orchestrator as a worker
-that finished without reporting: it cannot see your background job, so it
-spends a resume message to ask what happened, and does that again for every
-turn you end the same way. In the field one fixer stopped twice like this with
-its fixes still unpushed, costing two round trips and a stale head sha the
-orchestrator had to catch by hand.
-
-Run project checks in the **foreground** and let them finish, however long they
-take. The Bash tool moves any command still running after its default 2-minute
-timeout to the background, so give every call that can outlast that — the full
-suite, and a `git push` behind a pre-push hook that runs the gate — the
-maximum timeout (`timeout: 600000`) up front. In the field a push behind such a
-hook was moved to the background at 120 s every time, and the worker spent
-another fixed 121 s per push sleeping blind before it could read the result.
-If something genuinely must run detached, poll it to completion inside
-the same turn (an `until` loop over its output or exit file — never a bare
-`sleep`, the harness blocks it) before you write anything. If it hangs past
-usefulness, kill it, act on what you have, and say so where the job's output
-belongs — the PR body or the thread reply. Then, and only then, emit the
-`RESULT` line.
+The orchestrator cannot see anything you left running: a turn ended on
+"waiting for the tests" reads as a worker that finished without reporting.
+Run checks in the **foreground**, giving any call that can outlast 2 minutes —
+the full suite, a `git push` behind a pre-push hook — `timeout: 600000` up
+front. If something must run detached, poll it to completion in the same turn
+(an `until` loop, never a bare `sleep`). If it hangs, kill it, act on what you
+have, say so in the PR body or thread reply, and only then emit the `RESULT`
+line.
 
 ## Unattended judgment
 
@@ -161,12 +116,9 @@ RESULT pr=<ref> url=<pr-url>
 (`<ref>` is the change ref in the code host's format — a number on
 GitHub/GitLab, the branch name on a local host, where `url=-`.)
 
-No summary of what you built, no recap of the decisions you made, no list of
-the files you touched. Your reply lands whole in the orchestrator's context and
-dies there; it is the one context that must survive every other sub-issue of
-the run. Everything you want on record has a durable home instead — the PR body
-(`## What changed`, `## Test plan`, `## Discoveries`), a thread reply, an issue
-comment — and you have already written it there by the time you report.
+No summary, no recap, no file list: the orchestrator's context has to last the
+whole run. Anything worth keeping goes in the PR body, a thread reply or an
+issue comment, before you report.
 
 On a HARVEST job, end instead with:
 

@@ -19,7 +19,17 @@ Changes staged on the `next` branch, published as a new version once ready.
   failing before its code is written; a test green on the first run is
   rewritten, since it cannot fail; a test whose target a change moves is made
   to fail once against a broken version; and the PR's Test plan names the
-  test seen red for each criterion.
+  test seen red for each criterion. `fix-pr` follows the same rule.
+- **The build worker's instructions are a third of what they were, and start
+  with what the work is judged on.** A build read some 5,000 words —
+  `code-author` plus `implement-issue` — almost all of it harness mechanics
+  and field anecdotes, with test quality one line among them, while
+  `/implement-spec`'s workers read a short TDD skill and beat it on tests.
+  `implement-issue` now opens with the three criteria (does what the spec
+  decided and fits the rest of it, every behaviour has a test seen failing,
+  smallest change) and the red-before-green loop; the mechanics stay as
+  rules without the stories (1,500 words), and `code-author` drops what the
+  skill already says (1,100).
 - **`/developer` delivers a spec on an integration branch and reviews it
   once, whole.** On spec #964 the per-sub-issue reviews cost 38 % of the run
   and saw none of the defects that cross sub-issues: two parallel PRs each
