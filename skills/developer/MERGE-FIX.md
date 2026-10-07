@@ -31,7 +31,7 @@ PRs — it delivers one and queues two rewrites.
 
 So in parallel mode the first conflict switches the wave to the **conflict
 queue** (below), and this job is spawned only for the PR at the head of it,
-only after the previous PR is merged. Before spawning, always **try the plain
+only after the previous conflicting PR is merged. Before spawning, always **try the plain
 merge again first**: the PR that just merged often carried the conflict away
 with it, and `gh pr update-branch` handles most of what is left for free. Only
 a merge that actually fails earns a worker.
@@ -39,21 +39,30 @@ a merge that actually fails earns a worker.
 ## The conflict queue (parallel mode)
 
 The first conflict of a wave — a `DIRTY` from the checks gate, or a failed
-merge — closes the wave's parallel merge phase. Conflicts
-are not independent work: every conflicting PR resolves against the same
-`main`, and the first one merged invalidates every resolution computed beside
-it. From then on the wave's remaining unmerged PRs form a queue, ordered
-oldest-PR-first, and it drains **one at a time**:
+merge — opens the wave's conflict queue. Conflicts are not independent work:
+every conflicting PR resolves against the same `main`, and the first one
+merged invalidates every resolution computed beside it. So the PRs that
+conflict — and only those — form a queue, oldest-PR-first, that drains **one
+at a time**:
 
 - **At most one merge-fix worker is alive in the whole run**, whatever the
   worker cap allows.
 - A PR's merge-fix is spawned **only when that PR is at the head of the
-  queue** — after the previous PR is in `main`. Until its turn a queued PR
+  queue** — after the previous queued PR is in `main`. Until its turn a queued PR
   gets no merge-fix worker; its conflict is work not yet started.
 - When the head PR merges, drop it and run the next one's checks gate before
   assuming it still conflicts: the winner's merge plus an update-branch
   resolves most of the rest for free. Only a merge that actually fails, or a
   gate that still says `DIRTY`, earns a merge-fix worker.
+- **Never hold a `GREEN` sibling for the queue.** A PR that is not in it —
+  its gate never said `DIRTY` — merges the moment its gate says `GREEN`,
+  merge-fix running or not. Holding it buys nothing: a merge that does not
+  conflict with the rebased branch leaves that branch merely behind, which
+  its gate absorbs, and a merge that does conflict would have conflicted just
+  the same an hour later. On spec #964 holding two green PRs behind one
+  merge-fix cost ten minutes and a second gate. If siblings are already
+  `GREEN` when the head PR's turn comes, merge them first and spawn the
+  merge-fix after: it then rebases onto a `main` that has stopped moving.
 - Everything that is not the merge path — builds, reviews, review fix cycles,
   including a queued PR's own — carries on in parallel underneath. The queue
   serializes conflict resolution, not the wave.
@@ -118,13 +127,15 @@ merge-fix.
 - **`main` is still at BASE** → run the gate. `DIRTY` again, or a merge
   after `GREEN` that fails again, means the resolution was genuinely wrong:
   **escalate**.
-- **`main` has moved** (another PR merged while the worker ran) → the
-  resolution is stale through no fault of the worker. Run the gate (it
-  reports `BEHIND` or `DIRTY`, and `BEHIND` takes an update-branch as usual);
-  if it still says `DIRTY`, spawn the job once more against the new base. **A stale-base failure does not consume the
-  one-retry budget** — that budget counts attempts against an unchanged
-  `main`, and burning it on a moving base escalates PRs that had nothing
-  wrong with them. Two consecutive stale bases mean something else is merging
+- **`main` has moved** (another PR merged while the worker ran — usually a
+  `GREEN` sibling of this run) → run the gate. A `GREEN` or `BEHIND` means
+  the move did not touch the resolution; `BEHIND` takes an update-branch as
+  usual. Only a `DIRTY` makes the resolution stale through no fault of the
+  worker: spawn the job once more against the new base. **A stale-base
+  failure does not consume the one-retry budget** — that budget counts
+  attempts against an unchanged `main`, and burning it on a moving base
+  escalates PRs that had nothing wrong with them. Two consecutive stale bases
+  that **none of this run's merges explain** mean something else is merging
   behind your back: stop, and say so.
 
 On a **local code host** the worker rebases onto local `main` in its worktree;

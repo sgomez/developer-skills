@@ -21,7 +21,17 @@ trap 'rm -rf "$TMP"' EXIT
 T="" checks=0 fails=0
 pass() { checks=$((checks + 1)); }
 fail() { checks=$((checks + 1)); fails=$((fails + 1)); echo "FAIL [$T] $*" >&2; }
-assert_out() { [[ "$OUT" == "$1" ]] && pass || fail "expected '$1', got '$OUT'"; }
+# assert_out <verdict> — the line, and the exit code that names it (the
+# orchestrator reads a GREEN from the exit code alone).
+assert_out() {
+  [[ "$OUT" == "$1" ]] && pass || fail "expected '$1', got '$OUT'"
+  local rc
+  case "$1" in
+    GREEN) rc=0 ;; DIRTY) rc=10 ;; BEHIND) rc=11 ;; PENDING) rc=12 ;;
+    NO_CHECKS) rc=13 ;; "RED code"*) rc=20 ;; "RED infra"*) rc=21 ;; *) rc=1 ;;
+  esac
+  assert_rc "$rc"
+}
 assert_rc()  { [[ "$RC" -eq "$1" ]] && pass || fail "expected exit $1, got $RC"; }
 
 # The fake gh. Kinds: state (mergeStateStatus), rollup (statusCheckRollup),
@@ -76,7 +86,7 @@ run_gate abc; assert_rc 2
 
 scenario dirty
 state 1 DIRTY
-run_gate; assert_out "DIRTY"; assert_rc 0
+run_gate; assert_out "DIRTY"
 grep -q statusCheckRollup "$FIX/calls" && fail "a DIRTY PR must not wait for checks" || pass
 
 scenario behind

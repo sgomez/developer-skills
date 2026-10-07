@@ -8,7 +8,10 @@
 # orchestrator's whole context. This script does the sequence in one call and
 # prints only the verdict, so the gate costs one turn whatever CI does. It can
 # wait a long time, so the orchestrator runs it as a background Bash call and
-# picks the verdict up from the completion notification.
+# picks the verdict up from the completion notification. That notification
+# carries the exit code but not the output, so the exit code is the verdict:
+# on GREEN — the usual case — the orchestrator merges without a turn spent
+# reading the output, and only a red needs its line.
 #
 # Read-only: it never updates, re-runs or merges anything. Those are code-host
 # writes, and the orchestrator runs them as bare commands of their own (the
@@ -23,28 +26,28 @@
 # Usage:
 #   checks-gate.sh <PR>
 #
-# Verdicts (one line on stdout, exit 0):
-#   DIRTY                      conflicts with the base; GitHub runs no checks on
+# Verdicts (one line on stdout; the exit code names it too):
+#   GREEN                  (0) every check settled as success/neutral/skipped.
+#   DIRTY                 (10) conflicts with the base; GitHub runs no checks on
 #                              it. The conflict path, never a red.
-#   BEHIND                     mergeable but stale, and still so after a short
+#   BEHIND                (11) mergeable but stale, and still so after a short
 #                              settle (GitHub can report the old state for a
 #                              moment after an update-branch): update the
 #                              branch, then gate again.
-#   NO_CHECKS                  nothing registered on the head after the wait,
+#   PENDING               (12) checks still running when the wait ran out.
+#   NO_CHECKS             (13) nothing registered on the head after the wait,
 #                              on a repo that has CI: infra-red.
-#   GREEN                      every check settled as success/neutral/skipped.
-#   PENDING                    checks still running when the wait ran out.
-#   RED code run=<id> url=<job-url>
+#   RED code run=<id> url=<job-url>                                     (20)
 #                              a failed job executed steps: the change was
 #                              exercised and failed.
-#   RED code url=<link>        a failing check that is not a GitHub Actions run
+#   RED code url=<link>   (20) a failing check that is not a GitHub Actions run
 #                              (an external status): unclassifiable, and
 #                              there is no run to retry.
-#   RED infra run=<id> reason=<why>
+#   RED infra run=<id> reason=<why>                                     (21)
 #                              nothing failed after executing (every failed job
 #                              at zero steps, or startup_failure): the code was
 #                              never exercised.
-#   RED infra reason=never-picked-up
+#   RED infra reason=never-picked-up                                    (21)
 #                              checks still queued and none running after the
 #                              queue wait: no runner is taking jobs.
 # A run that failed, was re-run and is now green re-gates once instead of
@@ -72,6 +75,15 @@ QUEUE_WAIT="${CHECKS_GATE_QUEUE_WAIT:-1200}"
 MAX_WAIT="${CHECKS_GATE_MAX_WAIT:-3600}"
 
 die() { echo "ERROR $*"; exit 1; }
+# verdict <line> — print it and exit with the code that names it.
+verdict() {
+  echo "$1"
+  case "$1" in
+    GREEN) exit 0 ;; DIRTY) exit 10 ;; BEHIND) exit 11 ;; PENDING) exit 12 ;;
+    NO_CHECKS) exit 13 ;; "RED code"*) exit 20 ;; "RED infra"*) exit 21 ;;
+  esac
+  exit 1
+}
 nap() { sleep "$POLL"; }
 
 merge_state() {
@@ -105,15 +117,15 @@ for ((i = 0; i < STATE_TRIES; i++)); do
   [[ "$state" != "UNKNOWN" && -n "$state" ]] && break
   nap
 done
-[[ "$state" == "DIRTY" ]] && { echo "DIRTY"; exit 0; }
+[[ "$state" == "DIRTY" ]] && verdict "DIRTY"
 if [[ "$state" == "BEHIND" ]]; then
   for ((i = 1; i < BEHIND_TRIES; i++)); do
     nap
     state="$(merge_state)" || die "gh pr view $pr failed"
     [[ "$state" == "BEHIND" ]] || break
   done
-  [[ "$state" == "BEHIND" ]] && { echo "BEHIND"; exit 0; }
-  [[ "$state" == "DIRTY" ]] && { echo "DIRTY"; exit 0; }
+  [[ "$state" == "BEHIND" ]] && verdict "BEHIND"
+  [[ "$state" == "DIRTY" ]] && verdict "DIRTY"
 fi
 
 # 1. Wait until CI has attached at least one check to the head. `gh pr update-
@@ -124,22 +136,22 @@ for ((i = 0; i < REGISTER_TRIES; i++)); do
   [[ -n "$lines" ]] && break
   nap
 done
-[[ -n "$lines" ]] || { echo "NO_CHECKS"; exit 0; }
+[[ -n "$lines" ]] || verdict "NO_CHECKS"
 
 # 2. Wait for every check to settle. Checks left queued with none running are
 #    a CI that cannot start, not a slow one.
 waited=0
 while states | grep -qxE 'RUNNING|QUEUED'; do
   if (( waited >= QUEUE_WAIT )) && ! states | grep -qx RUNNING; then
-    echo "RED infra reason=never-picked-up"; exit 0
+    verdict "RED infra reason=never-picked-up"
   fi
-  (( waited >= MAX_WAIT )) && { echo "PENDING"; exit 0; }
+  (( waited >= MAX_WAIT )) && verdict "PENDING"
   nap; waited=$((waited + POLL))
   lines="$(checks)" || die "gh pr view $pr failed"
 done
 
 failing="$(printf '%s\n' "$lines" | awk -F'\t' '$1 != "SUCCESS" && $1 != "NEUTRAL" && $1 != "SKIPPED"')"
-[[ -z "$failing" ]] && { echo "GREEN"; exit 0; }
+[[ -z "$failing" ]] && verdict "GREEN"
 
 # 3. Classify every failing Actions run; an external failing status is
 #    code-red with nothing to retry.
@@ -158,7 +170,7 @@ for run in "${runs[@]}"; do
   # run — and a rerun in flight is waited for, not judged by its old attempt.
   waited=0
   until [[ "$(gh run view "$run" --json status --jq .status 2>/dev/null)" == "completed" ]]; do
-    (( waited >= MAX_WAIT )) && { echo "PENDING"; exit 0; }
+    (( waited >= MAX_WAIT )) && verdict "PENDING"
     nap; waited=$((waited + POLL))
   done
   v="$(gh run view "$run" --json conclusion,jobs --jq '
@@ -176,13 +188,13 @@ for run in "${runs[@]}"; do
   esac
 done
 
-if [[ -n "$code" ]]; then echo "$code"
-elif [[ -n "$external" ]]; then echo "RED code url=$external"
-elif [[ -n "$infra" ]]; then echo "$infra"
+if [[ -n "$code" ]]; then verdict "$code"
+elif [[ -n "$external" ]]; then verdict "RED code url=$external"
+elif [[ -n "$infra" ]]; then verdict "$infra"
 elif [[ -z "${CHECKS_GATE_REGATED:-}" ]]; then
   # Every failing run is green now (re-run since the rollup was read): the
   # rollup was stale. Gate once more from the top.
   CHECKS_GATE_REGATED=1 exec bash "$0" "$pr"
 else
-  echo "PENDING"
+  verdict "PENDING"
 fi

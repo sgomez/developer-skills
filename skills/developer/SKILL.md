@@ -324,6 +324,8 @@ Work in **waves**:
 4. **The first conflict of the wave** — `DIRTY` from a gate, or a failed
    merge — switches the wave to the **conflict queue**: read
    `MERGE-FIX.md` and follow it. At most one merge-fix worker is ever alive.
+   The queue serializes conflict resolution, **not merges**: a sibling whose
+   gate says `GREEN` merges at once, even while a merge-fix runs.
 5. Every member delivered (merged, ready-to-merge or escalated) → recompute
    the unblocked set → next wave. None left → **Wrap-up**.
 
@@ -488,10 +490,13 @@ still asks, say so; if it *denies*, escalate (Rules) — never retry.
 **Checks gate — never merge on red CI.** If `code-host.md` says `CI: none`,
 there is no gate: merge. Otherwise, on a GitHub host the gate is one call to
 the bundled script — read-only, it waits silently and prints a single
-verdict. CI takes longer than a foreground Bash call may run, so run it with
-**`run_in_background: true`** and act on its line when the completion
-notification arrives (in parallel mode, other workers' results keep arriving
-meanwhile — handle them as usual):
+verdict, and its **exit code names the verdict** too. CI takes longer than a
+foreground Bash call may run, so run it with **`run_in_background: true`**
+(in parallel mode, other workers' results keep arriving meanwhile — handle
+them as usual). The completion notification carries the exit code but not
+the output: **exit 0 is `GREEN` — merge in that same turn, without reading
+the output.** Any other code: read the one line (`tail -1` of the
+notification's output file), then act on it.
 
 ```bash
 bash <skill-dir>/scripts/checks-gate.sh <PR>
@@ -503,17 +508,17 @@ register, wait for them to finish, classify a red — waiting inside an
 `until`/`for` loop or with **Monitor**, never a command that opens with a bare
 `sleep` (the harness blocks it). Act on the verdict:
 
-| Verdict | Action |
-|---|---|
-| `GREEN` | Merge. |
-| `BEHIND` | `gh pr update-branch <PR>` (bare, own call), then run the gate again. The script already lets a fresh update settle; `BEHIND` straight after an update → escalate. |
-| `DIRTY` | A conflict, never a red: the merge-fix path (`MERGE-FIX.md`; the conflict queue in parallel mode), then the gate again from the top. |
-| `NO_CHECKS` | **Infra-red** (below): CI is declared, yet nothing ever registered on the change. |
-| `PENDING` | CI still running after an hour: escalate, naming it. |
-| `ERROR …` | Run the gate once more; `ERROR` again → escalate, quoting it. |
-| `RED code run=<id> url=<job>` | **Retry once per PR**: `gh run rerun <id> --failed` (bare), then the gate again. Red again → one more **fix cycle** (step 4) with `<job>` appended to the fixer's prompt, same three-cycle budget. |
-| `RED code url=<link>` | Not an Actions run, so nothing to retry: a **fix cycle** with `<link>`. |
-| `RED infra …` | The code never ran (or no runner ever picked it up): spawn no fixer. **Escalate** naming the cause and go to **Wrap-up** — a CI that cannot start reds every later gate identically. The unblock line: restore the CI, re-run `/developer <spec>`. |
+| Exit | Verdict | Action |
+|---|---|---|
+| 0 | `GREEN` | Merge. |
+| 11 | `BEHIND` | `gh pr update-branch <PR>` (bare, own call), then run the gate again. The script already lets a fresh update settle; `BEHIND` straight after an update → escalate. |
+| 10 | `DIRTY` | A conflict, never a red: the merge-fix path (`MERGE-FIX.md`; the conflict queue in parallel mode), then the gate again from the top. |
+| 13 | `NO_CHECKS` | **Infra-red** (below): CI is declared, yet nothing ever registered on the change. |
+| 12 | `PENDING` | CI still running after an hour: escalate, naming it. |
+| 1 | `ERROR …` | Run the gate once more; `ERROR` again → escalate, quoting it. |
+| 20 | `RED code run=<id> url=<job>` | **Retry once per PR**: `gh run rerun <id> --failed` (bare), then the gate again. Red again → one more **fix cycle** (step 4) with `<job>` appended to the fixer's prompt, same three-cycle budget. |
+| 20 | `RED code url=<link>` | Not an Actions run, so nothing to retry: a **fix cycle** with `<link>`. |
+| 21 | `RED infra …` | The code never ran (or no runner ever picked it up): spawn no fixer. **Escalate** naming the cause and go to **Wrap-up** — a CI that cannot start reds every later gate identically. The unblock line: restore the CI, re-run `/developer <spec>`. |
 
 One retry, never two: a wobbly suite reds a fine change, and one retry is the
 cheapest way to find out — but a retry *loop* merges a genuinely broken

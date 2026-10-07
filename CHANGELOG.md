@@ -49,6 +49,20 @@ Changes staged on the `next` branch, published as a new version once ready.
 - The CI annex templates now say to keep repo-specific CI guidance in the
   testing docs: every reader of the annex pays for all of it.
 
+- **A green checks gate merges without an extra turn.** The gate runs in
+  the background, and its completion notification carries the exit code but
+  not the output — so every gate cost the orchestrator one more turn just to
+  read its line (10 turns, about 10% of its tokens, on a seven-PR spec).
+  `checks-gate.sh` now exits with a code per verdict (0 `GREEN`, 10 `DIRTY`,
+  11 `BEHIND`, 12 `PENDING`, 13 `NO_CHECKS`, 20 `RED code`, 21 `RED infra`),
+  and on 0 the orchestrator merges in the same turn.
+- **The conflict queue no longer holds green PRs.** Once one PR of a wave
+  conflicted, every other unmerged PR waited behind its merge-fix, even ones
+  already green that conflicted with nothing — ten minutes and a repeated
+  gate in the measured run. Only the PRs that conflict queue now; a sibling
+  whose gate says `GREEN` merges at once, merge-fix running or not, and a
+  `main` moved by the run's own merges no longer counts as a stale base.
+
 ### Fixed
 - **Workers stop losing turns to command shapes the worktree sandbox
   refuses.** Every `git fetch … && git checkout …` the workers were shown —
