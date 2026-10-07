@@ -37,6 +37,10 @@ Changes staged on the `next` branch, published as a new version once ready.
     the CI on everything together. On lab-04, waiting on CI per sub-issue —
     again after each merge-fix, with the conflict queue held — was most of
     a 100-minute run; the development itself took 24.
+  - `/setup-developer-skills` offers to keep the repo's CI off changes into
+    `developer/spec-*` (`branches-ignore` on GitHub, a `workflow: rules:`
+    entry on GitLab), showing each edit and applying only what the user
+    accepts: nobody waits on that CI, but it still burns runner time.
   - `review-pr` checks for tests that would still pass with the behaviour
     they name broken.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after

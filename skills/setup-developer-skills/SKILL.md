@@ -137,6 +137,37 @@ entirely. The annex is the file the workers do **not** open until they are
 about to wait for, read or classify a change's CI; keeping the core free of
 it is the whole point of the split, so never fold the annex back in.
 
+**Skip CI on integration-branch changes** (GitHub and GitLab with CI only).
+`/developer` builds a spec's sub-issues as changes into its integration
+branch, `developer/spec-<N>`, and merges them without waiting on CI — the spec
+PR into `main` runs the CI once on all of them. The repo's CI still fires on
+each of those changes unless its triggers say otherwise: runner time nobody
+reads. Read the CI config and find what runs on changes:
+
+- **GitHub** — every workflow under `.github/workflows/` with a
+  `pull_request` (or `pull_request_target`) trigger. One whose trigger already
+  has `branches: [main]` (or any filter that excludes `developer/spec-*`)
+  needs nothing. The others get
+  ```yaml
+  pull_request:
+    branches-ignore: ['developer/spec-*']
+  ```
+  merged into their existing `pull_request` block (keep its `types:` and
+  `paths:`). A trigger with `branches:` can't also take `branches-ignore:` —
+  leave such a workflow alone and say so.
+- **GitLab** — a top-level `workflow: rules:` entry (or the first rule of
+  the existing ones):
+  ```yaml
+  - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^developer\/spec-/
+    when: never
+  ```
+
+Show the user each file's exact edit and ask (AskUserQuestion) whether to
+apply it; it is their CI, so a no is a fine answer and changes nothing in the
+pipeline. Apply only what they accept, leave it uncommitted, and list the
+edited files in the report so they review and commit them. Nothing to change
+→ say so in one line and do not ask.
+
 For **Other**, write the doc from scratch based on the user's description.
 It must answer, operation by operation, what the delivery skills will ask of
 it: change ref format · publish a change (draft) · change metadata (branch,
@@ -419,16 +450,18 @@ entry here.
 
 ### 8. Report
 
-Summarise what was set up — tracker, code host, chosen defaults, and what
-step 7 retired — and remind the user of the flow:
+Summarise what was set up — tracker, code host, chosen defaults, the CI
+files edited to skip integration-branch changes (uncommitted, for them to
+review and commit), and what step 7 retired — and remind the user of the
+flow:
 
 1. Grill/discuss a feature → `/to-spec` publishes the spec (PRD) issue.
 2. `/to-tickets <spec>` breaks it into child issues discoverable by the
    pipeline (native sub-issues on GitHub; the tracker doc's equivalent
    elsewhere) with `Blocked by` ordering.
-3. `/developer <spec>` delivers them all unattended — build → review
-   → fix cycles → merge per the chosen policy — and sends a push
-   notification when done.
+3. `/developer <spec>` delivers them all unattended — builds onto the
+   spec's integration branch, one whole-spec review → fix cycles → merge
+   per the chosen policy — and sends a push notification when done.
 
 If they chose `merge: auto`, warn them explicitly: **`/developer` will merge
 PRs to `main` unattended when the review verdict is CLEAN.** If they chose
