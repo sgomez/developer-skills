@@ -17,10 +17,14 @@ Repo-specific facts:
 - **Change ref**: the PR number.
 - **Base branch**: `main`. Start work from `origin/main`
   (`git fetch origin main`, then `git checkout -b <branch> origin/main` as
-  a separate command) — never `git checkout main`.
+  a separate command) — never `git checkout main`. When the job names
+  another base — `/developer` builds a spec's sub-issues on its integration
+  branch, `developer/spec-<N>` — that branch replaces `main` here and in the
+  change's target.
 - **Issue auto-close**: yes — `Closes #<n>` in the PR body closes issue
-  `#<n>` when the PR merges, **provided the issue lives in this repo's
-  GitHub Issues**. If this repo's issues live elsewhere (see
+  `#<n>` when the PR merges **into `main`** (a PR into an integration branch
+  closes nothing — the spec PR closes the spec and its sub-issues),
+  **provided the issue lives in this repo's GitHub Issues**. If this repo's issues live elsewhere (see
   `docs/agents/issue-tracker.md`), there is no auto-close: reference the
   issue in the PR body by its tracker ref, and close it per the tracker's
   Delivery operations after the merge.

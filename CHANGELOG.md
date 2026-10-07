@@ -36,6 +36,16 @@ Changes staged on the `next` branch, published as a new version once ready.
     they name broken.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after
     a blocked or wrong resolution, runs on Opus.
+  - `/setup-developer-skills` says what each merge policy now authorizes —
+    sub-issues reach the integration branch unattended under `manual` too —
+    and its code-host templates name the integration branch as a base. It
+    adds a permission for the push that creates that branch. **Repos set up
+    before this version** keep working, but their `developer-defaults.md`
+    and `code-host.md` describe the old flow: re-run
+    `/setup-developer-skills`, or edit them by hand, so the authorization
+    on record matches what the pipeline does, and add the
+    `git push origin refs/remotes/origin/main:refs/heads/developer/spec-*`
+    allow rule.
 - **`/developer` runs as a dynamic workflow.** The orchestrator was a model
   that woke on every worker result and re-read its whole context to choose
   the next step: on spec #964 that was 120 turns and 11 M tokens, a third of

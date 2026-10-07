@@ -12,7 +12,10 @@ operations below override them**.
   separately, so it never collides with an issue `#42`).
 - **Base branch**: `main`. Start work from `origin/main`
   (`git fetch origin main`, then `git checkout -b <branch> origin/main` as
-  a separate command) — never `git checkout main`.
+  a separate command) — never `git checkout main`. When the job names
+  another base — `/developer` builds a spec's sub-issues on its integration
+  branch, `developer/spec-<N>` — that branch replaces `main` here and in the
+  change's target.
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
   `fix/mr-<MR>` branch: `git push origin HEAD:<source-branch>`).

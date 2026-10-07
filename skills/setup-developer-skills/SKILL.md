@@ -267,15 +267,18 @@ lists work by `ready-for-agent`. Respect any label mapping in
 Ask the user two questions (AskUserQuestion, one call, both):
 
 1. **Execution** — should `/developer` build independent sub-issues in
-   parallel waves (recommended: faster; sibling-PR conflicts are resolved by
+   parallel (recommended: faster; sibling-PR conflicts are resolved by
    merge-fix workers) or sequentially (one sub-issue fully delivered before
    the next)?
 2. **Merge** — when the review verdict is CLEAN, should `/developer` merge
-   the PR to `main` automatically, or mark it ready and leave the merge to a
-   human (recommended)? Be explicit that `auto` means unattended merges to
-   `main` with the opus diff-reviewer as the only gate, and that with
-   `manual` the sub-issues stay open until the human merges, so dependent
-   sub-issues wait for those merges.
+   to `main` automatically, or mark the PR ready and leave the merge to a
+   human (recommended)? Explain what reaches `main`: for a spec, one spec PR
+   from its integration branch, reviewed whole; for a single issue, its own
+   PR. Be explicit that `auto` means unattended merges to `main` with the
+   opus diff-reviewer as the only gate, and that **under either answer** a
+   spec's sub-issues are merged unattended into the integration branch
+   (`developer/spec-<N>`) once their checks are green, without a review of
+   their own — `main` is untouched until the spec PR merges.
 
    **Skip this question when the code host is local** — `merge: auto` is
    unsupported there (the code-host doc says why); record `merge: manual`
@@ -429,6 +432,7 @@ step 7 retired — and remind the user of the flow:
 
 If they chose `merge: auto`, warn them explicitly: **`/developer` will merge
 PRs to `main` unattended when the review verdict is CLEAN.** If they chose
-`manual` (or the host forces it), remind them the wrap-up summary lists the
-ready-to-merge PRs in dependency order, and that per-run flags
-(`--auto-merge`, `--sequential`, …) override the defaults.
+`manual` (or the host forces it), remind them that a spec ends in one spec
+PR for them to merge — sub-issues reach the integration branch on their own
+— and that per-run flags (`--auto-merge`, `--sequential`, …) override the
+defaults.
