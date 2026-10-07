@@ -197,7 +197,7 @@ Then \`git fetch origin ${base}\` and ${mergeIn
   ? `merge \`origin/${base}\` into the branch (\`git merge origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. A merge, not a rebase: this branch is an integration branch made of merge commits, and its history stays as it is.`
   : `rebase the branch onto \`origin/${base}\` (\`git rebase origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. Rebase, not a merge of ${base} into the branch: the PR's diff has to stay the PR's own work. If the rebase is the wrong shape for this branch (merge commits of its own, or the same hunk conflicting on every commit of a long chain), \`git rebase --abort\`, merge \`origin/${base}\` in instead, and say which you did in reason.`}
 
-Run the project checks, then push with \`git push --force-with-lease origin HEAD:<pr-branch>\` (without the force flag if you merged). On a local code host rebase onto local \`main\`; committing is publishing, there is nothing to push. ${STRUCTURED}`
+Run the project checks. Then read the PR's branch name with \`gh pr view ${pr} --json headRefName --jq .headRefName\`, and push with \`git push --force-with-lease origin HEAD:<that name>\` (without the force flag if you merged): the name written in literally, the command bare in a call of its own — no \`$(…)\`, no pipe. A force-push to any other branch name is refused, and must be. On a local code host rebase onto local \`main\`; committing is publishing, there is nothing to push. ${STRUCTURED}`
 
 if (A.mergeFix) {
   const m = await agent(MERGE_FIX(A.mergeFix), {
