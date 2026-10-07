@@ -10,7 +10,7 @@ branch (pr, branch, outcome, reason, cycles, mergefix, notes), `harvest`,
 plan refused to start.
 
 On the integration branch a sub-issue's `integrated` outcome means its PR
-merged into `developer/spec-<N>`, not into `main`; the sub-issue stays open
+merged into `agent/developer/spec-<N>`, not into `main`; the sub-issue stays open
 until the spec PR merges. `specPr.outcome` is what reached `main`: `merged`,
 `ready-to-merge`, `escalated`, or `draft` (sub-issues still undelivered, so
 neither reviewed nor merged).

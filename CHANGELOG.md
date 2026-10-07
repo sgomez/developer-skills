@@ -17,7 +17,7 @@ Changes staged on the `next` branch, published as a new version once ready.
   confirmation from one sub-issue closed the screen from another. A single
   whole-spec review over the merged result, given a generic order, found all
   three and proposed the one fix that unifies them.
-  - Sub-issues are built from the tip of `developer/spec-<N>` and merged into
+  - Sub-issues are built from the tip of `agent/developer/spec-<N>` and merged into
     it with no review and no CI wait of their own — the worker runs the
     project checks before pushing. Then the spec PR
     (that branch into `main`, closing the spec and every sub-issue) gets one
@@ -31,14 +31,22 @@ Changes staged on the `next` branch, published as a new version once ready.
     sub-issues already integrated, so a new session resumes where the last
     one stopped.
   - `implement-issue` and `code-author` take a base branch other than `main`.
+  - Every branch `/developer` creates lives under `agent/developer/` and is
+    named from a number alone: `issue-<N>` for a build, `spec-<N>` for the
+    integration branch, `harvest-<N>`, and the local `fix-pr-<PR>` of fix
+    and merge-fix jobs. Any agent can derive a name instead of asking the
+    code host — on lab-04 a merge-fix guessed `agent/issue-3` for
+    `agent/issue-3-sede-intro-y-escape` and its push was refused. Cleanup
+    matches exact names, so PR #12's no longer also matches #120.
+    `implement-issue` and `fix-pr` keep their own names when run by hand.
   - `approve-merge.sh` also approves, from the primary checkout, a merge into
-    `developer/spec-<N>` in a `merge: manual` repo and before its CI has
+    `agent/developer/spec-<N>` in a `merge: manual` repo and before its CI has
     finished: nothing reaches `main` that way, and the spec PR's gate runs
     the CI on everything together. On lab-04, waiting on CI per sub-issue —
     again after each merge-fix, with the conflict queue held — was most of
     a 100-minute run; the development itself took 24.
   - `/setup-developer-skills` offers to keep the repo's CI off changes into
-    `developer/spec-*` (`branches-ignore` on GitHub, a `workflow: rules:`
+    `agent/developer/spec-*` (`branches-ignore` on GitHub, a `workflow: rules:`
     entry on GitLab), showing each edit and applying only what the user
     accepts: nobody waits on that CI, but it still burns runner time.
   - `review-pr` checks for tests that would still pass with the behaviour
@@ -56,7 +64,7 @@ Changes staged on the `next` branch, published as a new version once ready.
     and `code-host.md` describe the old flow: re-run
     `/setup-developer-skills`, or edit them by hand, so the authorization
     on record matches what the pipeline does, and add the
-    `git push origin refs/remotes/origin/main:refs/heads/developer/spec-*`
+    `git push origin refs/remotes/origin/main:refs/heads/agent/developer/spec-*`
     allow rule.
 - **`/developer` runs as a dynamic workflow.** The orchestrator was a model
   that woke on every worker result and re-read its whole context to choose

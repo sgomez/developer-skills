@@ -189,12 +189,12 @@ run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
 assert_silent
 
 T="merge/manual-repo-into-integration-branch-allowed"
-FAKE_BASE=developer/spec-7
+FAKE_BASE=agent/developer/spec-7
 run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
 assert_allow
 
 T="merge/other-branch-shapes-deferred"
-FAKE_BASE=developer/spec-7x
+FAKE_BASE=agent/developer/spec-7x
 run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
 assert_silent
 FAKE_BASE=spec/7
@@ -203,7 +203,7 @@ assert_silent
 
 # Sub-issues are not gated on CI: the spec PR's gate covers them.
 T="merge/integration-branch-ignores-checks"
-FAKE_BASE=developer/spec-7 FAKE_ROLLUP='[{"conclusion":null}]'
+FAKE_BASE=agent/developer/spec-7 FAKE_ROLLUP='[{"conclusion":null}]'
 run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
 assert_allow
 
@@ -212,7 +212,7 @@ echo 'merge: auto' > "$REPO/docs/agents/developer-defaults.md"
 FAKE_BASE=main FAKE_ROLLUP='[{"conclusion":"FAILURE"}]'
 run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
 assert_silent
-FAKE_BASE=developer/spec-7
+FAKE_BASE=agent/developer/spec-7
 
 T="merge/integration-branch-from-a-worker-deferred"
 FAKE_ROLLUP='[]'

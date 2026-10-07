@@ -25,7 +25,7 @@
 #      "integrated":bool,
 #      "prs":[{"number":N,"isDraft":bool,"unresolved":N,"base":"…"}]}]}
 #   Only OPEN sub-issues are listed. `integration` (spec mode only) is the
-#   integration branch developer/spec-<N> — whether it exists, and its open
+#   integration branch agent/developer/spec-<N> — whether it exists, and its open
 #   PR into main, if any. `integrated`: a PR closing the sub-issue is already
 #   merged into that branch (spec mode only). The spec PR, which closes every
 #   sub-issue, is left out of each sub-issue's prs.
@@ -52,7 +52,7 @@ section() {
 
 issue_state() { gh issue view "$1" --json state --jq .state 2>/dev/null; }
 
-branch="developer/spec-$spec" # the integration branch
+branch="agent/developer/spec-$spec" # the integration branch
 in_spec=false                 # spec mode: look for integrated sub-issues
 
 # pr_state <PR> <base> — {number,isDraft,unresolved,base} for an open PR.

@@ -19,7 +19,7 @@ Repo-specific facts:
   (`git fetch origin main`, then `git checkout -b <branch> origin/main` as
   a separate command) — never `git checkout main`. When the job names
   another base — `/developer` builds a spec's sub-issues on its integration
-  branch, `developer/spec-<N>` — that branch replaces `main` here and in the
+  branch, `agent/developer/spec-<N>` — that branch replaces `main` here and in the
   change's target.
 - **Issue auto-close**: yes — `Closes #<n>` in the PR body closes issue
   `#<n>` when the PR merges **into `main`** (a PR into an integration branch
@@ -30,7 +30,8 @@ Repo-specific facts:
   Delivery operations after the merge.
 - **Merge policy support**: both `merge: auto` and `merge: manual`.
 - **Publishing commits**: `git push origin <branch>` (from a local
-  `fix/pr-<PR>` branch: `git push origin HEAD:<pr-branch>`).
+  fix branch — `fix/pr-<PR>`, or `agent/developer/fix-pr-<PR>` under /developer:
+  `git push origin HEAD:<pr-branch>`).
 - **CI**: GitHub Actions runs on pull requests. How to wait for the checks,
   read the ones recorded for a head sha, and tell a code-red from an
   infra-red lives in the annex [`code-host-ci.md`](./code-host-ci.md) —

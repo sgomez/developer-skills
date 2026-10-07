@@ -121,8 +121,13 @@ git checkout -b agent/issue-<N>-<slug> origin/main
 instead: `git checkout -b agent/issue-<N>-<slug> main`. The code-host doc
 names the base.)
 
+**A branch name from the caller** replaces `agent/issue-<N>-<slug>`
+everywhere in this skill: /developer names its builds
+`agent/developer/issue-<N>`, a name any of its agents can derive from the
+issue number alone.
+
 **A base branch other than main.** When the caller names one — /developer
-delivers a spec on its integration branch, `developer/spec-<N>` — it replaces
+delivers a spec on its integration branch, `agent/developer/spec-<N>` — it replaces
 `main` everywhere in this skill: fetch it, branch from `origin/<base>`, read
 `origin/<base>` wherever this skill says `origin/main`, and open the change
 with `--base <base>`. It holds the work this issue builds on that `main` does

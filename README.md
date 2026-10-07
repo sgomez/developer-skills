@@ -10,7 +10,7 @@ build → review → fix → merge — and pings you when it's done.
         ▼
    sub-issue's ## Complexity          ┌─────────────┐
    standard → sonnet ────────────────▶│ code-author │──▶ PR into
-   complex  → opus                    │ (worktree)  │    developer/spec-<N>
+   complex  → opus                    │ (worktree)  │    agent/developer/spec-<N>
                                       └─────────────┘
                                             │ merge (no CI wait)
                                             ▼
@@ -37,7 +37,7 @@ build → review → fix → merge — and pings you when it's done.
   model re-reading a growing context on every worker result. Requires
   dynamic workflows enabled in `/config`.
 - **One integration branch, one whole-spec review** — sub-issues are built
-  from the tip of `developer/spec-<N>` and merged into it with no review of
+  from the tip of `agent/developer/spec-<N>` and merged into it with no review of
   their own; the spec PR into `main` is reviewed once, whole, and fixed by a
   single worker. Reviewed one PR at a time, sub-issues each grow their own
   copy of a shared helper and nobody sees how their screens interact. A
@@ -223,7 +223,7 @@ calls; explicit allow rules resolve *before* the auto-mode classifier runs):
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
-      "Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)"
+      "Bash(git push origin refs/remotes/origin/main:refs/heads/agent/developer/spec-*)"
     ]
   }
 }

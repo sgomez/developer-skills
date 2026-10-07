@@ -18,7 +18,7 @@ export const meta = {
 // review and fix get the real workers.
 //
 // A spec with sub-issues is delivered on an integration branch,
-// developer/spec-<N>: each sub-issue is built from its tip and merged into it
+// agent/developer/spec-<N>: each sub-issue is built from its tip and merged into it
 // with no checks gate and no review of its own. Reviews one PR at a time
 // never see how the sub-issues fit together — two of them each adding their
 // own version of a shared helper, a confirmation inside a screen from another
@@ -60,7 +60,13 @@ const TRACKER = A.localTracker
   ? 'The tracker is local: make tracker writes per docs/agents/issue-tracker.md in this checkout, scoped to `.scratch/`, committed as `chore(tracker): …` (LOCAL-HOST.md).'
   : A.github ? '' : 'Use the operations in docs/agents/issue-tracker.md and docs/agents/code-host.md wherever they differ from the gh commands below.'
 const KEEP = A.localHost ? ' --keep-branches' : ''
-const BRANCH = `developer/spec-${SPEC}` // the integration branch
+// Every branch the pipeline creates lives under agent/developer/, named from a
+// number alone so any agent can derive it without asking the code host.
+const NS = 'agent/developer'
+const BRANCH = `${NS}/spec-${SPEC}` // the integration branch
+const ISSUE_BRANCH = n => `${NS}/issue-${n}`
+const FIX_BRANCH = pr => `${NS}/fix-pr-${pr}` // local only, for fix and merge-fix jobs
+const fixGlobs = pr => `--branch "${FIX_BRANCH(pr)}" --branch "${FIX_BRANCH(pr)}-*"`
 
 // ── Schemas ─────────────────────────────────────────────────────────────
 const REF = { type: ['integer', 'string'], description: 'PR number (the branch name on a local code host)' }
@@ -193,7 +199,7 @@ const shortTitle = title => {
 // classifier refuses as destructive often enough to escalate sub-issues whose
 // conflict was already resolved. The PR's diff on the code host stays its own
 // work either way.
-const MERGE_FIX = (pr, base = 'main') => `MERGE-FIX job. PR #${pr} cannot be merged into ${base} (conflict with a previously merged change). In your worktree get the PR branch per the fix-that-pushes checkout in \`docs/agents/code-host.md\` (GitHub default: \`git fetch origin pull/${pr}/head:fix/pr-${pr}\`, then \`git checkout fix/pr-${pr}\` as a separate call — never joined with \`&&\`, which the worktree sandbox refuses; do not use \`gh pr checkout\` or check out the branch by name, another worktree may hold it). If git also refuses \`fix/pr-${pr}\`, use \`fix/pr-${pr}-merge\` in both commands; never any other name, the cleanup matches on \`fix/pr-${pr}*\`.
+const MERGE_FIX = (pr, base = 'main') => `MERGE-FIX job. PR #${pr} cannot be merged into ${base} (conflict with a previously merged change). In your worktree get the PR branch per the fix-that-pushes checkout in \`docs/agents/code-host.md\` (GitHub default: \`git fetch origin pull/${pr}/head:${FIX_BRANCH(pr)}\`, then \`git checkout ${FIX_BRANCH(pr)}\` as a separate call — never joined with \`&&\`, which the worktree sandbox refuses; do not use \`gh pr checkout\` or check out the branch by name, another worktree may hold it). If git also refuses \`${FIX_BRANCH(pr)}\`, use \`${FIX_BRANCH(pr)}-merge\` in both commands; never any other name, the cleanup matches on those two.
 
 Then \`git fetch origin ${base}\` and merge \`origin/${base}\` into the branch (\`git merge origin/${base}\`), resolving the conflicts as they come — using the resolving-merge-conflicts skill if it appears in your available skills. A merge, never a rebase: the push below must not need force, and the PR's diff stays its own work either way. When the same thing was built twice — on the base and in this PR — keep one, the base's unless the PR's is the one the spec asks for, and move the PR's callers onto it.
 
@@ -205,7 +211,7 @@ if (A.mergeFix) {
   })
   const c = await agent(
     `Run, as one Bash call, and return its output verbatim in notes:
-bash ${A.scripts}/cleanup-worktrees.sh --branch "fix/pr-${A.mergeFix}*"${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '`,
+bash ${A.scripts}/cleanup-worktrees.sh ${fixGlobs(A.mergeFix)}${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '`,
     { label: `cleanup #${A.mergeFix}`, schema: NOTES, ...SMALL },
   )
   return { mergeFix: A.mergeFix, result: m, notes: c?.notes ?? '' }
@@ -272,7 +278,7 @@ function row(s) {
 }
 const logRow = r => `mkdir -p ${A.root}/.scratch && echo '${r}' >> ${A.root}/.scratch/developer-run-${SPEC}.log`
 const cleanupCmd = s =>
-  `bash ${A.scripts}/cleanup-worktrees.sh${s.branch ? ` --branch "${s.branch}"` : ''} --branch "fix/pr-${s.pr ?? 0}*" --branch "agent/issue-${s.n}-*"${s.head ? ` --sha "${s.head}"` : ''}${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '`
+  `bash ${A.scripts}/cleanup-worktrees.sh${s.branch ? ` --branch "${s.branch}"` : ''} ${fixGlobs(s.pr ?? 0)} --branch "${ISSUE_BRANCH(s.n)}"${s.head ? ` --sha "${s.head}"` : ''}${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '`
 
 async function finish(s, outcome, reason) {
   s.outcome = outcome
@@ -357,7 +363,7 @@ async function fixUntilClean(s, ci) {
     let f
     for (let attempt = 0; ; attempt++) {
       f = await work(
-        `FIX job. PR #${s.pr}. Run the fix-pr skill to address all review threads — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Pushing the fixes and replying to the review threads are part of your delegated task.${extra} ${STRUCTURED}`,
+        `FIX job. PR #${s.pr}. Run the fix-pr skill to address all review threads — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Your local branch is \`${FIX_BRANCH(s.pr)}\` (\`-r2\`, \`-r3\`… when it is held), not \`fix/pr-${s.pr}\`. Pushing the fixes and replying to the review threads are part of your delegated task.${extra} ${STRUCTURED}`,
         {
           label: `fix #${s.pr} (${s.cycles})`, phase: s.phase, agentType: 'developer-skills:code-author',
           model: s.cycles === 1 ? s.tier : 'opus', isolation: 'worktree', schema: WORK,
@@ -417,7 +423,7 @@ function merge(s) {
 **Once step 1 has merged, the outcome is merged, whatever happens below.** A bookkeeping command that is denied or fails is reported in notes, never as escalate or dirty.
 2. \`gh pr view ${s.pr} --json headRefName,headRefOid --jq '.headRefName + " " + .headRefOid'\` — prints <branch> <sha>.
 3. The bookkeeping, as one Bash call with <branch> and <sha> written in literally (no \`$(…)\`, no variables):
-${into ? '' : state + '\n'}bash ${A.scripts}/cleanup-worktrees.sh --branch "<branch>" --branch "fix/pr-${s.pr}*" --branch "agent/issue-${s.n}-*" --sha "<sha>" 2>&1 | grep -vE '^(REMOVED|DELETED) '
+${into ? '' : state + '\n'}bash ${A.scripts}/cleanup-worktrees.sh --branch "<branch>" ${fixGlobs(s.pr)} --branch "${ISSUE_BRANCH(s.n)}" --sha "<sha>" 2>&1 | grep -vE '^(REMOVED|DELETED) '
 git ls-remote --exit-code --heads origin "<branch>" >/dev/null; echo "remote-branch-exit=$?"
 ${logRow(row({ ...s, verdict: 'CLEAN', outcome: into ? 'integrated' : 'merged' }))}
 Denied → run its lines as separate calls; still denied → say so in notes and go on.
@@ -537,7 +543,7 @@ async function deliver(t) {
   if (start === 'build') {
     const b = await work(
       `BUILD job. Spec issue #${SPEC}, sub-issue #${s.n}.
-Run the implement-issue skill on the sub-issue. The sub-issue's \`## Spec extract\` section carries the spec decisions that apply to it — read the full spec issue only if that section is missing.${INTEG ? `
+Run the implement-issue skill on the sub-issue, on branch \`${ISSUE_BRANCH(s.n)}\` — that exact name, not the skill's default. If the remote already has it (an earlier attempt whose PR was closed), report blocked naming it; never push over it. The sub-issue's \`## Spec extract\` section carries the spec decisions that apply to it — read the full spec issue only if that section is missing.${INTEG ? `
 Base branch: \`${BRANCH}\`, the spec's integration branch, not main. Fetch it, branch from \`origin/${BRANCH}\` and open the PR with \`${BRANCH}\` as its base: wherever the skill says main, read \`${BRANCH}\`. It already holds the sub-issues this one depends on.` : ''}
 Whatever deserves a record goes in the PR body. Report only a PR number you have confirmed exists. ${STRUCTURED}`,
       { label: `build #${s.n}`, phase: s.phase, agentType: 'developer-skills:code-author', model: s.tier, isolation: 'worktree', schema: WORK },
@@ -681,7 +687,7 @@ const prs = [...all, ...(spec ? [spec] : [])].filter(s => s.pr).map(s => s.pr)
 let harvest = null
 if (prs.length && rows.length) {
   harvest = await agent(
-    `HARVEST job. This run delivered PRs ${prs.map(p => '#' + p).join(', ')}. Create branch \`agent/harvest-${SPEC}\` from origin/main, then do two things on it:
+    `HARVEST job. This run delivered PRs ${prs.map(p => '#' + p).join(', ')}. Create branch \`${NS}/harvest-${SPEC}\` from origin/main, then do two things on it:
 
 **(a) Record the run in the ledger.** The rows are the \`outcome=\` lines of \`${A.root}/.scratch/developer-run-${SPEC}.log\` (\`grep 'outcome=' <that file>\`) — they include rows of an earlier run on this spec that died before its wrap-up. If the file is missing, use this run's rows:
 

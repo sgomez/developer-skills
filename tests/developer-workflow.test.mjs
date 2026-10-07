@@ -81,7 +81,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(st.maxActive === 3, `the cap is used (saw ${st.maxActive})`)
   ok(st.maxMerging === 1, `merges strictly serial (saw ${st.maxMerging})`)
   ok(result.rows.filter(r => /outcome=integrated/.test(r)).length === 5, 'one integrated row each')
-  ok(spec.outcome === 'merged' && spec.pr === 900 && spec.branch === 'developer/spec-1', 'the spec PR merged into main')
+  ok(spec.outcome === 'merged' && spec.pr === 900 && spec.branch === 'agent/developer/spec-1', 'the spec PR merged into main')
   ok(st.n['harvest'] === 1 && st.n['sweep'] === 1, 'harvest and sweep once')
 }
 
@@ -136,13 +136,16 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   const { st, at } = await run('creates-the-integration-branch', {
     tickets: [t(2)], integration: { exists: false },
     on: (l, p) => {
-      if (l === 'branch') ok(/refs\/heads\/developer\/spec-1/.test(p), 'pushes developer/spec-1')
-      if (l === 'build #2') ok(/Base branch: `developer\/spec-1`/.test(p), 'the build is told its base')
+      if (l === 'branch') ok(/refs\/heads\/agent\/developer\/spec-1/.test(p), 'pushes agent/developer/spec-1')
+      if (l === 'build #2') ok(/Base branch: `agent\/developer\/spec-1`/.test(p), 'the build is told its base')
+      if (l === 'build #2') ok(/on branch `agent\/developer\/issue-2`/.test(p), 'the build is told its branch name')
+      if (l === 'merge #102') ok(/--branch "agent\/developer\/fix-pr-102" --branch "agent\/developer\/fix-pr-102-\*" --branch "agent\/developer\/issue-2"/.test(p), 'cleanup by exact names, no glob that also hits #1020')
+      if (l === 'harvest') ok(/`agent\/developer\/harvest-1`/.test(p), 'the harvest branch is under agent/developer/')
       if (l === 'merge #102') ok(/gh pr ready 102/.test(p), 'an ungated sub-issue PR is marked ready before its merge')
       if (l === 'gate #900') ok(/13 NO_CHECKS → ESCALATE/.test(p), 'no CI on the spec PR escalates')
       if (l === 'merge #102') ok(!/gh issue close/.test(p) && /into the integration branch/.test(p), 'integrating closes no issue')
       if (l === 'merge #900') ok(/issue=1 /.test(p) && /issue=2 /.test(p) && /gh issue close/.test(p), 'the spec merge closes the spec and its sub-issues')
-      if (l === 'open spec PR') ok(/--base main --head developer\/spec-1/.test(p) && /Closes #1\nCloses #2/.test(p), 'spec PR closes the spec and every sub-issue')
+      if (l === 'open spec PR') ok(/--base main --head agent\/developer\/spec-1/.test(p) && /Closes #1\nCloses #2/.test(p), 'spec PR closes the spec and every sub-issue')
       return undefined
     },
   })
@@ -158,7 +161,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     tickets: [t(2)], integration: { exists: false },
     on: l => (l === 'branch' ? { status: 'blocked', reason: 'denied' } : undefined),
   })
-  ok(/developer\/spec-1/.test(result.error) && !st.n['build #2'], 'no branch → stop before building')
+  ok(/agent\/developer\/spec-1/.test(result.error) && !st.n['build #2'], 'no branch → stop before building')
 }
 {
   const models = {}
@@ -194,8 +197,8 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
 {
   const { out, st } = await run('resume-on-the-integration-branch', {
     tickets: [
-      t(2, { prs: [{ number: 50, unresolved: 0, base: 'developer/spec-1' }] }),
-      t(3, { prs: [{ number: 60, unresolved: 2, base: 'developer/spec-1' }] }),
+      t(2, { prs: [{ number: 50, unresolved: 0, base: 'agent/developer/spec-1' }] }),
+      t(3, { prs: [{ number: 60, unresolved: 2, base: 'agent/developer/spec-1' }] }),
       t(4, { prs: [{ number: 70, unresolved: 0 }, { number: 71, unresolved: 0 }] }),
       t(5, { prs: [{ number: 80, unresolved: 0, base: 'main' }] }),
     ],
@@ -361,7 +364,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
       const pr = Number((l.match(/#(\d+)/) || [])[1])
       if (l.startsWith('merge-fix')) {
         models.push(o.model)
-        ok(/git merge origin\/developer\/spec-1/.test(p) && !/--force/.test(p.replace(/never `--force`[^.]*/, '')), 'a sub-issue merges the integration branch in, no force-push')
+        ok(/git merge origin\/agent\/developer\/spec-1/.test(p) && !/--force/.test(p.replace(/never `--force`[^.]*/, '')), 'a sub-issue merges the integration branch in, no force-push')
       }
       if (l.startsWith('merge #') && (pr === 103 || pr === 104)) {
         const fixes = s.n[`merge-fix #${pr} (1)`] || 0
@@ -388,7 +391,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     },
   })
   ok(models.join() === 'sonnet,opus', `Sonnet, then one Opus retry (saw ${models})`)
-  ok(out[2].outcome === 'escalated' && /unchanged developer\/spec-1/.test(out[2].reason), 'then escalate')
+  ok(out[2].outcome === 'escalated' && /unchanged agent\/developer\/spec-1/.test(out[2].reason), 'then escalate')
 }
 {
   const models = []

@@ -139,18 +139,18 @@ it is the whole point of the split, so never fold the annex back in.
 
 **Skip CI on integration-branch changes** (GitHub and GitLab with CI only).
 `/developer` builds a spec's sub-issues as changes into its integration
-branch, `developer/spec-<N>`, and merges them without waiting on CI — the spec
+branch, `agent/developer/spec-<N>`, and merges them without waiting on CI — the spec
 PR into `main` runs the CI once on all of them. The repo's CI still fires on
 each of those changes unless its triggers say otherwise: runner time nobody
 reads. Read the CI config and find what runs on changes:
 
 - **GitHub** — every workflow under `.github/workflows/` with a
   `pull_request` (or `pull_request_target`) trigger. One whose trigger already
-  has `branches: [main]` (or any filter that excludes `developer/spec-*`)
+  has `branches: [main]` (or any filter that excludes `agent/developer/spec-*`)
   needs nothing. The others get
   ```yaml
   pull_request:
-    branches-ignore: ['developer/spec-*']
+    branches-ignore: ['agent/developer/spec-*']
   ```
   merged into their existing `pull_request` block (keep its `types:` and
   `paths:`). A trigger with `branches:` can't also take `branches-ignore:` —
@@ -158,7 +158,7 @@ reads. Read the CI config and find what runs on changes:
 - **GitLab** — a top-level `workflow: rules:` entry (or the first rule of
   the existing ones):
   ```yaml
-  - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^developer\/spec-/
+  - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^agent\/developer\/spec-/
     when: never
   ```
 
@@ -308,7 +308,7 @@ Ask the user two questions (AskUserQuestion, one call, both):
    PR. Be explicit that `auto` means unattended merges to `main` with the
    opus diff-reviewer as the only gate, and that **under either answer** a
    spec's sub-issues are merged unattended into the integration branch
-   (`developer/spec-<N>`) without a CI wait or a review of their own — the
+   (`agent/developer/spec-<N>`) without a CI wait or a review of their own — the
    spec PR's CI and review cover them — `main` is untouched until the spec PR merges.
 
    **Skip this question when the code host is local** — `merge: auto` is
@@ -339,7 +339,7 @@ are read from different scopes (merge with existing content in both):
   handled deterministically by this plugin's PreToolUse hook
   (`hooks/approve-merge.sh`) — it grants a PreToolUse `allow`, which runs
   before the classifier, and fires only in `merge: auto` repos — or, in any
-  repo, for a merge into a spec's integration branch (`developer/spec-<N>`),
+  repo, for a merge into a spec's integration branch (`agent/developer/spec-<N>`),
   which `/developer` does unattended whatever the merge policy. The
   `gh pr merge` allow rule below still spares a prompt when the pipeline runs
   outside auto mode.
@@ -369,7 +369,7 @@ them in.
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
-      "Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)",
+      "Bash(git push origin refs/remotes/origin/main:refs/heads/agent/developer/spec-*)",
       "Workflow"
     ]
   }

@@ -6,7 +6,7 @@ remote). The workflow handles the rest once it gets `localHost` /
 `localTracker` in its args: unattended merge is off, every worker is followed
 by a cleanup that keeps branches (git lets a branch live in one worktree
 only), there is no mark-ready call, tracker writes are scoped `.scratch/`
-commits, and the harvest leaves its commit on `agent/harvest-<spec>`.
+commits, and the harvest leaves its commit on `agent/developer/harvest-<spec>`.
 
 A run on a remote host (GitHub, GitLab) never needs this file.
 
@@ -37,5 +37,5 @@ git branch -d <branch>
 # then close the issue per the tracker ops (no auto-close on a local host)
 ```
 
-List the harvest branch `agent/harvest-<spec>` as one more item in that
+List the harvest branch `agent/developer/harvest-<spec>` as one more item in that
 queue: a local host never moves `main` unattended.

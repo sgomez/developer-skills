@@ -13,7 +13,7 @@ on every worker result. Your part is small: publish the context docs, resolve
 the run config, launch the workflow, report what it returns.
 
 A spec with sub-issues is delivered on an **integration branch**,
-`developer/spec-<N>`: each sub-issue is built from its tip and merged into it
+`agent/developer/spec-<N>`: each sub-issue is built from its tip and merged into it
 with no checks gate and no review of its own — the worker ran the project
 checks; then the **spec PR** (that branch into `main`) gets one whole-spec
 review, a single fixer and the one CI gate before it merges. Reviewing sub-issues one at a time misses how they fit together. A

@@ -73,7 +73,9 @@ Two separate calls — the worktree sandbox refuses them joined with `&&`.
 If `fix/pr-<PR>` is refused too — an earlier fix cycle's worktree still
 holds it — use `fix/pr-<PR>-r2` (then `-r3`, and so on) in both commands.
 Never invent a name outside `fix/pr-<PR>*`: it is what the pipeline's
-cleanup matches.
+cleanup matches. When the caller names the local branch instead —
+/developer uses `agent/developer/fix-pr-<PR>` — use that name, with the same
+`-r2`, `-r3` suffixes.
 
 Push later with `git push origin HEAD:<pr-branch>` instead of a plain
 push.

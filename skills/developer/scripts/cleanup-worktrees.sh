@@ -17,7 +17,7 @@
 #             glob, and delete matching local branches (repeatable). An
 #             explicit --branch glob is caller-scoped, so it targets matching
 #             branches repo-wide, worktree or not — pass names narrowed to the
-#             run (e.g. agent/issue-<subissue>-*), never a bare agent/*.
+#             run (e.g. agent/developer/issue-<subissue>), never a bare agent/*.
 #   --sha     remove linked worktrees detached at this commit — the
 #             diff-reviewer case (repeatable, full SHA)
 #   --sweep   the final wrap-up pass: removes every linked worktree under the

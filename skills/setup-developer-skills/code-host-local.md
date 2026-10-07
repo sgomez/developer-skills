@@ -46,7 +46,9 @@ defaults — **the operations below override them.**
   (`git show <branch>:.scratch/changes/<file>.md`).
 - **Find the open change for an issue** (the orchestrator's resume check):
   the change ref *is* the branch, and the branch carries the issue number —
-  `git branch --list "agent/issue-<NN>-*"`. No match: no change. A match whose
+  `git branch --list "agent/developer/issue-<NN>" "agent/issue-<NN>-*"`
+  (the first is /developer's name, the second an interactive build's). No
+  match: no change. A match whose
   change file has no `## Review` section yet is a change awaiting review; one
   with unchecked `- [ ]` findings is awaiting fixes.
 - **Count unresolved threads on a change**: unchecked findings across the

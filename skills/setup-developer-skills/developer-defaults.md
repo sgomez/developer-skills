@@ -23,7 +23,7 @@ merge: manual
   standing record of that authorization.
   A local code host (see `docs/agents/code-host.md`) supports `manual` only.
 - **Either way**, a spec's sub-issues are merged unattended into its
-  integration branch, `developer/spec-<N>`, with no checks gate and no
+  integration branch, `agent/developer/spec-<N>`, with no checks gate and no
   review of their own: the spec PR's CI and review cover all of them. Nothing reaches `main` that way.
 
 To change the defaults, edit the values above (or re-run

@@ -23,7 +23,7 @@
 #   4. The repo opted into unattended merges: docs/agents/developer-defaults.md
 #      carries a `merge: auto` line. Interactive `--auto-merge` overrides on a
 #      `merge: manual` repo are deliberately NOT covered — a prompt there is fine.
-#      Or the PR merges into a spec's integration branch (`developer/spec-<N>`):
+#      Or the PR merges into a spec's integration branch (`agent/developer/spec-<N>`):
 #      /developer integrates every sub-issue there unattended whatever the
 #      merge policy, which governs only the spec PR into main. Nothing reaches
 #      main that way, so `merge: manual` is not being bypassed — and guard 5
@@ -71,7 +71,7 @@ commondir="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/
 root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [[ -n "$root" ]] || exit 0
 base="$(cd "$root" && gh pr view "$pr" --json baseRefName --jq .baseRefName 2>/dev/null)" || base=""
-if [[ "$base" =~ ^developer/spec-[0-9]+$ ]]; then
+if [[ "$base" =~ ^agent/developer/spec-[0-9]+$ ]]; then
   integration=1
 else
   integration=0
