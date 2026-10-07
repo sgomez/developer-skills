@@ -714,7 +714,7 @@ ${appended ? `mkdir -p .scratch/archive && mv .scratch/developer-run-${SPEC}.log
    Denied → do not retry; report it in notes with \`git worktree list\` output.
 ${closeSpec ? `2. ${A.github ? `\`gh issue view ${SPEC} --json state --jq .state\` and the state of every sub-issue of #${SPEC} (the GraphQL subIssues listing, or \`gh api repos/{owner}/{repo}/issues/${SPEC}/sub_issues --jq '[.[] | .state]'\`).` : `Per docs/agents/issue-tracker.md: the state of #${SPEC} and of every sub-issue.`} If #${SPEC} is open and **every** sub-issue is closed → close it: \`gh issue close ${SPEC} --comment "Closed by /developer: all sub-issues delivered and merged."\` (or the tracker's operation). ${TRACKER} Say in notes whether it was closed, and which sub-issues are still open.` : ''}
 
-notes: the sweep's final line, every LEFTOVER/KEPT/WARN/HELD/ABORT/WOULD-DELETE line verbatim, then the spec line.`,
+notes: the sweep's final line, every LEFTOVER/KEPT/WARN/HELD/ABORT/WOULD-DELETE line verbatim${closeSpec ? ', then the spec line' : ''}.${closeSpec ? '' : ` Nothing else: this run does not touch spec #${SPEC}, so say nothing about it.`}`,
   { label: 'sweep', phase: 'Wrap-up', schema: NOTES, ...SMALL },
 )
 
