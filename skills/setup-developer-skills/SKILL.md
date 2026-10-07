@@ -277,8 +277,8 @@ Ask the user two questions (AskUserQuestion, one call, both):
    PR. Be explicit that `auto` means unattended merges to `main` with the
    opus diff-reviewer as the only gate, and that **under either answer** a
    spec's sub-issues are merged unattended into the integration branch
-   (`developer/spec-<N>`) once their checks are green, without a review of
-   their own — `main` is untouched until the spec PR merges.
+   (`developer/spec-<N>`) without a CI wait or a review of their own — the
+   spec PR's CI and review cover them — `main` is untouched until the spec PR merges.
 
    **Skip this question when the code host is local** — `merge: auto` is
    unsupported there (the code-host doc says why); record `merge: manual`

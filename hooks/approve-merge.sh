@@ -26,7 +26,9 @@
 #      Or the PR merges into a spec's integration branch (`developer/spec-<N>`):
 #      /developer integrates every sub-issue there unattended whatever the
 #      merge policy, which governs only the spec PR into main. Nothing reaches
-#      main that way, so `merge: manual` is not being bypassed.
+#      main that way, so `merge: manual` is not being bypassed — and guard 5
+#      does not apply either: sub-issues are not gated on CI, the spec PR's
+#      gate runs it once on all of them before anything reaches main.
 #   5. The change's CI checks are green — or the repo has none, which is the
 #      same thing here: nothing to gate on. The Merge step tells the
 #      orchestrator to gate on this, but that gate is a prompt; this hook is
@@ -68,9 +70,12 @@ commondir="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/
 #    orchestrator happens to stand, which is often a subdirectory.
 root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [[ -n "$root" ]] || exit 0
-if ! grep -qE '^merge:[[:space:]]*auto[[:space:]]*$' "$root/docs/agents/developer-defaults.md" 2>/dev/null; then
-  base="$(cd "$root" && gh pr view "$pr" --json baseRefName --jq .baseRefName 2>/dev/null)" || exit 0
-  [[ "$base" =~ ^developer/spec-[0-9]+$ ]] || exit 0
+base="$(cd "$root" && gh pr view "$pr" --json baseRefName --jq .baseRefName 2>/dev/null)" || base=""
+if [[ "$base" =~ ^developer/spec-[0-9]+$ ]]; then
+  integration=1
+else
+  integration=0
+  grep -qE '^merge:[[:space:]]*auto[[:space:]]*$' "$root/docs/agents/developer-defaults.md" 2>/dev/null || exit 0
 fi
 
 # 5. Only on green checks.
@@ -86,23 +91,25 @@ fi
 #    and waiting for CI is the orchestrator's job in the Merge step. A check
 #    still running has a null conclusion, counts as not-green, and the hook
 #    simply stays silent.
-rollup="$(cd "$root" && gh pr view "$pr" --json statusCheckRollup \
-  --jq '.statusCheckRollup // []' 2>/dev/null)" || exit 0
+if [[ "$integration" -eq 0 ]]; then
+  rollup="$(cd "$root" && gh pr view "$pr" --json statusCheckRollup \
+    --jq '.statusCheckRollup // []' 2>/dev/null)" || exit 0
 
-# A check run reports `conclusion` (null while running); a commit status
-# reports `state`. Anything that is not a settled success counts against the
-# merge — including the empty string a running check yields.
-notgreen="$(printf '%s' "$rollup" | jq '
-  [ .[]
-    | ((.conclusion // .state // "") | ascii_upcase)
-    | select(. != "SUCCESS" and . != "NEUTRAL" and . != "SKIPPED")
-  ] | length
-' 2>/dev/null)" || notgreen=""
+  # A check run reports `conclusion` (null while running); a commit status
+  # reports `state`. Anything that is not a settled success counts against the
+  # merge — including the empty string a running check yields.
+  notgreen="$(printf '%s' "$rollup" | jq '
+    [ .[]
+      | ((.conclusion // .state // "") | ascii_upcase)
+      | select(. != "SUCCESS" and . != "NEUTRAL" and . != "SKIPPED")
+    ] | length
+  ' 2>/dev/null)" || notgreen=""
 
-# Non-numeric means gh failed, is unauthenticated, or printed something
-# unparseable: an unknown CI state is not a green one, so defer, never approve.
-[[ "$notgreen" =~ ^[0-9]+$ ]] || exit 0
-[[ "$notgreen" -eq 0 ]] || exit 0
+  # Non-numeric means gh failed, is unauthenticated, or printed something
+  # unparseable: an unknown CI state is not a green one, so defer, never approve.
+  [[ "$notgreen" =~ ^[0-9]+$ ]] || exit 0
+  [[ "$notgreen" -eq 0 ]] || exit 0
+fi
 
 jq -nc '{
   hookSpecificOutput: {

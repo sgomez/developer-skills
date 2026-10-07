@@ -18,7 +18,8 @@ Changes staged on the `next` branch, published as a new version once ready.
   whole-spec review over the merged result, given a generic order, found all
   three and proposed the one fix that unifies them.
   - Sub-issues are built from the tip of `developer/spec-<N>` and merged into
-    it after the checks gate, with no review of their own. Then the spec PR
+    it with no review and no CI wait of their own — the worker runs the
+    project checks before pushing. Then the spec PR
     (that branch into `main`, closing the spec and every sub-issue) gets one
     review on Opus, a single fixer, and the gate and merge per the merge
     policy. `merge: manual` now leaves one PR for the human instead of a
@@ -30,8 +31,12 @@ Changes staged on the `next` branch, published as a new version once ready.
     sub-issues already integrated, so a new session resumes where the last
     one stopped.
   - `implement-issue` and `code-author` take a base branch other than `main`.
-  - `approve-merge.sh` also approves, from the primary checkout and on green
-    checks, a merge into `developer/spec-<N>` in a `merge: manual` repo.
+  - `approve-merge.sh` also approves, from the primary checkout, a merge into
+    `developer/spec-<N>` in a `merge: manual` repo and before its CI has
+    finished: nothing reaches `main` that way, and the spec PR's gate runs
+    the CI on everything together. On lab-04, waiting on CI per sub-issue —
+    again after each merge-fix, with the conflict queue held — was most of
+    a 100-minute run; the development itself took 24.
   - `review-pr` checks for tests that would still pass with the behaviour
     they name broken.
   - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after

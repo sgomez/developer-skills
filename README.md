@@ -12,7 +12,7 @@ build → review → fix → merge — and pings you when it's done.
    standard → sonnet ────────────────▶│ code-author │──▶ PR into
    complex  → opus                    │ (worktree)  │    developer/spec-<N>
                                       └─────────────┘
-                                            │ checks gate, merge
+                                            │ merge (no CI wait)
                                             ▼
                                   integration branch ◀── next sub-issue …
                                             │ all sub-issues in

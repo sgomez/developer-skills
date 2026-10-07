@@ -14,9 +14,9 @@ the run config, launch the workflow, report what it returns.
 
 A spec with sub-issues is delivered on an **integration branch**,
 `developer/spec-<N>`: each sub-issue is built from its tip and merged into it
-after the checks gate, with no review of its own; then the **spec PR** (that
-branch into `main`) gets one whole-spec review and a single fixer before it
-merges. Reviewing sub-issues one at a time misses how they fit together. A
+with no checks gate and no review of its own — the worker ran the project
+checks; then the **spec PR** (that branch into `main`) gets one whole-spec
+review, a single fixer and the one CI gate before it merges. Reviewing sub-issues one at a time misses how they fit together. A
 single issue, or one sub-issue on its own, gets its own PR into `main` and
 its own review. A local code host or tracker keeps that per-PR flow for specs
 too.

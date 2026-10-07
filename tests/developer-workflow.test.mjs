@@ -138,7 +138,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     on: (l, p) => {
       if (l === 'branch') ok(/refs\/heads\/developer\/spec-1/.test(p), 'pushes developer/spec-1')
       if (l === 'build #2') ok(/Base branch: `developer\/spec-1`/.test(p), 'the build is told its base')
-      if (l === 'gate #102') ok(/NO_CHECKS → verdict GREEN/.test(p), 'no CI into the integration branch is green')
+      if (l === 'merge #102') ok(/gh pr ready 102/.test(p), 'an ungated sub-issue PR is marked ready before its merge')
       if (l === 'gate #900') ok(/13 NO_CHECKS → ESCALATE/.test(p), 'no CI on the spec PR escalates')
       if (l === 'merge #102') ok(!/gh issue close/.test(p) && /into the integration branch/.test(p), 'integrating closes no issue')
       if (l === 'merge #900') ok(/issue=1 /.test(p) && /issue=2 /.test(p) && /gh issue close/.test(p), 'the spec merge closes the spec and its sub-issues')
@@ -206,12 +206,9 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(out[5].outcome === 'escalated' && /targets main/.test(out[5].reason), 'a PR into main → escalate, never retarget')
 }
 {
-  const { out, st } = await run('integration-red-code-fix-without-review', {
-    tickets: [t(2)],
-    on: (l, _p, s) => (l === 'gate #102' && s.n[l] === 1 ? { verdict: 'RED_CODE', url: 'https://job/1', rerunUsed: true } : undefined),
-  })
-  ok(st.n['fix #102 (1)'] === 1 && !st.n['re-review #102 (1)'] && st.n['gate #102'] === 2, 'red → fix → gate again, no review')
-  ok(out[2].outcome === 'integrated', 'then integrated')
+  const { st } = await run('no-checks-gate-per-sub-issue', { tickets: [t(2), t(3)] })
+  ok(!st.n['gate #102'] && !st.n['gate #103'], 'sub-issues merge into the integration branch without a gate')
+  ok(st.n['gate #900'] === 1, 'the spec PR is the one gate')
 }
 {
   const { out, spec, st } = await run('spec-escalation', {
@@ -237,7 +234,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(st.n['merge #102'] === 1 && st.n['merge #103'] === 1, 'merged into the integration branch')
   ok(spec.outcome === 'ready-to-merge' && st.n['ready #900'] === 1 && !st.n['merge #900'], 'the spec PR waits for the human')
   ok(!st.n['gate #900'], 'no gate on the spec PR')
-  ok(st.n['gate #102'] === 1 && st.n['gate #103'] === 1, 'sub-issues still pass the checks gate')
+  ok(!st.n['gate #102'] && !st.n['gate #103'], 'sub-issues are not gated')
 }
 {
   const { out, st } = await run('manual-merge-single', {
@@ -340,6 +337,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
 }
 {
   const { out, st } = await run('infra-red-escalates', {
+    mode: 'single',
     tickets: [t(2)],
     on: l => (l === 'gate #102' ? { verdict: 'ESCALATE', reason: 'RED infra run=9 reason=startup_failure' } : undefined),
   })
@@ -358,16 +356,16 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   const models = []
   const { out, st } = await run('conflict-queue', {
     tickets: [t(2), t(3), t(4), t(5)],
-    delay: l => (l.startsWith('merge-fix') ? 60 : l === 'gate #105' ? 40 : 5),
+    delay: l => (l.startsWith('merge-fix') ? 60 : l === 'build #5' ? 40 : 5),
     on: (l, p, s, o) => {
       const pr = Number((l.match(/#(\d+)/) || [])[1])
       if (l.startsWith('merge-fix')) {
         models.push(o.model)
         ok(/git merge origin\/developer\/spec-1/.test(p) && !/--force/.test(p.replace(/never `--force`[^.]*/, '')), 'a sub-issue merges the integration branch in, no force-push')
       }
-      if (l.startsWith('gate ') && (pr === 103 || pr === 104)) {
+      if (l.startsWith('merge #') && (pr === 103 || pr === 104)) {
         const fixes = s.n[`merge-fix #${pr} (1)`] || 0
-        return fixes ? { verdict: 'GREEN' } : { verdict: 'DIRTY' }
+        return fixes ? { outcome: 'merged' } : { outcome: 'dirty' }
       }
       return undefined
     },
@@ -386,7 +384,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     tickets: [t(2)],
     on: (l, _p, _s, o) => {
       if (l.startsWith('merge-fix')) models.push(o.model)
-      return l === 'gate #102' ? { verdict: 'DIRTY' } : undefined
+      return l === 'merge #102' ? { outcome: 'dirty' } : undefined
     },
   })
   ok(models.join() === 'sonnet,opus', `Sonnet, then one Opus retry (saw ${models})`)
@@ -398,7 +396,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     tickets: [t(2)],
     on: (l, _p, s, o) => {
       if (l.startsWith('merge-fix')) { models.push(o.model); return o.model === 'sonnet' ? { status: 'blocked', reason: 'lost' } : undefined }
-      if (l === 'gate #102') return s.n['merge-fix #102 (2)'] ? { verdict: 'GREEN' } : { verdict: 'DIRTY' }
+      if (l === 'merge #102') return s.n['merge-fix #102 (2)'] ? { outcome: 'merged' } : { outcome: 'dirty' }
       return undefined
     },
   })

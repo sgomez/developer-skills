@@ -19,7 +19,7 @@ export const meta = {
 //
 // A spec with sub-issues is delivered on an integration branch,
 // developer/spec-<N>: each sub-issue is built from its tip and merged into it
-// after the checks gate, with no review of its own. Reviews one PR at a time
+// with no checks gate and no review of its own. Reviews one PR at a time
 // never see how the sub-issues fit together — two of them each adding their
 // own version of a shared helper, a confirmation inside a screen from another
 // sub-issue. So the review happens once, on the spec PR (the branch into
@@ -373,8 +373,9 @@ async function fixUntilClean(s, ci) {
       break
     }
     if (!f || f.status !== 'pr') return `fix cycle ${s.cycles} blocked: ${f?.reason ?? 'worker died'}`
-    // A sub-issue on the integration branch has no review: its fix answers a
-    // red CI, and the checks gate it goes back to is the verdict.
+    // A sub-issue on the integration branch has no review of its own: the
+    // fix answers threads an earlier run left, and the spec PR's review is
+    // the verdict.
     if (s.into === BRANCH) return null
     const r = await review(s, true)
     if (r.verdict === 'CLEAN') { s.verdict = 'CLEAN'; return null }
@@ -396,7 +397,7 @@ function gate(s, rerunUsed) {
    - 10 DIRTY → verdict DIRTY.
    - 20 "RED code run=<id> url=<job>" → ${rerunUsed ? 'the one retry is spent: RED_CODE with url=<job>.' : '`gh run rerun <id> --failed`, set rerunUsed, then the gate again; red again → RED_CODE with url=<job>.'}
    - 20 "RED code url=<link>" → RED_CODE with url=<link> (nothing to retry).
-   - ${s.into === BRANCH ? '13 NO_CHECKS → verdict GREEN: the CI does not run on changes into the integration branch, and the spec PR\'s own gate covers this code.\n   - 21 RED infra… → ESCALATE' : '21 RED infra…, 13 NO_CHECKS → ESCALATE'}, reason = the verdict line (the CI cannot run the code).
+   - 21 RED infra…, 13 NO_CHECKS → ESCALATE, reason = the verdict line (the CI cannot run the code).
    - 1 ERROR… → the gate once more; ERROR again → ESCALATE quoting it.
    ${A.github ? '' : 'This host is not GitHub: instead of the script, run the same sequence with the operations in docs/agents/code-host-ci.md (mergeable state, wait for checks to register, wait for them to finish, classify a red), waiting inside an until/for loop — never a command that opens with a bare sleep.'}`,
     { label: `gate #${s.pr}`, phase: s.phase, schema: GATE_RESULT, ...SMALL },
@@ -412,7 +413,7 @@ function merge(s) {
   return agent(
     `Merge PR #${s.pr} (${s.isSpec ? 'spec' : 'sub-issue'} #${s.n}) ${into ? `into the integration branch \`${BRANCH}\`` : 'into main'} and close the books. Stay in the current directory — the primary checkout. ${BARE} ${TRACKER}
 
-1. ${A.ci === false ? `\`gh pr ready ${s.pr}\` ("already ready" is fine), then ` : ''}\`gh pr merge ${s.pr} --merge\` — alone, no \`--delete-branch\`. A conflict (not mergeable) → outcome dirty, stop. Denied, or any other failure → outcome escalate quoting it, stop.
+1. ${A.ci === false || into ? `\`gh pr ready ${s.pr}\` ("already ready" is fine), then ` : ''}\`gh pr merge ${s.pr} --merge\` — alone, no \`--delete-branch\`. A conflict (not mergeable) → outcome dirty, stop. Denied, or any other failure → outcome escalate quoting it, stop.
 **Once step 1 has merged, the outcome is merged, whatever happens below.** A bookkeeping command that is denied or fails is reported in notes, never as escalate or dirty.
 2. \`gh pr view ${s.pr} --json headRefName,headRefOid --jq '.headRefName + " " + .headRefOid'\` — prints <branch> <sha>.
 3. The bookkeeping, as one Bash call with <branch> and <sha> written in literally (no \`$(…)\`, no variables):
@@ -445,10 +446,15 @@ Put the cleanup's KEPT/WARN lines in notes.`,
 
 // Checks gate → serial merge, with the red-CI retry, the fix cycles a code
 // red earns, and the conflict queue for DIRTY.
+//
+// Into the integration branch there is no checks gate: the worker ran the
+// project checks before pushing, and the spec PR's gate runs the CI once on
+// everything together. Waiting on CI per sub-issue — and again after each
+// merge-fix, with the conflict queue held — was most of a run's wall clock.
+// A conflict then shows at the merge itself, which takes the same queue.
 async function mergePath(s) {
   const base = s.into || 'main'
-  // Into the integration branch the gate runs whatever the merge policy.
-  const gated = s.into ? A.ci !== false : GATE
+  const gated = s.into ? false : GATE
   let rerunUsed = false
   let releaseQueue = null
   let fixBase = null // `merges` when the last merge-fix was spawned
