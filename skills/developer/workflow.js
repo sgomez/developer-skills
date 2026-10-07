@@ -132,7 +132,7 @@ const GATE_RESULT = {
 const MERGE_RESULT = {
   type: 'object',
   properties: {
-    outcome: { enum: ['merged', 'dirty', 'escalate'] },
+    outcome: { enum: ['merged', 'dirty', 'escalate'], description: "the merge command's own result: once it merged, merged — bookkeeping failures go in notes" },
     reason: { type: 'string' },
     notes: { type: 'string', description: 'KEPT / WARN lines from the cleanup, verbatim' },
   },
@@ -413,14 +413,15 @@ function merge(s) {
     `Merge PR #${s.pr} (${s.isSpec ? 'spec' : 'sub-issue'} #${s.n}) ${into ? `into the integration branch \`${BRANCH}\`` : 'into main'} and close the books. Stay in the current directory — the primary checkout. ${BARE} ${TRACKER}
 
 1. ${A.ci === false ? `\`gh pr ready ${s.pr}\` ("already ready" is fine), then ` : ''}\`gh pr merge ${s.pr} --merge\` — alone, no \`--delete-branch\`. A conflict (not mergeable) → outcome dirty, stop. Denied, or any other failure → outcome escalate quoting it, stop.
-2. The bookkeeping, as one Bash call:
-${into ? '' : state + '\n'}B=$(gh pr view ${s.pr} --json headRefName --jq .headRefName)
-H=$(gh pr view ${s.pr} --json headRefOid --jq .headRefOid)
-bash ${A.scripts}/cleanup-worktrees.sh --branch "$B" --branch "fix/pr-${s.pr}*" --branch "agent/issue-${s.n}-*" --sha "$H" 2>&1 | grep -vE '^(REMOVED|DELETED) '
-git ls-remote --exit-code --heads origin "$B" >/dev/null; echo "remote-branch-exit=$?"
+**Once step 1 has merged, the outcome is merged, whatever happens below.** A bookkeeping command that is denied or fails is reported in notes, never as escalate or dirty.
+2. \`gh pr view ${s.pr} --json headRefName,headRefOid --jq '.headRefName + " " + .headRefOid'\` — prints <branch> <sha>.
+3. The bookkeeping, as one Bash call with <branch> and <sha> written in literally (no \`$(…)\`, no variables):
+${into ? '' : state + '\n'}bash ${A.scripts}/cleanup-worktrees.sh --branch "<branch>" --branch "fix/pr-${s.pr}*" --branch "agent/issue-${s.n}-*" --sha "<sha>" 2>&1 | grep -vE '^(REMOVED|DELETED) '
+git ls-remote --exit-code --heads origin "<branch>" >/dev/null; echo "remote-branch-exit=$?"
 ${logRow(row({ ...s, verdict: 'CLEAN', outcome: into ? 'integrated' : 'merged' }))}
-3. ${into ? '' : `Every issue= line not CLOSED → check it once more; still open → \`gh issue close <n> --comment "Delivered by PR #${s.pr}."\`. `}remote-branch-exit=0 → \`git push origin --delete <branch>\` as its own call.
-Outcome merged; the cleanup's KEPT/WARN lines go in notes.`,
+Denied → run its lines as separate calls; still denied → say so in notes and go on.
+4. ${into ? '' : `Every issue= line not CLOSED → check it once more; still open → \`gh issue close <n> --comment "Delivered by PR #${s.pr}."\`. `}remote-branch-exit=0 → \`git push origin --delete <branch>\` as its own call.
+Outcome merged; the cleanup's KEPT/WARN lines, and any bookkeeping step that failed, go in notes.`,
     { label: `merge #${s.pr}`, phase: s.phase, schema: MERGE_RESULT, ...SMALL },
   )
 }
