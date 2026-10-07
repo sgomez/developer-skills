@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Regression tests for the two /developer PreToolUse guards:
+# Regression tests for the /developer PreToolUse hooks:
 #
 #   hooks/require-background-workers.sh    — no foreground worker spawns
 #   hooks/no-ci-logs-in-orchestrator.sh    — no raw CI logs in the main context
+#   hooks/approve-merge.sh                 — the sanctioned merges (allow, not
+#                                            deny; a fake gh stands in)
 #
 # Both are silent-by-default hooks: they print a JSON `deny` decision only when
 # every guard holds, and exit 0 with no output otherwise. These tests pin both
@@ -18,6 +20,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BG_HOOK="$ROOT/hooks/require-background-workers.sh"
 CI_HOOK="$ROOT/hooks/no-ci-logs-in-orchestrator.sh"
+MERGE_HOOK="$ROOT/hooks/approve-merge.sh"
 
 command -v jq >/dev/null 2>&1 || { echo "SKIP: jq not installed" >&2; exit 0; }
 
@@ -35,6 +38,11 @@ assert_deny() {
 }
 assert_silent() {
   [[ -z "$OUT" ]] && pass || { fail "expected silence (defer)"; echo "--- output was: $OUT"; }
+}
+assert_allow() {
+  local d
+  d="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.permissionDecision // ""' 2>/dev/null)" || d=""
+  [[ "$d" == "allow" ]] && pass || { fail "expected an allow decision"; echo "--- output was: ${OUT:-<empty>}"; }
 }
 assert_rc0() { [[ "$RC" -eq 0 ]] && pass || fail "expected exit 0, got $RC"; }
 
@@ -149,6 +157,58 @@ T="ci/archived-log-does-not-arm-the-guard"
 mkdir -p "$REPO/.scratch/archive"
 : > "$REPO/.scratch/archive/developer-run-744-20260810T120000.log"
 run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$REPO")"
+assert_silent
+
+# ---------------------------------------------------------------------------
+# approve-merge.sh
+# ---------------------------------------------------------------------------
+
+# A fake gh: answers `pr view --json baseRefName` with $FAKE_BASE and
+# `pr view --json statusCheckRollup` with $FAKE_ROLLUP.
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/gh" <<'GH'
+#!/usr/bin/env bash
+case "$*" in
+  *baseRefName*) echo "$FAKE_BASE" ;;
+  *statusCheckRollup*) echo "$FAKE_ROLLUP" ;;
+  *) exit 1 ;;
+esac
+GH
+chmod +x "$TMP/bin/gh"
+export PATH="$TMP/bin:$PATH" FAKE_ROLLUP='[]' FAKE_BASE=main
+mkdir -p "$REPO/docs/agents"
+
+T="merge/auto-repo-into-main-allowed"
+echo 'merge: auto' > "$REPO/docs/agents/developer-defaults.md"
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_rc0; assert_allow
+
+T="merge/manual-repo-into-main-deferred"
+echo 'merge: manual' > "$REPO/docs/agents/developer-defaults.md"
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_silent
+
+T="merge/manual-repo-into-integration-branch-allowed"
+FAKE_BASE=developer/spec-7
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_allow
+
+T="merge/other-branch-shapes-deferred"
+FAKE_BASE=developer/spec-7x
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_silent
+FAKE_BASE=spec/7
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_silent
+
+T="merge/integration-branch-red-deferred"
+FAKE_BASE=developer/spec-7 FAKE_ROLLUP='[{"conclusion":"FAILURE"}]'
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$REPO")"
+assert_silent
+
+T="merge/integration-branch-from-a-worker-deferred"
+FAKE_ROLLUP='[]'
+run "$MERGE_HOOK" "$(bash_call 'gh pr merge 12 --merge' "$TMP/worker")"
 assert_silent
 
 # ---------------------------------------------------------------------------

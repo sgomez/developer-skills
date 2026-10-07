@@ -4,8 +4,16 @@ Read this file when the workflow's completion notification arrives. The
 workflow already did the wrap-up work — harvest and ledger, final sweep,
 closing the spec — and its result object holds everything below:
 `subIssues` (number, title, blockers, outcome, reason, pr, model, cycles,
-mergefix, wave, notes), `harvest`, `wrapUp` (the sweep's lines and whether
-the spec closed), or `error` when the plan refused to start.
+mergefix, wave, notes), `specPr` on a spec delivered on its integration
+branch (pr, branch, outcome, reason, cycles, mergefix, notes), `harvest`,
+`wrapUp` (the sweep's lines and whether the spec closed), or `error` when the
+plan refused to start.
+
+On the integration branch a sub-issue's `integrated` outcome means its PR
+merged into `developer/spec-<N>`, not into `main`; the sub-issue stays open
+until the spec PR merges. `specPr.outcome` is what reached `main`: `merged`,
+`ready-to-merge`, `escalated`, or `draft` (sub-issues still undelivered, so
+neither reviewed nor merged).
 
 With a **local** tracker or code host, `LOCAL-HOST.md` gives the merge
 commands for the summary.
@@ -18,11 +26,15 @@ Via the PushNotification tool:
 `Spec #<spec>: <N> ready to merge, <M> escalated, <K> still blocked.`
 If the spec was closed, use
 `Spec #<spec> completed and closed: <N> sub-issues merged.`
+On the integration branch, count sub-issues as `integrated` and say what
+happened to the spec PR: `Spec #<spec>: <N> integrated, spec PR #<pr>
+<merged | ready to merge | escalated | left as draft>.`
 
 ## 2. Chat summary
 
 One table: sub-issue, model, PR, fix cycles, merge-fixes, wave (parallel
-mode), outcome. When `mergefix` is non-zero on much of the run, say so in a
+mode), outcome. With a `specPr`, a last row for it: the spec PR, its fix
+cycles (the whole-spec review's), merge-fixes, outcome. When `mergefix` is non-zero on much of the run, say so in a
 line under the table — the sub-issues were rewriting the same files, and that
 is the run's own evidence for delivering the next spec of that shape
 sequentially.
@@ -42,7 +54,9 @@ one direct question per escalated sub-issue, phrased so a one-line reply
 unblocks it — "close #363 as a duplicate of #349, or narrow it to a remaining
 gap?", "re-cut #368 with /to-tickets — three fix cycles never converged?".
 
-With `merge: manual`, list the ready-to-merge changes **in dependency order**
+With `merge: manual` and a `specPr` ready to merge, the human's queue is that
+one PR: give its merge command, and say the spec and its sub-issues close
+with it. Without one, list the ready-to-merge changes **in dependency order**
 (from `blockers`) — that is the human's merge queue — and give the **exact
 commands** per the code-host doc's merge operation. End the queue with
 closing the spec once its last sub-issue is closed (`gh issue close <spec>`

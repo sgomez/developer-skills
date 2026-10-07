@@ -121,6 +121,13 @@ git checkout -b agent/issue-<N>-<slug> origin/main
 instead: `git checkout -b agent/issue-<N>-<slug> main`. The code-host doc
 names the base.)
 
+**A base branch other than main.** When the caller names one — /developer
+delivers a spec on its integration branch, `developer/spec-<N>` — it replaces
+`main` everywhere in this skill: fetch it, branch from `origin/<base>`, read
+`origin/<base>` wherever this skill says `origin/main`, and open the change
+with `--base <base>`. It holds the work this issue builds on that `main` does
+not have yet.
+
 Never `git checkout main` — when running in a linked worktree (the /developer
 pipeline always does), `main` is checked out in the primary worktree and the
 command fails. Branching straight from `origin/main` works everywhere.

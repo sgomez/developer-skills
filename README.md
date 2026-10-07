@@ -9,20 +9,22 @@ build → review → fix → merge — and pings you when it's done.
         │
         ▼
    sub-issue's ## Complexity          ┌─────────────┐
-   standard → sonnet ────────────────▶│ code-author │──▶ draft PR
-   complex  → opus                    │ (worktree)  │
+   standard → sonnet ────────────────▶│ code-author │──▶ PR into
+   complex  → opus                    │ (worktree)  │    developer/spec-<N>
                                       └─────────────┘
-                                            │
+                                            │ checks gate, merge
+                                            ▼
+                                  integration branch ◀── next sub-issue …
+                                            │ all sub-issues in
                                             ▼
                     NEEDS_FIXES      ┌───────────────┐
-        ┌──────────────────────────  │ diff-reviewer │
-        ▼                            │    (opus)     │
+        ┌──────────────────────────  │ diff-reviewer │  spec PR, reviewed
+        ▼                            │    (opus)     │  whole
   ┌─────────────┐    re-review       └───────────────┘
   │ code-author │ ──────────────────▶       │ CLEAN
   │ (fix, ≤3×)  │                           ▼
-  └─────────────┘                    merge (auto) or hand
-                                     off ready-to-merge,
-                                     next sub-issue …
+  └─────────────┘                    merge into main (auto) or
+                                     hand off ready-to-merge
 ```
 
 - **Configurable defaults** — `/setup-developer-skills` asks how the pipeline
@@ -34,13 +36,18 @@ build → review → fix → merge — and pings you when it's done.
   fix cycles, checks gate and merges are the script's control flow, not a
   model re-reading a growing context on every worker result. Requires
   dynamic workflows enabled in `/config`.
-- **Parallel by default, sequential on demand** — up to three build, review
-  and fix workers run at once, and a sub-issue starts the moment its
-  `Blocked by` sub-issues merge; merge conflicts between sibling PRs are
-  resolved one at a time by an extra opus worker before each (always
-  serialized) merge. `sequential` delivers one sub-issue fully before
-  the next — with auto-merge, each PR then branches from a `main` that
-  already contains the previous one, so merges never conflict.
+- **One integration branch, one whole-spec review** — sub-issues are built
+  from the tip of `developer/spec-<N>` and merged into it with no review of
+  their own; the spec PR into `main` is reviewed once, whole, and fixed by a
+  single worker. Reviewed one PR at a time, sub-issues each grow their own
+  copy of a shared helper and nobody sees how their screens interact. A
+  single issue gets its own PR and its own review.
+- **Parallel by default, sequential on demand** — up to three build and fix
+  workers run at once, and a sub-issue starts the moment its `Blocked by`
+  sub-issues are integrated; merge conflicts between sibling PRs are resolved
+  one at a time by an extra worker (Sonnet, then Opus on a retry) before each
+  (always serialized) merge. `sequential` delivers one sub-issue fully before
+  the next, so each branches from a tip that already holds the previous one.
 - **Model-tiered** — `/to-tickets` rates each sub-issue as it cuts the spec
   (a `## Complexity` section: standard → `sonnet`, complex → `opus`; missing
   → `sonnet`), so no worker is spent scoring tickets; the fixer escalates
@@ -55,11 +62,11 @@ build → review → fix → merge — and pings you when it's done.
   marking ready and merging stay with the orchestrator. No agent holds
   approval authority over agent-authored code.
 
-> By default `/developer` does **not** merge: a CLEAN PR is marked ready and
-> handed to you, with the wrap-up listing the merge queue in dependency
-> order. Opt into `merge: auto` at setup (or pass `--auto-merge`) and it
-> **merges PRs to `main` unattended** when the reviewer verdict is CLEAN —
-> the `diff-reviewer` (Opus) is then the only gate.
+> By default `/developer` does **not** merge into `main`: the CLEAN spec PR
+> is marked ready and handed to you (sub-issues are merged into the
+> integration branch either way). Opt into `merge: auto` at setup (or pass
+> `--auto-merge`) and it **merges to `main` unattended** when the reviewer
+> verdict is CLEAN — the `diff-reviewer` (Opus) is then the only gate.
 
 ## Claude Code first
 
@@ -215,7 +222,8 @@ calls; explicit allow rules resolve *before* the auto-mode classifier runs):
       "Bash(gh pr ready:*)",
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
-      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)"
+      "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
+      "Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)"
     ]
   }
 }

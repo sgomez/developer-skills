@@ -163,6 +163,11 @@ Then review the scope diff. Check for:
   originating issue that are missing, partial, or implemented wrong;
   behaviour the issue never asked for (scope creep)
 - **Missing tests** — acceptance criteria from issue not covered
+- **Tests that do not test** — a new or changed test that would still pass
+  with the behaviour it names broken: it reaches the result by another path,
+  asserts before an asynchronous result arrives, or leans on a default that
+  does the work anyway. Ask of each one what would make it fail. Blocking
+  when it is the only test of an acceptance criterion
 - **Security** — injection, unvalidated input, exposed secrets
 - **Simplification** — dead code, duplication, over-engineering
 - **Refactoring smells** (never blocking) — Fowler's catalogue: mysterious

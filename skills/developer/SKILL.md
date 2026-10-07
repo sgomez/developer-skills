@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Orchestrates unattended spec delivery — loops over a spec's child issues in dependency order, dispatching code-author (implement) and diff-reviewer (review) workers per sub-issue — each build's model comes from the sub-issue's own ## Complexity section, with a review→fix cycle until CLEAN, then merging per the repo's merge policy. The orchestration runs as a dynamic workflow (workflow.js next to this file); this skill resolves the run config, launches it and reports. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this spec" (or "deliver this PRD"), "deliver this sub-issue", or wants the build→review→fix pipeline.
+description: Orchestrates unattended spec delivery — builds a spec's child issues in dependency order with code-author workers onto an integration branch (each build's model comes from the sub-issue's own ## Complexity section), then reviews the whole spec once with a diff-reviewer, runs a single fixer until CLEAN, and merges the spec PR per the repo's merge policy; a single issue gets the same build→review→fix on its own PR. The orchestration runs as a dynamic workflow (workflow.js next to this file); this skill resolves the run config, launches it and reports. Tracker- and host-agnostic — issues and changes live wherever docs/agents/issue-tracker.md and docs/agents/code-host.md say (GitHub via gh is the factory default). Factory defaults are parallel execution and manual merge; repo defaults live in docs/agents/developer-defaults.md and per-run flags (--parallel/--sequential, --auto-merge/--no-auto-merge) override them. Use when user says "/developer", "deliver this spec" (or "deliver this PRD"), "deliver this sub-issue", or wants the build→review→fix pipeline.
 ---
 
 # Developer (launcher)
@@ -11,6 +11,15 @@ three-worker cap, fix cycles, the checks gate, serial merges, the conflict
 queue, escalation, wrap-up — is code, so no model re-reads a growing context
 on every worker result. Your part is small: publish the context docs, resolve
 the run config, launch the workflow, report what it returns.
+
+A spec with sub-issues is delivered on an **integration branch**,
+`developer/spec-<N>`: each sub-issue is built from its tip and merged into it
+after the checks gate, with no review of its own; then the **spec PR** (that
+branch into `main`) gets one whole-spec review and a single fixer before it
+merges. Reviewing sub-issues one at a time misses how they fit together. A
+single issue, or one sub-issue on its own, gets its own PR into `main` and
+its own review. A local code host or tracker keeps that per-PR flow for specs
+too.
 
 ## Invoke
 
@@ -71,8 +80,9 @@ Two knobs — CLI flag > repo default > factory default; ignore any other key:
 
 - **`merge: auto`** — a CLEAN verdict leads to the checks gate and the merge.
   The committed `merge: auto` line is the user's standing authorization.
-- **`merge: manual`** — the pipeline stops at CLEAN with the PR marked ready;
-  anything blocked by a ready-to-merge sub-issue stays blocked this run.
+- **`merge: manual`** — the pipeline stops at CLEAN with the PR marked ready:
+  the spec PR for a spec, the one PR otherwise. Sub-issues are merged into
+  the integration branch either way — that never touches `main`.
 - A **local code host** supports `manual` only: override `auto` and say so.
 
 State it in one line, e.g.
@@ -118,7 +128,8 @@ session, run `/developer <spec>` again: the plan asks the code host which
 sub-issues already have a PR, and resumes each at review or at the fix cycle
 instead of rebuilding it.
 
-**A conflict on the human's own merge** (`merge: manual`, mid-run or after):
+**A conflict on the human's own merge** (`merge: manual`, usually the spec PR
+against a `main` that moved):
 never resolve it here. Have them abort the half-merge (`git merge --abort`),
 then launch the workflow with the same `args` plus `mergeFix: <PR>` — it runs
 only the merge-fix job and its cleanup — and tell them to retry the merge

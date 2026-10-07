@@ -16,12 +16,20 @@
 #   spec-plan.sh <spec> <subissue>       # just that sub-issue
 #
 # Output (stdout, one line):
-#   {"mode":"spec"|"single"|"sub","spec":N,"tickets":[
+#   {"mode":"spec"|"single"|"sub","spec":N,
+#    "integration":{"exists":bool,"pr":{"number":N,"isDraft":bool,"unresolved":N}},
+#    "tickets":[
 #     {"number":N,"title":"…","labels":["…"],"complex":bool,
 #      "blockers":[open blocker numbers, native links and `Blocked by` body
 #                  section together],
-#      "prs":[{"number":N,"isDraft":bool,"unresolved":N}]}]}
-#   Only OPEN sub-issues are listed. On failure: {"error":"…"} and exit 1.
+#      "integrated":bool,
+#      "prs":[{"number":N,"isDraft":bool,"unresolved":N,"base":"…"}]}]}
+#   Only OPEN sub-issues are listed. `integration` (spec mode only) is the
+#   integration branch developer/spec-<N> — whether it exists, and its open
+#   PR into main, if any. `integrated`: a PR closing the sub-issue is already
+#   merged into that branch (spec mode only). The spec PR, which closes every
+#   sub-issue, is left out of each sub-issue's prs.
+#   On failure: {"error":"…"} and exit 1.
 set -uo pipefail
 
 spec="${1:-}" sub="${2:-}"
@@ -44,9 +52,23 @@ section() {
 
 issue_state() { gh issue view "$1" --json state --jq .state 2>/dev/null; }
 
+branch="developer/spec-$spec" # the integration branch
+in_spec=false                 # spec mode: look for integrated sub-issues
+
+# pr_state <PR> <base> — {number,isDraft,unresolved,base} for an open PR.
+pr_state() {
+  local u
+  u="$(gh api graphql -f query="
+    { repository(owner:\"$owner\", name:\"$name\") { pullRequest(number: $1) {
+        isDraft reviewThreads(first: 100) { nodes { isResolved } } } } }" \
+    --jq '.data.repository.pullRequest | {isDraft, unresolved: ([.reviewThreads.nodes[] | select(.isResolved == false)] | length)}' \
+    2>/dev/null)" || die "reading review threads of PR $1 failed"
+  jq -c --argjson p "$1" --arg b "$2" '{number: $p, base: $b} + .' <<<"$u"
+}
+
 # ticket <N> — one sub-issue as a JSON object.
 ticket() {
-  local n="$1" info body complex native refs blockers b prs pr unresolved
+  local n="$1" info body complex native refs blockers b prs pr base st integrated
   info="$(gh issue view "$n" --json title,labels,body 2>/dev/null)" || die "gh issue view $n failed"
   body="$(jq -r '.body // ""' <<<"$info")"
 
@@ -63,21 +85,26 @@ ticket() {
     [[ "$(issue_state "$b")" == "OPEN" ]] && blockers+=$'\n'"$b"
   done
 
+  # Open PRs that close it, minus the spec PR (its head is the integration branch).
   prs="[]"
-  for pr in $(gh pr list --state open --search "\"Closes #$n\" in:body" --json number --jq '.[].number' 2>/dev/null); do
-    unresolved="$(gh api graphql -f query="
-      { repository(owner:\"$owner\", name:\"$name\") { pullRequest(number: $pr) {
-          isDraft reviewThreads(first: 100) { nodes { isResolved } } } } }" \
-      --jq '.data.repository.pullRequest | {isDraft, unresolved: ([.reviewThreads.nodes[] | select(.isResolved == false)] | length)}' \
-      2>/dev/null)" || die "reading review threads of PR $pr failed"
-    prs="$(jq -c --argjson p "$pr" --argjson u "$unresolved" '. + [{number: $p} + $u]' <<<"$prs")"
-  done
+  while read -r pr base; do
+    [[ -n "$pr" ]] || continue
+    st="$(pr_state "$pr" "$base")" || { echo "$st"; exit 1; }
+    prs="$(jq -c --argjson s "$st" '. + [$s]' <<<"$prs")"
+  done < <(gh pr list --state open --search "\"Closes #$n\" in:body" --json number,baseRefName,headRefName \
+    --jq ".[] | select(.headRefName != \"$branch\") | \"\\(.number) \\(.baseRefName)\"" 2>/dev/null)
+
+  integrated=false
+  if [[ "$in_spec" == true ]] \
+    && [[ "$(gh pr list --state merged --base "$branch" --search "\"Closes #$n\" in:body" --json number --jq length 2>/dev/null)" =~ ^[1-9] ]]; then
+    integrated=true
+  fi
 
   jq -c --argjson n "$n" --argjson complex "$complex" --argjson prs "$prs" \
-    --arg blockers "$blockers" '{
+    --argjson integrated "$integrated" --arg blockers "$blockers" '{
       number: $n, title: .title, labels: [.labels[].name], complex: $complex,
       blockers: ($blockers | split("\n") | map(select(. != "") | tonumber) | unique),
-      prs: $prs }' <<<"$info"
+      integrated: $integrated, prs: $prs }' <<<"$info"
 }
 
 if [[ -n "$sub" ]]; then
@@ -102,9 +129,17 @@ if [[ "$(jq '.subIssues.nodes | length' <<<"$children")" -eq 0 ]]; then
   exit 0
 fi
 
+in_spec=true
+exists=false
+gh api "repos/$repo/branches/$branch" --silent >/dev/null 2>&1 && exists=true
+specpr="null"
+read -r p < <(gh pr list --state open --head "$branch" --base main --json number --jq '.[0].number // empty' 2>/dev/null)
+if [[ -n "${p:-}" ]]; then specpr="$(pr_state "$p" main)" || { echo "$specpr"; exit 1; }; fi
+integration="$(jq -cn --argjson e "$exists" --argjson p "$specpr" '{exists: $e} + (if $p then {pr: $p} else {} end)')"
+
 tickets="[]"
 for n in $(jq -r '.subIssues.nodes[] | select(.state == "OPEN") | .number' <<<"$children" | sort -n); do
   t="$(ticket "$n")" || { echo "$t"; exit 1; }
   tickets="$(jq -c --argjson t "$t" '. + [$t]' <<<"$tickets")"
 done
-jq -cn --argjson s "$spec" --argjson t "$tickets" '{mode: "spec", spec: $s, tickets: $t}'
+jq -cn --argjson s "$spec" --argjson i "$integration" --argjson t "$tickets" '{mode: "spec", spec: $s, integration: $i, tickets: $t}'

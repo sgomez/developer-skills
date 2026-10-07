@@ -10,6 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **`/developer` delivers a spec on an integration branch and reviews it
+  once, whole.** On spec #964 the per-sub-issue reviews cost 38 % of the run
+  and saw none of the defects that cross sub-issues: two parallel PRs each
+  added their own version of the shared keyboard hook, and an Escape inside a
+  confirmation from one sub-issue closed the screen from another. A single
+  whole-spec review over the merged result, given a generic order, found all
+  three and proposed the one fix that unifies them.
+  - Sub-issues are built from the tip of `developer/spec-<N>` and merged into
+    it after the checks gate, with no review of their own. Then the spec PR
+    (that branch into `main`, closing the spec and every sub-issue) gets one
+    review on Opus, a single fixer, and the gate and merge per the merge
+    policy. `merge: manual` now leaves one PR for the human instead of a
+    queue; sub-issues reach the integration branch either way.
+  - A sub-issue that escalates leaves the spec PR as a draft, unreviewed and
+    unmerged. A single issue, a single sub-issue, or a local code host or
+    tracker keep the per-PR flow, with its own review.
+  - `spec-plan.sh` reports the integration branch, the open spec PR and the
+    sub-issues already integrated, so a new session resumes where the last
+    one stopped.
+  - `implement-issue` and `code-author` take a base branch other than `main`.
+  - `approve-merge.sh` also approves, from the primary checkout and on green
+    checks, a merge into `developer/spec-<N>` in a `merge: manual` repo.
+  - `review-pr` checks for tests that would still pass with the behaviour
+    they name broken.
+  - Merge-fixes run on Sonnet; a second one on the same PR, or a retry after
+    a blocked or wrong resolution, runs on Opus.
 - **`/developer` runs as a dynamic workflow.** The orchestrator was a model
   that woke on every worker result and re-read its whole context to choose
   the next step: on spec #964 that was 120 turns and 11 M tokens, a third of

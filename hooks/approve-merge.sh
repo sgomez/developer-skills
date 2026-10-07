@@ -23,6 +23,10 @@
 #   4. The repo opted into unattended merges: docs/agents/developer-defaults.md
 #      carries a `merge: auto` line. Interactive `--auto-merge` overrides on a
 #      `merge: manual` repo are deliberately NOT covered — a prompt there is fine.
+#      Or the PR merges into a spec's integration branch (`developer/spec-<N>`):
+#      /developer integrates every sub-issue there unattended whatever the
+#      merge policy, which governs only the spec PR into main. Nothing reaches
+#      main that way, so `merge: manual` is not being bypassed.
 #   5. The change's CI checks are green — or the repo has none, which is the
 #      same thing here: nothing to gate on. The Merge step tells the
 #      orchestrator to gate on this, but that gate is a prompt; this hook is
@@ -64,7 +68,10 @@ commondir="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/
 #    orchestrator happens to stand, which is often a subdirectory.
 root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [[ -n "$root" ]] || exit 0
-grep -qE '^merge:[[:space:]]*auto[[:space:]]*$' "$root/docs/agents/developer-defaults.md" 2>/dev/null || exit 0
+if ! grep -qE '^merge:[[:space:]]*auto[[:space:]]*$' "$root/docs/agents/developer-defaults.md" 2>/dev/null; then
+  base="$(cd "$root" && gh pr view "$pr" --json baseRefName --jq .baseRefName 2>/dev/null)" || exit 0
+  [[ "$base" =~ ^developer/spec-[0-9]+$ ]] || exit 0
+fi
 
 # 5. Only on green checks.
 #

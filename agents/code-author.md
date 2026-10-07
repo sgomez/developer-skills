@@ -37,7 +37,8 @@ Consequences:
   main, which can lag `origin/main` — code read before syncing may be missing
   already-merged work. On a BUILD job, before reading any source as prior art:
   `git fetch origin main` and branch from `origin/main` (no remote — local
-  code host — means branch from local `main` instead), then install
+  code host — means branch from local `main` instead; a job that names a
+  base branch replaces `main` with it here and everywhere below), then install
   dependencies **quietly** — `pnpm install --reporter=silent` or the project's
   equivalent (worktrees do not share `node_modules`; a full install log is
   hundreds of lines of context you will never read again, and if the tool has

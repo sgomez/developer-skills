@@ -304,7 +304,9 @@ are read from different scopes (merge with existing content in both):
   denies it *even when* `gh pr merge` is allow-listed. That single command is
   handled deterministically by this plugin's PreToolUse hook
   (`hooks/approve-merge.sh`) — it grants a PreToolUse `allow`, which runs
-  before the classifier, and fires only in `merge: auto` repos. The
+  before the classifier, and fires only in `merge: auto` repos — or, in any
+  repo, for a merge into a spec's integration branch (`developer/spec-<N>`),
+  which `/developer` does unattended whatever the merge policy. The
   `gh pr merge` allow rule below still spares a prompt when the pipeline runs
   outside auto mode.
 - **`.claude/settings.local.json`** (per-project too, but gitignored) —
@@ -333,6 +335,7 @@ them in.
       "Bash(gh pr comment:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh api repos/OWNER/REPO/pulls/*/reviews*)",
+      "Bash(git push origin refs/remotes/origin/main:refs/heads/developer/spec-*)",
       "Workflow"
     ]
   }
@@ -341,6 +344,8 @@ them in.
 
 `Workflow` lets `/developer` launch its orchestration workflow without a
 prompt; it is required in `-p` (headless) runs, where nobody can answer one.
+The `git push` rule is the creation of a spec's integration branch from
+`main` — the exact command, nothing wider.
 
 and in `.claude/settings.local.json`, with `<plugin-root>` resolved to this
 plugin's installed location (the directory two levels above this SKILL.md):
@@ -357,9 +362,9 @@ plugin's installed location (the directory two levels above this SKILL.md):
 }
 ```
 
-Drop the merge rule when the user chose `merge: manual` (the
-ready/comment/review rules still save prompts during review and fix
-cycles).
+Keep the merge rule even with `merge: manual`: sub-issues are merged into
+the spec's integration branch unattended either way — the policy governs
+only the spec PR into `main`.
 
 **GitLab**: the analogous rules —
 `"Bash(glab mr update:*)"`, `"Bash(glab mr note:*)"`,
