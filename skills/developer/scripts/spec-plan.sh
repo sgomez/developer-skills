@@ -68,7 +68,7 @@ pr_state() {
 
 # ticket <N> — one sub-issue as a JSON object.
 ticket() {
-  local n="$1" info body complex native refs blockers b prs pr base st integrated
+  local n="$1" info body complex native refs blockers b prs pr base st integrated closes
   info="$(gh issue view "$n" --json title,labels,body 2>/dev/null)" || die "gh issue view $n failed"
   body="$(jq -r '.body // ""' <<<"$info")"
 
@@ -85,18 +85,21 @@ ticket() {
     [[ "$(issue_state "$b")" == "OPEN" ]] && blockers+=$'\n'"$b"
   done
 
+  # GitHub's search is fuzzy — "Closes #8" also finds a body with only
+  # "Closes #3" — so the body is checked for the exact reference.
+  closes="(?i)(^|[^a-z])(close[sd]?|fix(e[sd])?|resolve[sd]?) #$n([^0-9]|$)"
   # Open PRs that close it, minus the spec PR (its head is the integration branch).
   prs="[]"
   while read -r pr base; do
     [[ -n "$pr" ]] || continue
     st="$(pr_state "$pr" "$base")" || { echo "$st"; exit 1; }
     prs="$(jq -c --argjson s "$st" '. + [$s]' <<<"$prs")"
-  done < <(gh pr list --state open --search "\"Closes #$n\" in:body" --json number,baseRefName,headRefName \
-    --jq ".[] | select(.headRefName != \"$branch\") | \"\\(.number) \\(.baseRefName)\"" 2>/dev/null)
+  done < <(gh pr list --state open --search "\"Closes #$n\" in:body" --json number,baseRefName,headRefName,body \
+    --jq ".[] | select(.headRefName != \"$branch\") | select(.body | test(\"$closes\")) | \"\\(.number) \\(.baseRefName)\"" 2>/dev/null)
 
   integrated=false
   if [[ "$in_spec" == true ]] \
-    && [[ "$(gh pr list --state merged --base "$branch" --search "\"Closes #$n\" in:body" --json number --jq length 2>/dev/null)" =~ ^[1-9] ]]; then
+    && [[ "$(gh pr list --state merged --base "$branch" --search "\"Closes #$n\" in:body" --json body --jq "[.[] | select(.body | test(\"$closes\"))] | length" 2>/dev/null)" =~ ^[1-9] ]]; then
     integrated=true
   fi
 
