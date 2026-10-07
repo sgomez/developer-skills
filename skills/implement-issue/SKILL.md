@@ -179,10 +179,34 @@ never absolute paths into the primary checkout.
   Decisions** where present: build to the interfaces it fixes, write tests
   at the pre-agreed seams (external behaviour, not implementation details),
   and reuse the prior-art tests it names
-- Use TDD where tests exist: write failing test → implement → pass (red →
-  green). Leave refactor-level cleanups to the review phase — the reviewer
-  flags them; don't overload the implementation session
+- Build test-first, red before green (below). Leave refactor-level cleanups
+  to the review phase — the reviewer flags them; don't overload the
+  implementation session
 - Keep change as small as possible — only what the issue requires
+
+**Red before green — every test you add, no exceptions.** One behaviour at a
+time: write its test, **run it and watch it fail**, then write only the code
+that makes it pass, run it green, and move to the next behaviour. Never write
+the tests in bulk and the implementation after, and never write code before
+its test has been seen red.
+
+The red run is the proof the test can fail. A test that passes before the
+code exists tests nothing — the behaviour is already there by another path,
+or the test never reaches it: an assertion that runs before an async result
+lands, a key pressed with the focus already on the button so the browser's
+own handling passes it, a mock that answers whatever is asked. Rewrite it
+until it is red for the right reason (the failure message names the missing
+behaviour, not a typo or an import), then implement.
+
+The same goes for tests you **change**: when your change moves what an
+existing test exercises (a listener to another target, a handler to another
+component), make that test fail once against a deliberately broken version
+of your code, then restore it. A test left green by a refactor of what it
+was guarding is a test that can no longer fail.
+
+Where no test can be written first — pure wiring, a config change, a
+behaviour the project has no harness for — say so in the PR's Test plan
+rather than skipping silently.
 
 **Read the repo's map first, then its index — and only then grep.** Where the
 agent docs prescribe a way to read code — a zone map, an index/outline command
@@ -319,8 +343,8 @@ gh pr create \
 <brief summary>
 
 ## Test plan
-- [ ] <acceptance criterion 1>
-- [ ] <acceptance criterion 2>
+- [ ] <acceptance criterion 1> — <test name>, seen red first
+- [ ] <acceptance criterion 2> — <test name>, seen red first
 
 ## Discoveries
 <see below — omit the section when empty, the normal case>"
@@ -370,6 +394,8 @@ wait for an answer — the blocking comment plus your final report is the output
 ## Rules
 
 - One sub-issue per invocation — always check for sub-issues before treating an issue as standalone
+- Red before green: no code before its test has been run and seen failing;
+  a test that passes on its first run is rewritten, not kept
 - Run the project's formatter (writing form) and lint gate before committing —
   a formatting finding in a review costs a whole fix cycle to undo work a
   formatter does in a second.

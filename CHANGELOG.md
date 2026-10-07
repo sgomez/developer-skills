@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Changed
+- **`implement-issue` builds red before green, and proves it.** TDD was one
+  line among 300, and the builds skipped it: on spec #964 the Opus build wrote
+  its tests and its code and ran the tests for the first time at the end, and
+  the delivered suite stayed green under every one of five mutations that
+  broke behaviour the spec asks for (`/implement-spec`, whose workers load a
+  strict TDD skill, caught all five). Every new test is now run and seen
+  failing before its code is written; a test green on the first run is
+  rewritten, since it cannot fail; a test whose target a change moves is made
+  to fail once against a broken version; and the PR's Test plan names the
+  test seen red for each criterion.
 - **`/developer` delivers a spec on an integration branch and reviews it
   once, whole.** On spec #964 the per-sub-issue reviews cost 38 % of the run
   and saw none of the defects that cross sub-issues: two parallel PRs each
