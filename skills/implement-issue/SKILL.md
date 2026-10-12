@@ -168,10 +168,7 @@ gh pr create --draft --base <base> \
 <brief summary; any judgement call on an ambiguous point>
 
 ## Test plan
-- [ ] <acceptance criterion> — <test name>, seen red first
-
-## Discoveries
-<omit when empty, the normal case>"
+- [ ] <acceptance criterion> — <test name>, seen red first"
 ```
 
 Run the push alone, bare, with the Bash tool's maximum timeout
@@ -180,12 +177,7 @@ worktree sandbox refuses compound shapes. If the hook rejects the push, fix,
 amend (nothing was published), push again. Never `--no-verify`.
 
 Keep the body's shape whatever the host — `Closes <ref>`, `## What changed`,
-`## Test plan`, optional `## Discoveries`: the orchestrator's harvest reads it.
-
-**Discoveries** are for the next agent: one line each, naming files or
-commands, only for something that no repo doc answered **and** that cost you
-something (a failed approach, a pattern reverse-engineered from several
-files, a doc contradicting the code). Most PRs have none.
+`## Test plan`.
 
 ### 8. Done
 

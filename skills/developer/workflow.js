@@ -5,7 +5,7 @@ export const meta = {
   phases: [
     { title: 'Plan', detail: 'sub-issues, blockers, tiers, PRs already open' },
     { title: 'Spec', detail: 'the spec PR: whole-spec review, single fixer, checks gate, merge into main' },
-    { title: 'Wrap-up', detail: 'harvest, final sweep, close the spec' },
+    { title: 'Wrap-up', detail: 'final sweep, close the spec' },
   ],
 }
 
@@ -39,13 +39,12 @@ export const meta = {
 //   scripts             absolute path of this skill's scripts/ directory
 //   root                absolute path of the primary checkout
 //   label               the escalation label (ready-for-human)
-//   date                YYYY-MM-DD, for the ledger rows
 //   cap                 concurrent build/review/fix workers (default 3)
 //   mergeFix?           PR: run only the merge-fix job on it (the human's
 //                       own merge hit a conflict under merge: manual)
 
 const A = args || {}
-if (!A.spec || !A.scripts || !A.root || !A.date) throw new Error('args: spec, scripts, root and date are required')
+if (!A.spec || !A.scripts || !A.root) throw new Error('args: spec, scripts and root are required')
 const SPEC = A.spec
 const LABEL = A.label || 'ready-for-human'
 const CAP = A.execution === 'sequential' ? 1 : A.cap || 3
@@ -272,20 +271,12 @@ Report status pr when the push succeeded (no pr number), blocked quoting the err
 
 // ── Per sub-issue ───────────────────────────────────────────────────────
 const results = {} // number -> outcome record
-const rows = []
-
-function row(s) {
-  return `${A.date} spec=#${SPEC} sub=#${s.n} model=${s.tier} effort=medium pr=${s.pr ? '#' + s.pr : 'none'} verdict=${s.verdict} cycles=${s.cycles} mergefix=${s.mergefix} wave=${A.execution === 'parallel' ? s.wave : '—'} outcome=${s.outcome}`
-}
-const logRow = r => `mkdir -p ${A.root}/.scratch && echo '${r}' >> ${A.root}/.scratch/developer-run-${SPEC}.log`
 const cleanupCmd = s =>
   `bash ${A.scripts}/cleanup-worktrees.sh${s.branch ? ` --branch "${s.branch}"` : ''} ${fixGlobs(s.pr ?? 0)} --branch "${ISSUE_BRANCH(s.n)}"${s.head ? ` --sha "${s.head}"` : ''}${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '`
 
 async function finish(s, outcome, reason) {
   s.outcome = outcome
   s.reason = reason || ''
-  const r = row(s)
-  rows.push(r)
   results[s.n] = s
   return s
 }
@@ -303,7 +294,6 @@ gh issue comment ${SPEC} --body "Sub-issue #${s.n} escalated: ${shellSafe(reason
 `}
 Then, as one Bash call (local bookkeeping, not a code-host write):
 ${cleanupCmd(s)}
-${logRow(row({ ...s, outcome: 'escalated' }))}
 
 Put the cleanup's KEPT/WARN lines in notes. Leave the PR open.`,
     { label: `escalate #${s.n}`, phase: s.phase, schema: NOTES, ...SMALL },
@@ -431,7 +421,6 @@ function merge(s) {
 3. The bookkeeping, as one Bash call with <branch> and <sha> written in literally (no \`$(…)\`, no variables):
 ${into ? '' : state + '\n'}bash ${A.scripts}/cleanup-worktrees.sh --branch "<branch>" ${fixGlobs(s.pr)} --branch "${ISSUE_BRANCH(s.n)}" --sha "<sha>" 2>&1 | grep -vE '^(REMOVED|DELETED) '
 git ls-remote --exit-code --heads origin "<branch>" >/dev/null; echo "remote-branch-exit=$?"
-${logRow(row({ ...s, verdict: 'CLEAN', outcome: into ? 'integrated' : 'merged' }))}
 Denied → run its lines as separate calls; still denied → say so in notes and go on.
 4. ${into ? '' : `Every issue= line not CLOSED → check it once more; still open → \`gh issue close <n> --comment "Delivered by PR #${s.pr}."\`. `}remote-branch-exit=0 → \`git push origin --delete <branch>\` as its own call.
 Outcome merged; the cleanup's KEPT/WARN lines, and any bookkeeping step that failed, go in notes.`,
@@ -447,7 +436,6 @@ ${A.localHost ? '(Local code host: the reviewer already set `Status: ready`; not
 
 Then, as one Bash call (local bookkeeping):
 ${cleanupCmd(s)}
-${logRow(row({ ...s, verdict: 'CLEAN', outcome: 'ready-to-merge' }))}
 
 Put the cleanup's KEPT/WARN lines in notes.`,
     { label: `ready #${s.pr}`, phase: s.phase, schema: NOTES, ...SMALL },
@@ -696,47 +684,12 @@ Use the title as printed, with any double quote replaced by a single one. Report
 
 // ── Wrap-up ─────────────────────────────────────────────────────────────
 phase('Wrap-up')
-const prs = [...all, ...(spec ? [spec] : [])].filter(s => s.pr).map(s => s.pr)
-
-let harvest = null
-if (prs.length && rows.length) {
-  harvest = await agent(
-    `HARVEST job. This run delivered PRs ${prs.map(p => '#' + p).join(', ')}. Create branch \`${NS}/harvest-${SPEC}\` from origin/main, then do two things on it:
-
-**(a) Record the run in the ledger.** The rows are the \`outcome=\` lines of \`${A.root}/.scratch/developer-run-${SPEC}.log\` (\`grep 'outcome=' <that file>\`) — they include rows of an earlier run on this spec that died before its wrap-up. If the file is missing, use this run's rows:
-
-\`\`\`
-${rows.join('\n')}
-\`\`\`
-
-Append them verbatim to the \`## Run log\` section of \`docs/agents/delivery-ledger.md\`, creating the file if it does not exist (with a one-line title and a \`## Run log\` section).
-
-\`docs/agents/delivery-ledger.md\` is the **only** file you may write, and its \`## Run log\` section is the only part of it you may touch. Not \`AGENTS.md\`, not any other doc under \`docs/agents/\` — those belong to /setup-developer-skills and to the human. Step (b) is how anything else gets proposed.
-
-**(b) Propose discoveries — do not apply them.** For each PR read its body and comments per the repo's \`docs/agents/code-host.md\` (GitHub default: \`gh pr view <PR> --json body,comments\`) and collect the \`## Discoveries\` entries. Compare them against the repo's agent docs (\`AGENTS.md\` and everything under \`docs/agents/\`), read-only. Keep only entries that repeat across PRs, correct a doc the code has outgrown, or would clearly have saved another worker real work. Write the survivors to \`${A.root}/.scratch/developer-discoveries-${SPEC}.md\` — absolute, outside your worktree on purpose — one entry each as:
-
-\`\`\`
-### <one-line title>
-Doc: <path the change belongs in, or "new doc: <suggested path>">
-Evidence: PR #<n> (and #<n>…)
-Proposed: <the edit, concretely enough to apply without re-reading the PRs>
-\`\`\`
-
-Nothing qualifies → do not create the file.
-
-Commit **only** \`docs/agents/delivery-ledger.md\`, as \`docs(agents): record spec #${SPEC} run\`, and ${A.localHost ? 'leave the commit on the branch — a local host never moves main unattended; say so in reason.' : 'push with `git push origin HEAD:main` — never check out main. Rejected → fetch and rebase once, push again; still failing → status blocked.'} ${STRUCTURED} Put "discoveries=<n> ledger=<appended|failed>" in reason.`,
-    { label: 'harvest', phase: 'Wrap-up', agentType: 'developer-skills:code-author', model: 'sonnet', isolation: 'worktree', schema: WORK },
-  )
-}
-const appended = !!harvest && /ledger=appended/.test(harvest.reason ?? '')
-
 const closeSpec = (plan.mode === 'spec' && (!INTEG || spec?.outcome === 'merged')) || (plan.mode === 'sub' && all.some(s => s.outcome === 'merged'))
 const sweep = await agent(
   `Close out /developer's run on spec #${SPEC}. ${BARE}
 
 1. One Bash call:
 bash ${A.scripts}/cleanup-worktrees.sh --sweep${KEEP} 2>&1 | grep -vE '^(REMOVED|DELETED) '
-${appended ? `mkdir -p .scratch/archive && mv .scratch/developer-run-${SPEC}.log ".scratch/archive/developer-run-${SPEC}-$(date +%Y%m%dT%H%M%S).log"` : ''}
    Denied → do not retry; report it in notes with \`git worktree list\` output.
 ${closeSpec ? `2. ${A.github ? `\`gh issue view ${SPEC} --json state --jq .state\` and the state of every sub-issue of #${SPEC} (the GraphQL subIssues listing, or \`gh api repos/{owner}/{repo}/issues/${SPEC}/sub_issues --jq '[.[] | .state]'\`).` : `Per docs/agents/issue-tracker.md: the state of #${SPEC} and of every sub-issue.`} If #${SPEC} is open and **every** sub-issue is closed → close it: \`gh issue close ${SPEC} --comment "Closed by /developer: all sub-issues delivered and merged."\` (or the tracker's operation). ${TRACKER} Say in notes whether it was closed, and which sub-issues are still open.` : ''}
 
@@ -756,7 +709,5 @@ return {
     pr: spec.pr || undefined, branch: BRANCH, outcome: spec.outcome, reason: spec.reason || undefined,
     cycles: spec.cycles, mergefix: spec.mergefix, notes: spec.notes || undefined,
   } : undefined,
-  rows,
-  harvest: harvest ? { status: harvest.status, reason: harvest.reason } : null,
   wrapUp: sweep?.notes ?? 'sweep agent died',
 }

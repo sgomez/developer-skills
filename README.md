@@ -330,7 +330,6 @@ agents/                     # subagents, auto-loaded by the plugin route
 hooks/                      # PreToolUse hooks, auto-loaded by the plugin
   approve-merge.sh          # lets the pipeline's own merge past auto mode
   approve-push.sh           # lets a fixer push onto the PR it was sent to fix
-  no-ci-logs-in-orchestrator.sh  # keeps raw CI logs out of the orchestrator
   require-background-workers.sh  # refuses foreground worker spawns
 skills/
   developer/                # launcher: run config, then the workflow, then the report

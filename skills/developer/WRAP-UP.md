@@ -1,12 +1,11 @@
 # Report
 
 Read this file when the workflow's completion notification arrives. The
-workflow already did the wrap-up work — harvest and ledger, final sweep,
-closing the spec — and its result object holds everything below:
+workflow already did the wrap-up work — final sweep, closing the spec —
+and its result object holds everything below:
 `subIssues` (number, title, blockers, outcome, reason, pr, model, cycles,
 mergefix, wave, notes), `specPr` on a spec delivered on its integration
-branch (pr, branch, outcome, reason, cycles, mergefix, notes), `harvest`,
-`wrapUp` (the sweep's lines and whether the spec closed), or `error` when the
+branch (pr, branch, outcome, reason, cycles, mergefix, notes), `wrapUp` (the sweep's lines and whether the spec closed), or `error` when the
 plan refused to start.
 
 On the integration branch a sub-issue's `integrated` outcome means its PR
@@ -63,13 +62,6 @@ closing the spec once its last sub-issue is closed (`gh issue close <spec>`
 on GitHub). Sibling changes branched from the same `main` may conflict on
 merge — point at the escape hatch: abort the half-merge and ask you for the
 merge-fix job (SKILL.md, step 3).
-
-**Proposed doc changes.** `harvest.reason` carries `discoveries=<n>`. On
-`n > 0`, read `.scratch/developer-discoveries-<spec>.md` and list each entry:
-title, target doc, the one-line edit. They are proposals — no agent doc was
-modified by this run, and say so. On `0`, one line: nothing worth promoting.
-A harvest that did not report `ledger=appended` leaves the run log in
-`.scratch/` — say so.
 
 ## 3. Execution report
 

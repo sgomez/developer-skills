@@ -28,8 +28,7 @@ setup handles "other" trackers.
 
 **This skill is the only writer of these docs.** `/developer` and its workers
 read `AGENTS.md`, `CLAUDE.md` and everything under `docs/agents/` as
-instructions and never edit them — the one exception is
-`docs/agents/delivery-ledger.md`, the run history the harvest appends to. So a doc that has drifted out of date is fixed here
+instructions and never edit them. So a doc that has drifted out of date is fixed here
 or by the human, and never as a side effect of a delivery run. Three things
 follow for this skill:
 
@@ -448,25 +447,25 @@ that looks stale is the repo's own prose, reported in the summary, not
 removed.
 
 - **Triage calibration** (dropped when triage was — tickets now carry their
-  own `## Complexity`):
-  - the `## Local calibration` section of `docs/agents/delivery-ledger.md`,
-    plus any sentence in the ledger's intro that points at it. Keep
-    `## Run log` untouched. This is the one edit this skill makes to the
-    ledger. **Before deleting**, offer to distil the calibration's
+  own `## Complexity`): an `oversized:` line in
+  `docs/agents/developer-defaults.md` (and any prose around it explaining the
+  knob).
+- **Delivery ledger and discoveries harvest** (dropped in 0.26.0 — nothing
+  read the ledger once triage calibration went, and the proposed doc changes
+  were rarely applied):
+  - `docs/agents/delivery-ledger.md`, the whole file. **Before deleting**, if
+    it still has a `## Local calibration` section, offer to distil its
     tier-deciding heuristics — which kinds of ticket proved `complex`, which
     `standard`, and why — into a few lines under `## Complexity` in
     `docs/agents/issue-authoring.md`: the splitter now makes that call, and
     the calibration is the repo's record of where it went wrong. Keep them
     free of dates and PR numbers.
-  - an `oversized:` line in `docs/agents/developer-defaults.md` (and any
-    prose around it explaining the knob).
   - rows or pointers in the repo's agent docs index (`docs/AGENTS.md`,
-    `AGENTS.md`, `CLAUDE.md`) that route "score a sub-issue's complexity",
-    triage or calibration to the ledger, or describe the ledger's contract
-    as more than its `## Run log` heading. Reword rather than delete when the
-    row also covers the run log.
-  - any other cross-reference in `docs/agents/` to the calibration — repoint
-    it at what now explains the same thing, or drop it.
+    `AGENTS.md`, `CLAUDE.md`) that route to the ledger, its run log, triage
+    or calibration, or that describe the harvest or a PR's `## Discoveries`
+    section.
+  - any other cross-reference in `docs/agents/` to any of these — repoint it
+    at what now explains the same thing, or drop it.
 
 When a future release drops a feature that wrote into the repo, it adds its
 entry here.

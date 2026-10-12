@@ -113,7 +113,6 @@ Then call **Workflow** with `scriptPath: "<root>/.scratch/developer-workflow.js"
 | `scripts`      | `<skill-dir>/scripts`, absolute |
 | `root`         | the primary checkout's absolute path (`git rev-parse --show-toplevel`) |
 | `label`        | the escalation label from `triage-labels.md` (`ready-for-human` by default) |
-| `date`         | today, `YYYY-MM-DD` |
 
 The workflow runs in the background; say in one line that it is running and
 that `/workflows` shows its progress, then end your turn. **Do not poll.** Its
@@ -140,16 +139,14 @@ when it reports.
 ## 4. Report
 
 Read `WRAP-UP.md` and follow it: push notification, chat summary, escalation
-questions, the human's merge queue, proposed doc changes, execution report.
+questions, the human's merge queue, execution report.
 
 ## Rules
 
 - **The agent docs are read-only to this pipeline.** `AGENTS.md`,
   `CLAUDE.md`, `CONTEXT-MAP.md`, `docs/adr/` and `docs/agents/` are
-  instructions the run obeys. The exceptions are step 1's commit of edits
-  the human already made and the harvest's append to
-  `docs/agents/delivery-ledger.md`. Anything else the run learns is
-  *proposed* in the report.
+  instructions the run obeys. The one exception is step 1's commit of edits
+  the human already made.
 - Never run `git checkout`, `git pull` or any state-changing git command
   here, except step 1's scoped commit+push.
 - If the Workflow tool is not available, stop and say so: dynamic workflows

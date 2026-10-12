@@ -6,7 +6,7 @@ remote). The workflow handles the rest once it gets `localHost` /
 `localTracker` in its args: unattended merge is off, every worker is followed
 by a cleanup that keeps branches (git lets a branch live in one worktree
 only), there is no mark-ready call, tracker writes are scoped `.scratch/`
-commits, and the harvest leaves its commit on `agent/developer/harvest-<spec>`.
+commits.
 
 A run on a remote host (GitHub, GitLab) never needs this file.
 
@@ -17,8 +17,8 @@ A run on a remote host (GitHub, GitLab) never needs this file.
   files live there and workers read them through their own checkout. Exclude
   the run's own artifacts from both with the pathspecs
   `':!.scratch/developer-*' ':!.scratch/archive'` — the workflow copy
-  (`developer-workflow.js`), the run log and the discoveries file are never
-  committed.
+  (`developer-workflow.js`) and the run logs older versions archived are
+  never committed.
 - There is no remote, so there is no push: the commit alone publishes, since
   linked worktrees share the repo.
 
@@ -36,6 +36,3 @@ git merge --no-ff <branch>
 git branch -d <branch>
 # then close the issue per the tracker ops (no auto-close on a local host)
 ```
-
-List the harvest branch `agent/developer/harvest-<spec>` as one more item in that
-queue: a local host never moves `main` unattended.

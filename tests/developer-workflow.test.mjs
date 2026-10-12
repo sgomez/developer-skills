@@ -51,7 +51,6 @@ async function run(name, scenario) {
       if (label.startsWith('fix ') || label.startsWith('merge-fix ')) return { status: 'pr', pr: num }
       if (label.startsWith('gate ')) return { verdict: 'GREEN' }
       if (label.startsWith('merge ')) return { outcome: 'merged' }
-      if (label === 'harvest') return { status: 'pr', reason: 'discoveries=0 ledger=appended' }
       return { notes: '' }
     } finally {
       if (worker) st.active--
@@ -61,7 +60,7 @@ async function run(name, scenario) {
   }
   const args = {
     spec: 1, execution: 'parallel', merge: 'auto', github: true, ci: true,
-    scripts: '/s', root: '/r', date: '2026-10-07', ...scenario.args,
+    scripts: '/s', root: '/r', ...scenario.args,
   }
   const result = await body(args, agent, () => {}, m => st.logs.push(m))
   const out = Object.fromEntries((result.subIssues || []).map(s => [s.number, s]))
@@ -72,7 +71,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
 
 // ── parallel, independent ──────────────────────────────────────────────
 {
-  const { out, st, result, spec } = await run('cap-and-serial-merges', {
+  const { out, st, spec } = await run('cap-and-serial-merges', {
     tickets: [t(2), t(3), t(4), t(5), t(6)],
     delay: l => (l.startsWith('gate') ? 15 : l.startsWith('merge ') ? 5 : 3),
   })
@@ -80,9 +79,8 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(st.maxActive <= 3, `at most 3 workers at once (saw ${st.maxActive})`)
   ok(st.maxActive === 3, `the cap is used (saw ${st.maxActive})`)
   ok(st.maxMerging === 1, `merges strictly serial (saw ${st.maxMerging})`)
-  ok(result.rows.filter(r => /outcome=integrated/.test(r)).length === 5, 'one integrated row each')
   ok(spec.outcome === 'merged' && spec.pr === 900 && spec.branch === 'agent/developer/spec-1', 'the spec PR merged into main')
-  ok(st.n['harvest'] === 1 && st.n['sweep'] === 1, 'harvest and sweep once')
+  ok(!st.n['harvest'] && st.n['sweep'] === 1, 'no harvest, sweep once')
 }
 
 // ── sequential ─────────────────────────────────────────────────────────
@@ -142,7 +140,6 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
       if (l === 'build #2') ok(/merge `origin\/agent\/developer\/spec-1` into your branch/.test(p) && /never a rebase/.test(p), 'the build merges the integration tip in before its PR')
       if (l === 'build #2') ok(/Read the spec issue #1 in full/.test(p), 'the build reads the whole spec')
       if (l === 'merge #102') ok(/--branch "agent\/developer\/fix-pr-102" --branch "agent\/developer\/fix-pr-102-\*" --branch "agent\/developer\/issue-2"/.test(p), 'cleanup by exact names, no glob that also hits #1020')
-      if (l === 'harvest') ok(/`agent\/developer\/harvest-1`/.test(p), 'the harvest branch is under agent/developer/')
       if (l === 'merge #102') ok(/gh pr ready 102/.test(p), 'an ungated sub-issue PR is marked ready before its merge')
       if (l === 'gate #900') ok(/13 NO_CHECKS → ESCALATE/.test(p), 'no CI on the spec PR escalates')
       if (l === 'merge #102') ok(!/gh issue close/.test(p) && /into the integration branch/.test(p), 'integrating closes no issue')

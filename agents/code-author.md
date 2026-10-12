@@ -64,9 +64,6 @@ The prompt gives you one of these jobs:
 - **MERGE-FIX** — make a conflicting PR mergeable again. You receive a PR
   number and instructions for getting its branch without colliding with the
   build worker's worktree.
-- **HARVEST** — distill the `## Discoveries` entries from a run's PRs into
-  the repo's agent docs. The prompt carries the PR list and the full
-  procedure; your only output beyond the doc commit is the `RESULT` line.
 
 ## What to do
 
@@ -119,17 +116,6 @@ GitHub/GitLab, the branch name on a local host, where `url=-`.)
 No summary, no recap, no file list: the orchestrator's context has to last the
 whole run. Anything worth keeping goes in the PR body, a thread reply or an
 issue comment, before you report.
-
-On a HARVEST job, end instead with:
-
-```
-RESULT docs=<updated|none> ledger=<appended|failed>
-```
-
-(Both fields, always — the orchestrator reads `ledger=` to decide whether it
-can delete the run log, and a line missing it makes it keep a log it has
-already committed. The HARVEST prompt restates this shape; follow the prompt
-if the two ever disagree.)
 
 If you could not produce/locate a PR (blocked, unfixable failures), end with:
 

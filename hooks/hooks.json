@@ -11,10 +11,6 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/approve-push.sh"
-          },
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-ci-logs-in-orchestrator.sh"
           }
         ]
       },

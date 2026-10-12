@@ -2,7 +2,6 @@
 # Regression tests for the /developer PreToolUse hooks:
 #
 #   hooks/require-background-workers.sh    — no foreground worker spawns
-#   hooks/no-ci-logs-in-orchestrator.sh    — no raw CI logs in the main context
 #   hooks/approve-push.sh                  — a fixer's push onto its own PR (allow)
 #   hooks/approve-merge.sh                 — the sanctioned merges (allow, not
 #                                            deny; a fake gh stands in)
@@ -20,7 +19,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BG_HOOK="$ROOT/hooks/require-background-workers.sh"
-CI_HOOK="$ROOT/hooks/no-ci-logs-in-orchestrator.sh"
 MERGE_HOOK="$ROOT/hooks/approve-merge.sh"
 PUSH_HOOK="$ROOT/hooks/approve-push.sh"
 
@@ -103,7 +101,7 @@ run "$BG_HOOK" '{"tool_name":"Agent","tool_input":{"run_in_background":false}}'
 assert_rc0; assert_silent
 
 # ---------------------------------------------------------------------------
-# no-ci-logs-in-orchestrator.sh
+# Shared fixture
 # ---------------------------------------------------------------------------
 
 # Fixture: a repo with a linked worktree, standing in for a worker.
@@ -114,52 +112,6 @@ git -C "$REPO" config user.name test
 git -C "$REPO" commit -q --allow-empty -m init
 git -C "$REPO" branch -q -M main
 git -C "$REPO" worktree add -q "$TMP/worker" -b agent/issue-1 >/dev/null 2>&1
-mkdir -p "$REPO/sub" "$REPO/.scratch"
-
-LOG="$REPO/.scratch/developer-run-744.log"
-: > "$LOG"
-
-T="ci/log-read-from-primary-denied"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$REPO")"
-assert_rc0; assert_deny
-
-T="ci/piped-log-read-denied"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed | grep -i error' "$REPO")"
-assert_deny
-
-T="ci/subdirectory-of-primary-denied"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log' "$REPO/sub")"
-assert_deny
-
-# A worker is exactly who should be reading these logs.
-T="ci/worker-worktree-allowed"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$TMP/worker")"
-assert_rc0; assert_silent
-
-# The classification the Merge step prescribes carries no --log flag.
-T="ci/json-classification-allowed"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --json conclusion,jobs --jq .conclusion' "$REPO")"
-assert_silent
-
-T="ci/unrelated-command-allowed"
-run "$CI_HOOK" "$(bash_call 'gh pr checks 123 --watch --fail-fast' "$REPO")"
-assert_silent
-
-T="ci/outside-a-repo-allowed"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$TMP")"
-assert_rc0; assert_silent
-
-# No run in flight → not this hook's business, even in the primary checkout.
-T="ci/no-run-log-allowed"
-rm -f "$LOG"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$REPO")"
-assert_silent
-
-T="ci/archived-log-does-not-arm-the-guard"
-mkdir -p "$REPO/.scratch/archive"
-: > "$REPO/.scratch/archive/developer-run-744-20260810T120000.log"
-run "$CI_HOOK" "$(bash_call 'gh run view 123 --log-failed' "$REPO")"
-assert_silent
 
 # ---------------------------------------------------------------------------
 # approve-merge.sh

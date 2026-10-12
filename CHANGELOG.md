@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Removed
+- **The delivery ledger and the discoveries harvest.** `/developer`'s wrap-up
+  no longer spawns a harvest agent. Nothing read the ledger's run log once
+  triage calibration went, and the discoveries were proposals that were
+  rarely applied, so each run paid an extra agent and an unreviewed push to
+  `main` for both. Gone with them:
+  - the run log in `.scratch/`;
+  - the `date` workflow arg;
+  - the `## Discoveries` section of PR bodies and fix-pr's discoveries
+    comment;
+  - code-author's HARVEST job.
+
+  `/setup-developer-skills` offers to retire `docs/agents/delivery-ledger.md`
+  and the index rows that point at it. Before it deletes the ledger, it
+  offers to distil any `## Local calibration` into `## Complexity` in
+  `docs/agents/issue-authoring.md`.
+- **`hooks/no-ci-logs-in-orchestrator.sh`.** It protected a main-session
+  orchestrator that no longer exists: since the workflow, every agent that
+  reads CI runs in its own context. It decided whether a run was in flight
+  from a run log that a failed harvest left behind for good, so it blocked
+  `gh run view --log-failed` in repos with no run going.
+
 ## [0.25.0] - 2026-10-07
 
 ### Changed

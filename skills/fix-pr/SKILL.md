@@ -217,19 +217,6 @@ operation, so the next reader knows why the commit exists (GitHub default:
 
 List each comment addressed and what was done. Flag any comment skipped and why.
 
-If the fixes surfaced a genuine discovery — something no repo doc answered
-that cost you a failed approach or cross-file reverse-engineering — record it
-on the PR (the comment-on-a-change operation) so the docs harvest can pick
-it up. GitHub default:
-
-```bash
-gh pr comment <PR> --body "## Discoveries
-- <one line, written for the next agent>"
-```
-
-Same bar as implement-issue's Discoveries section: most fix jobs have none;
-skip the comment entirely then.
-
 ## Rules
 
 - One commit for all fixes (not one per comment)
