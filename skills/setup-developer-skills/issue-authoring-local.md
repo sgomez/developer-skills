@@ -47,6 +47,19 @@ behavioural, with verifiable criteria, and no file paths that go stale. An
 issue file with this section is **self-sufficient** — the pipeline reads
 `PRD.md` only as a fallback, when the section is missing.
 
+### A ticket is for an agent or for a human, never both
+
+`/developer` never starts a child labelled `ready-for-human` (or the repo's
+mapping in `triage-labels.md`), and holds every child blocked by it until a
+later run. So a ticket that mixes both kinds of work — the agent prepares a
+probe, the human runs it — loses the agent's part to the label. Split it:
+
+- the agent's part, `ready-for-agent`;
+- the human's part, `ready-for-human`, `Blocked by` the agent's part.
+
+A child that needs the human's result (a measurement, a decision) is
+`Blocked by` the human's part, not the agent's.
+
 ### Every child issue MUST carry a `## Complexity` section
 
 The pipeline picks each build's model from this section and nothing else — it

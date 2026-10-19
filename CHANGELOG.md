@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **The `/developer` report says what waits on you.** A new `forHuman` result
+  lists each sub-issue held by `ready-for-human` and the sub-issues it holds;
+  the report turns it into a "Waiting on you" list, with how the human's work
+  lands and the reminder to re-run.
+- **Mixed tickets are split.** `docs/agents/issue-authoring.md` gains a rule
+  for whatever cuts a spec: a ticket is for an agent or for a human, never
+  both. A ticket where the agent prepares and the human runs becomes two, the
+  human's `Blocked by` the agent's, so `ready-for-human` no longer holds back
+  the agent's part. Re-run `/setup-developer-skills` to bring it into a repo.
+
+### Changed
+- **Sub-issues close as they integrate.** On the integration branch, `Closes`
+  only fires once the spec PR reaches `main`, so GitHub showed every
+  sub-issue open until then. The merge into `agent/developer/spec-<N>` now
+  closes the sub-issue with a comment, and a re-run closes any sub-issue an
+  earlier run integrated. The spec PR's review covers every sub-issue of the
+  spec, closed ones included, and a re-run with none left open still reviews
+  and merges it: the spec phase starts whenever the integration branch has
+  commits `main` lacks.
+
 ### Removed
 - **The delivery ledger and the discoveries harvest.** `/developer`'s wrap-up
   no longer spawns a harvest agent. Nothing read the ledger's run log once
@@ -30,6 +51,13 @@ Changes staged on the `next` branch, published as a new version once ready.
   reads CI runs in its own context. It decided whether a run was in flight
   from a run log that a failed harvest left behind for good, so it blocked
   `gh run view --log-failed` in repos with no run going.
+
+### Fixed
+- **Human work on the integration branch was held forever.** The label check
+  ran before the integrated one, so a `ready-for-human` sub-issue whose PR was
+  already merged into the integration branch stayed held, and the spec PR
+  stayed a draft. An integrated sub-issue now counts as delivered, label or
+  not.
 
 ## [0.25.0] - 2026-10-07
 

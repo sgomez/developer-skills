@@ -17,7 +17,7 @@
 #
 # Output (stdout, one line):
 #   {"mode":"spec"|"single"|"sub","spec":N,
-#    "integration":{"exists":bool,"pr":{"number":N,"isDraft":bool,"unresolved":N}},
+#    "integration":{"exists":bool,"ahead":bool,"pr":{"number":N,"isDraft":bool,"unresolved":N}},
 #    "tickets":[
 #     {"number":N,"title":"…","labels":["…"],"complex":bool,
 #      "blockers":[open blocker numbers, native links and `Blocked by` body
@@ -25,8 +25,8 @@
 #      "integrated":bool,
 #      "prs":[{"number":N,"isDraft":bool,"unresolved":N,"base":"…"}]}]}
 #   Only OPEN sub-issues are listed. `integration` (spec mode only) is the
-#   integration branch agent/developer/spec-<N> — whether it exists, and its open
-#   PR into main, if any. `integrated`: a PR closing the sub-issue is already
+#   integration branch agent/developer/spec-<N> — whether it exists, whether it
+#   has commits main lacks, and its open PR into main, if any. `integrated`: a PR closing the sub-issue is already
 #   merged into that branch (spec mode only). The spec PR, which closes every
 #   sub-issue, is left out of each sub-issue's prs.
 #   On failure: {"error":"…"} and exit 1.
@@ -133,12 +133,13 @@ if [[ "$(jq '.subIssues.nodes | length' <<<"$children")" -eq 0 ]]; then
 fi
 
 in_spec=true
-exists=false
+exists=false ahead=false
 gh api "repos/$repo/branches/$branch" --silent >/dev/null 2>&1 && exists=true
+[[ "$exists" == true && "$(gh api "repos/$repo/compare/main...$branch" --jq .ahead_by 2>/dev/null)" =~ ^[1-9] ]] && ahead=true
 specpr="null"
 read -r p < <(gh pr list --state open --head "$branch" --base main --json number --jq '.[0].number // empty' 2>/dev/null)
 if [[ -n "${p:-}" ]]; then specpr="$(pr_state "$p" main)" || { echo "$specpr"; exit 1; }; fi
-integration="$(jq -cn --argjson e "$exists" --argjson p "$specpr" '{exists: $e} + (if $p then {pr: $p} else {} end)')"
+integration="$(jq -cn --argjson e "$exists" --argjson a "$ahead" --argjson p "$specpr" '{exists: $e, ahead: $a} + (if $p then {pr: $p} else {} end)')"
 
 tickets="[]"
 for n in $(jq -r '.subIssues.nodes[] | select(.state == "OPEN") | .number' <<<"$children" | sort -n); do

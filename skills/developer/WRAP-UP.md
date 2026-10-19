@@ -5,12 +5,15 @@ workflow already did the wrap-up work — final sweep, closing the spec —
 and its result object holds everything below:
 `subIssues` (number, title, blockers, outcome, reason, pr, model, cycles,
 mergefix, wave, notes), `specPr` on a spec delivered on its integration
-branch (pr, branch, outcome, reason, cycles, mergefix, notes), `wrapUp` (the sweep's lines and whether the spec closed), or `error` when the
+branch (pr, branch, outcome, reason, cycles, mergefix, notes), `forHuman`
+(sub-issues held by the escalation label, each with the sub-issues it
+holds), `wrapUp` (the sweep's lines and whether the spec closed), or `error` when the
 plan refused to start.
 
 On the integration branch a sub-issue's `integrated` outcome means its PR
-merged into `agent/developer/spec-<N>`, not into `main`; the sub-issue stays open
-until the spec PR merges. `specPr.outcome` is what reached `main`: `merged`,
+merged into `agent/developer/spec-<N>`, not into `main`; the sub-issue is
+closed then, with a comment saying so, and its code reaches `main` with the
+spec PR. Sub-issues integrated by earlier runs are closed and not listed. `specPr.outcome` is what reached `main`: `merged`,
 `ready-to-merge`, `escalated`, or `draft` (sub-issues still undelivered, so
 neither reviewed nor merged).
 
@@ -47,6 +50,13 @@ List escalated sub-issues with reasons, and say how to put one back in play:
 **remove its escalation label and re-run `/developer <spec>`** — the re-run
 resumes whatever change it already has instead of building a second one.
 Sub-issues the run never started (`blocked`) are listed with their blocker.
+
+With `forHuman`, a **Waiting on you** list: each sub-issue, and what it holds.
+Say how its work lands: a PR into `agent/developer/spec-<N>` that says
+`Closes #<n>`, merged by the human — the next run counts it integrated and
+closes it — or, for work that is not code (a manual check, a repo setting),
+closing the issue by hand. Then **re-run `/developer <spec>`**: what it held
+starts there, not in this run.
 
 When anything escalated, **end the summary with the decisions themselves**:
 one direct question per escalated sub-issue, phrased so a one-line reply

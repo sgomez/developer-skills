@@ -56,6 +56,12 @@ build → review → fix → merge — and pings you when it's done.
 - **Unattended with an escape hatch** — max 3 review→fix cycles, then the
   sub-issue is labeled `ready-for-human`, commented on the spec, and the loop
   moves on. Push notification with the tally at the end.
+- **Human work waits, it does not stall** — a `ready-for-human` sub-issue is
+  never started, and what it blocks waits for a later run; the report lists
+  both. Land the human's part as a PR into `agent/developer/spec-<N>` with
+  `Closes #<n>` (or close a non-code task by hand) and re-run: the sub-issue
+  counts as integrated. Sub-issues are closed as they integrate, so GitHub's
+  sub-issue progress follows the run.
 - **Isolated** — every worker runs in its own git worktree; the orchestrator
   never touches your checkout.
 - **Two-party by construction** — the `diff-reviewer` posts COMMENT

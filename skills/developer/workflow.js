@@ -82,7 +82,7 @@ const PLAN = {
     integration: {
       type: 'object',
       description: 'spec mode only: the integration branch and its open PR into main',
-      properties: { exists: { type: 'boolean' }, pr: PR_STATE },
+      properties: { exists: { type: 'boolean' }, ahead: { type: 'boolean', description: 'the branch has commits main lacks' }, pr: PR_STATE },
       required: ['exists'],
     },
     tickets: {
@@ -227,7 +227,7 @@ bash ${A.scripts}/spec-plan.sh ${SPEC}${A.sub ? ' ' + A.sub : ''}`
     : `Plan /developer's run on issue ${SPEC}${A.sub ? `, sub-issue ${A.sub} only` : ''}, using the Delivery operations in docs/agents/issue-tracker.md and the change operations in docs/agents/code-host.md. Read no more than those operations need.
 - mode: "sub" when a sub-issue was given; else "spec" if issue ${SPEC} has sub-issues, "single" if it has none (then the issue itself is the only ticket). More than 50 sub-issues → error "split the spec".
 - tickets: each OPEN sub-issue (or the one issue): number, title, labels, complex (its \`## Complexity\` section starts with "complex"), blockers (open issues blocking it, from dependency links and its \`## Blocked by\` section), prs (open changes that close it, each with its count of unresolved review threads and its target branch as base; leave out the change whose source branch is \`${BRANCH}\`), integrated (a change closing it is already merged into \`${BRANCH}\`).
-- integration (spec mode only): exists (branch \`${BRANCH}\` exists on the code host), pr (the open change from \`${BRANCH}\` into main, if any, with the same fields as prs).`,
+- integration (spec mode only): exists (branch \`${BRANCH}\` exists on the code host), ahead (it has commits main lacks), pr (the open change from \`${BRANCH}\` into main, if any, with the same fields as prs).`,
   { label: 'plan', phase: 'Plan', schema: PLAN, ...SMALL },
 )
 if (!plan) throw new Error('the plan agent died')
@@ -235,8 +235,9 @@ if (plan.error) return { spec: SPEC, error: plan.error }
 
 const tickets = plan.tickets || []
 // The integration branch: specs only, and only on a remote code host — a
-// local host or tracker keeps one change per sub-issue into main.
-const INTEG = plan.mode === 'spec' && !A.localHost && !A.localTracker && tickets.length > 0
+// local host or tracker keeps one change per sub-issue into main. Integrated
+// sub-issues are closed, so a spec with none left open still has its branch.
+const INTEG = plan.mode === 'spec' && !A.localHost && !A.localTracker && (tickets.length > 0 || !!plan.integration?.exists)
 const LANDED = INTEG ? 'integrated' : 'merged' // what a blocker must reach before its dependents start
 const byNum = {}
 for (const t of tickets) byNum[t.number] = t
@@ -313,7 +314,7 @@ async function localCleanup(s) {
 
 const REVIEW_PROMPT = pr => `Review PR #${pr} by running the review-pr skill on it — its step 1 plus the repo's \`docs/agents/code-host.md\` give the exact checkout procedure for your worktree; follow them, not memory. Post the review (inline comments + summary) as a single COMMENT submission — never an approval event — and do not mark the PR ready or merge; those are the orchestrator's. ${STRUCTURED}`
 
-const SPEC_PR_NOTE = `\n\nThis PR delivers spec #${SPEC} whole: its sub-issues were built one by one and merged into \`${BRANCH}\` without a review of their own, so this is the only review the spec gets. Review it against the spec issue and every sub-issue it closes.
+const SPEC_PR_NOTE = `\n\nThis PR delivers spec #${SPEC} whole: its sub-issues were built one by one and merged into \`${BRANCH}\` without a review of their own, so this is the only review the spec gets. Review it against the spec issue and every one of its sub-issues, closed ones included: a sub-issue is closed as soon as it is integrated.
 
 Sub-issues that share a mechanism (a hook, a component, a listener, a store) were each checked alone, if at all. Check the combinations: the cases where two of them are active at once, one inside or on top of the other. Confirm each one with a throwaway test you write and run in your worktree, then delete — never commit or push it — and report every combination that misbehaves as [blocking]. On a re-review, do the same for whatever the fix changed in a shared mechanism: a fix there can break a combination that worked before.`
 
@@ -406,8 +407,9 @@ function gate(s, rerunUsed) {
   )
 }
 
-// Into the integration branch the sub-issue stays open: the spec PR closes
-// it on its way into main. The spec PR closes the spec and every sub-issue.
+// Into the integration branch the sub-issue is closed by hand: \`Closes\` only
+// fires on main, and GitHub's sub-issue progress should track the run. The
+// spec PR closes the spec and any sub-issue still open.
 function merge(s) {
   const into = s.into === BRANCH
   const issues = s.isSpec ? [SPEC, ...s.closes] : [s.n]
@@ -422,7 +424,7 @@ function merge(s) {
 ${into ? '' : state + '\n'}bash ${A.scripts}/cleanup-worktrees.sh --branch "<branch>" ${fixGlobs(s.pr)} --branch "${ISSUE_BRANCH(s.n)}" --sha "<sha>" 2>&1 | grep -vE '^(REMOVED|DELETED) '
 git ls-remote --exit-code --heads origin "<branch>" >/dev/null; echo "remote-branch-exit=$?"
 Denied → run its lines as separate calls; still denied → say so in notes and go on.
-4. ${into ? '' : `Every issue= line not CLOSED → check it once more; still open → \`gh issue close <n> --comment "Delivered by PR #${s.pr}."\`. `}remote-branch-exit=0 → \`git push origin --delete <branch>\` as its own call.
+4. ${into ? `\`gh issue close ${s.n} --comment "Integrated into ${BRANCH} by PR #${s.pr}; it reaches main with the spec PR."\` ("already closed" is fine). ` : `Every issue= line not CLOSED → check it once more; still open → \`gh issue close <n> --comment "Delivered by PR #${s.pr}."\`. `}remote-branch-exit=0 → \`git push origin --delete <branch>\` as its own call.
 Outcome merged; the cleanup's KEPT/WARN lines, and any bookkeeping step that failed, go in notes.`,
     { label: `merge #${s.pr}`, phase: s.phase, schema: MERGE_RESULT, ...SMALL },
   )
@@ -519,8 +521,18 @@ async function deliver(t) {
     wave: depth[t.number], phase: `#${t.number} ${shortTitle(t.title)}`, title: t.title,
     ...(INTEG ? { into: BRANCH } : {}),
   }
-  // Step 0 — resume, never rebuild.
+  // Step 0 — resume, never rebuild. Still open: an earlier run's merge, or a
+  // human's PR into the branch, left it so.
   if (INTEG && t.integrated) {
+    const c = await agent(
+      `Sub-issue #${s.n} is already integrated into \`${BRANCH}\`. ${BARE} ${TRACKER}
+
+gh issue close ${s.n} --comment "Integrated into ${BRANCH}; it reaches main with the spec PR."
+
+"already closed" is fine. notes: empty, or the error if the close failed.`,
+      { label: `close #${s.n}`, phase: s.phase, schema: NOTES, ...SMALL },
+    )
+    s.notes = c?.notes ?? ''
     results[s.n] = s
     s.outcome = 'integrated'
     return s
@@ -585,13 +597,16 @@ Whatever deserves a record goes in the PR body. Report only a PR number you have
 // A sub-issue starts the moment its blockers inside the spec have merged —
 // no waves to wait out. A blocker outside the spec that is still open, a
 // dependency cycle, the escalation label, or a blocker that did not merge
-// (escalated, ready-to-merge, itself blocked) keeps it out of this run.
+// (escalated, ready-to-merge, itself blocked) keeps it out of this run. An
+// already integrated one counts as delivered, label or not: that is how a
+// human's work on a ready-for-human sub-issue lands.
 const started = {}
 function deliverWhenReady(t) {
   if (started[t.number]) return started[t.number]
   started[t.number] = (async () => {
     const n = t.number
     const held = r => { results[n] = { n, title: t.title, outcome: 'blocked', reason: r }; return results[n] }
+    if (INTEG && t.integrated) return deliver(t)
     if (t.labels.includes(LABEL)) return held(`labelled ${LABEL}`)
     if (cyclic.has(n)) return held('dependency cycle')
     const outside = t.blockers.filter(b => !byNum[b])
@@ -625,9 +640,10 @@ const all = tickets.map(t => results[t.number])
 // main, review it whole, one fixer, then the gate and the merge per policy.
 // Anything short of that → the PR stays a draft with no review: reviewing a
 // half-delivered spec reports what is missing, which the escalations already
-// say.
+// say. Sub-issues integrated by earlier runs are closed and not in the plan:
+// the branch being ahead of main is what says they exist.
 let spec = null
-if (INTEG && all.some(s => s.outcome === 'integrated')) {
+if (INTEG && (all.some(s => s.outcome === 'integrated') || plan.integration?.ahead)) {
   phase('Spec')
   const complete = all.every(s => s.outcome === 'integrated')
   const open = plan.integration?.pr
@@ -684,6 +700,14 @@ Use the title as printed, with any double quote replaced by a single one. Report
 
 // ── Wrap-up ─────────────────────────────────────────────────────────────
 phase('Wrap-up')
+// What waits on the human: each sub-issue held by its label, with every
+// sub-issue it holds through the blockers.
+const reaches = (n, h, seen = new Set()) =>
+  !seen.has(n) && seen.add(n) && byNum[n].blockers.some(b => b === h || (byNum[b] && reaches(b, h, seen)))
+const forHuman = all
+  .filter(s => s.outcome === 'blocked' && s.reason === `labelled ${LABEL}`)
+  .map(s => ({ number: s.n, title: s.title, holds: all.filter(o => o.outcome === 'blocked' && o.n !== s.n && reaches(o.n, s.n)).map(o => o.n) }))
+
 const closeSpec = (plan.mode === 'spec' && (!INTEG || spec?.outcome === 'merged')) || (plan.mode === 'sub' && all.some(s => s.outcome === 'merged'))
 const sweep = await agent(
   `Close out /developer's run on spec #${SPEC}. ${BARE}
@@ -709,5 +733,6 @@ return {
     pr: spec.pr || undefined, branch: BRANCH, outcome: spec.outcome, reason: spec.reason || undefined,
     cycles: spec.cycles, mergefix: spec.mergefix, notes: spec.notes || undefined,
   } : undefined,
+  forHuman: forHuman.length ? forHuman : undefined,
   wrapUp: sweep?.notes ?? 'sweep agent died',
 }

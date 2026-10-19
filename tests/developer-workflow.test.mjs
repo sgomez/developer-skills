@@ -129,6 +129,24 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(!st.n['review #900'] && !st.n['merge #900'], 'and no review, no merge')
 }
 
+// ── human work ─────────────────────────────────────────────────────────
+{
+  const { out, st, result } = await run('human-holds-its-dependents', {
+    tickets: [t(3, { labels: ['ready-for-human'] }), t(4, { blockers: [3] }), t(5, { blockers: [4] }), t(6)],
+  })
+  ok(out[4].outcome === 'blocked' && out[5].outcome === 'blocked', 'what depends on human work waits')
+  ok(result.forHuman?.length === 1 && result.forHuman[0].number === 3 && result.forHuman[0].holds.join() === '4,5', `forHuman names #3 and what it holds (saw ${JSON.stringify(result.forHuman)})`)
+  ok(out[6].outcome === 'integrated' && !st.n['build #3'], 'the rest is delivered, the human sub-issue is not built')
+}
+{
+  const { out, st, result } = await run('human-work-integrated-counts', {
+    tickets: [t(3, { labels: ['ready-for-human'], integrated: true }), t(4, { blockers: [3] })],
+  })
+  ok(out[3].outcome === 'integrated' && st.n['close #3'] === 1 && !st.n['build #3'], 'a labelled sub-issue already integrated is closed, not held')
+  ok(out[4].outcome === 'integrated', 'and its dependents start')
+  ok(result.forHuman === undefined, 'nothing waits on the human')
+}
+
 // ── the integration branch ─────────────────────────────────────────────
 {
   const { st, at } = await run('creates-the-integration-branch', {
@@ -142,7 +160,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
       if (l === 'merge #102') ok(/--branch "agent\/developer\/fix-pr-102" --branch "agent\/developer\/fix-pr-102-\*" --branch "agent\/developer\/issue-2"/.test(p), 'cleanup by exact names, no glob that also hits #1020')
       if (l === 'merge #102') ok(/gh pr ready 102/.test(p), 'an ungated sub-issue PR is marked ready before its merge')
       if (l === 'gate #900') ok(/13 NO_CHECKS → ESCALATE/.test(p), 'no CI on the spec PR escalates')
-      if (l === 'merge #102') ok(!/gh issue close/.test(p) && /into the integration branch/.test(p), 'integrating closes no issue')
+      if (l === 'merge #102') ok(/gh issue close 2 --comment "Integrated into agent\/developer\/spec-1 by PR #102/.test(p) && /into the integration branch/.test(p), 'integrating closes the sub-issue')
       if (l === 'merge #900') ok(/issue=1 /.test(p) && /issue=2 /.test(p) && /gh issue close/.test(p), 'the spec merge closes the spec and its sub-issues')
       if (l === 'open spec PR') ok(/--base main --head agent\/developer\/spec-1/.test(p) && /Closes #1\nCloses #2/.test(p), 'spec PR closes the spec and every sub-issue')
       return undefined
@@ -218,8 +236,21 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     integration: { exists: true, pr: { number: 900, unresolved: 0 } },
   })
   ok(!st.n['build #2'] && !st.n['merge #102'], 'an integrated sub-issue is not rebuilt')
+  ok(st.n['close #2'] === 1, 'an integrated sub-issue still open is closed')
   ok(!st.n['open spec PR'] && st.n['review #900'] === 1, 'the open spec PR is reviewed, not reopened')
   ok(spec.outcome === 'merged', 'and merged')
+}
+{
+  const { st, spec } = await run('every-sub-issue-closed', {
+    tickets: [], integration: { exists: true, ahead: true, pr: { number: 900, unresolved: 0 } },
+  })
+  ok(!st.n['branch'] && st.n['review #900'] === 1 && spec.outcome === 'merged', 'all sub-issues closed → the spec PR is still reviewed and merged')
+}
+{
+  const { st, spec } = await run('every-sub-issue-closed-nothing-ahead', {
+    tickets: [], integration: { exists: true, ahead: false },
+  })
+  ok(spec === undefined && !st.n['open spec PR'] && !st.n['branch'], 'a branch with nothing on it → no spec PR')
 }
 {
   const { st } = await run('spec-pr-resumed-with-threads', {
