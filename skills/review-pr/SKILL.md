@@ -146,6 +146,10 @@ default `gh issue view <N> --comments` — including the parent spec/PRD
 when the issue's `Parent` section names one. If no spec can be found, say
 so in the review summary and skip the spec-fidelity checks below.
 
+If the repo has a `REVIEW.md` at its root, read it now: it is the owners'
+word on what blocks and what to ignore in this repo, and where it is
+specific its lists override the generic labels in step 3.
+
 ### 3. Review
 
 **On incremental scope, start with the previous findings.** Read every
@@ -163,6 +167,12 @@ Then review the scope diff. Check for:
 - **Spec fidelity** — requirements or acceptance criteria from the
   originating issue that are missing, partial, or implemented wrong;
   behaviour the issue never asked for (scope creep)
+- **Root cause** (bug fixes) — check the PR's `## Root cause` against the
+  code: does the fix act where the wrong value originates, or guard one
+  consumer downstream? A downstream guard that leaves other consumers
+  exposed is `[fix]`, naming them; `[blocking]` only when the issue's own
+  criteria still fail through another path. A bug fix with no
+  `## Root cause` section is `[fix]`
 - **Missing tests** — acceptance criteria from issue not covered
 - **Tests that do not test** — a new or changed test that would still pass
   with the behaviour it names broken: it reaches the result by another path,
@@ -257,6 +267,19 @@ Only `[blocking]` findings block. When unsure between `[fix]` and `[note]`,
 ask whether you would want it changed before this lands; if you would not
 mind either way, it is a note.
 
+**Report the class, not the line.** When a finding is one instance of a
+pattern (a missing `await`, an unescaped input, the same off-by-one), search
+the scope diff for the others and name every location in that one finding:
+inline on the first, the full list in its body. On a re-review the
+untouched instances are out of scope, so one left out now ships.
+
+**Pre-existing bugs never block.** A bug in a line the change neither adds
+nor modifies is `[note] pre-existing: …`, however serious — fixing it is
+another issue's work, and asking the fixer for it grows the diff and costs
+a cycle. The exception: the change makes it newly reachable (it now calls
+that code with input it never received before). Then it is the change's
+bug, labelled as any other.
+
 ### 4. Post the review
 
 For each `[blocking]` and `[fix]` finding, post an inline review comment
@@ -316,3 +339,6 @@ gh pr ready <PR>
 - Unattended: never ask the user anything; when unsure whether a finding
   blocks, ask "would this stop me merging?" — if not, it is `[fix]` or
   `[note]`
+- One finding per pattern, listing every location in the scope diff
+- A bug in lines the change does not touch is `[note] pre-existing`, unless
+  the change makes it newly reachable

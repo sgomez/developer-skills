@@ -171,13 +171,17 @@ gh pr create --draft --base <base> \
 - [ ] <acceptance criterion> — <test name>, seen red first"
 ```
 
+For a bug, add a `## Root cause` section after `## What changed`: where the
+wrong value or state originates, and that the fix acts there — not on the
+one consumer the issue reported. The reviewer checks it against the code.
+
 Run the push alone, bare, with the Bash tool's maximum timeout
 (`timeout: 600000`) — a gate-running pre-push hook outlasts the default, and the
 worktree sandbox refuses compound shapes. If the hook rejects the push, fix,
 amend (nothing was published), push again. Never `--no-verify`.
 
 Keep the body's shape whatever the host — `Closes <ref>`, `## What changed`,
-`## Test plan`.
+`## Root cause` (bugs), `## Test plan`.
 
 ### 8. Done
 

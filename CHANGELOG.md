@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **Repo review guide.** `review-pr` reads a `REVIEW.md` at the repo root when
+  there is one: the owners' lists of what blocks and what to ignore override
+  the generic labels.
+- **Root cause on bug fixes.** `implement-issue` adds a `## Root cause`
+  section to a bug's PR, and `review-pr` checks the fix acts where the wrong
+  value originates rather than guarding the one consumer the issue reported.
+
+### Changed
+- **Findings report the class, not the line.** The reviewer names every
+  location of a pattern in one finding, and `fix-pr` fixes them all. A
+  re-review only reads what changed since the last one, so an instance left
+  out of the first review was never reported.
+- **Pre-existing bugs never block.** A bug in lines the change does not touch
+  is a `[note] pre-existing`, unless the change makes it newly reachable, so
+  a fix cycle is no longer spent on code the change did not write.
+
 ## [0.26.0] - 2026-10-19
 
 ### Added

@@ -11,7 +11,7 @@ defaults — **the operations below override them.**
 - **Change file**: `.scratch/changes/<branch-with-slashes-as-dashes>.md`,
   committed on the branch. It holds everything a PR would: a `Status:` line
   (`draft` / `ready` / `merged`), the issue ref it closes, `## What changed`,
-  `## Test plan`, and appended `## Review N`
+  `## Root cause` (bugs), `## Test plan`, and appended `## Review N`
   sections (each opening with a `Reviewed at <sha>` line).
 - **Base branch**: `main`. Linked worktrees share refs with the primary
   checkout, so `git fetch origin` is meaningless here — branch from local

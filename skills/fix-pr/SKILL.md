@@ -141,6 +141,8 @@ run the project's checks once after the fix, in step 3.
   work for you. A `[fix]` the summary lists without an inline thread is work
   too. Leave `[note]` findings alone unless the task prompt asks for them
 - Keep changes minimal — only what feedback requests
+- A finding that names several locations is fixed at all of them; grep the
+  files you touch for further instances of the same pattern
 - Do not refactor unrelated code
 - Red before green, as in implement-issue: a behaviour you fix or add gets a
   test you run and see fail first; a test you rewrite because it could not

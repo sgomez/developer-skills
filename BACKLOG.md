@@ -124,22 +124,6 @@ values when the file or a key is absent.
 **What blocks it.** No repo has asked for a different map yet — it adds a
 config knob for a need nobody has shown.
 
-## Re-reviews with a declared focus (report C7)
-
-**Problem.** On fix cycles 2 and 3 the diff-reviewer re-reads the whole change
-from scratch. It already has a rule against inventing new nitpicks on untouched
-code, but nothing tells it *where* the new work is, so it pays for the full
-diff every cycle.
-
-**Direction.** Have the orchestrator narrow the re-review prompt: the threads
-that were outstanding, and `the commits since <sha>` — it knows the previous
-review's head sha without reading any bodies, so this costs it nothing.
-
-**What blocks it.** Nothing structural; it was cut from the 0.17.0 context
-pass for scope. The care needed is in the wording: a reviewer told to look only
-at new commits can miss a fix that broke something outside them, so the prompt
-has to narrow attention without narrowing responsibility for the verdict.
-
 ## Cheaper worktree bootstrap (report D9)
 
 **Problem.** Every build, fix and review worktree installs dependencies from
@@ -222,3 +206,40 @@ changed no files — the review's finding was wrong and the fixer answered in th
 thread instead, which is behaviour the skill explicitly allows. That case leaves
 the sha unmoved and would trip the check. No field run has produced one yet, so
 there is nothing to calibrate the rule against.
+
+## Human-only paths under `merge: auto`
+
+**Problem.** `merge: auto` is all or nothing: a CLEAN verdict and green
+checks merge whatever the change touches, with the diff-reviewer as the only
+gate. A sub-issue that moves a CI workflow to `pull_request_target`, or edits
+`hooks/approve-merge.sh`, can satisfy its ticket, pass its tests and reach
+`main` without a human reading it.
+
+**Direction.** A `human-paths:` glob list in `docs/agents/developer-defaults.md`
+(and its template). Before the checks gate, `workflow.js` matches the PR's
+changed files against it; any hit turns that PR into `merge: manual` — marked
+ready and queued for the human with the paths that caused it. The globs need
+matching without dependencies, with cases in `developer-workflow.test.mjs`.
+
+**What blocks it.** The same objection that parked the tier→model map: a new
+knob with no field run asking for it — no unattended merge has gone wrong yet.
+Unlike the efficiency entries, though, this one is about oversight: it becomes
+the priority the day a repo with sensitive CI workflows runs `merge: auto`.
+
+## Measure the reviewer
+
+**Problem.** Nothing tells whether a change to `review-pr` makes the review
+better or worse. The data is already on the PRs — every finding's thread gets
+a fixer reply that either fixes it or explains why it is wrong — but nobody
+counts it.
+
+**Direction.** A script in `skills/developer/scripts/` that, per reviewed PR,
+counts findings by label, how many were fixed and how many rejected, and the
+cycles to CLEAN; the execution report prints one line per PR from it. A
+finding class that is rejected run after run is noise, and belongs in the
+repo's `REVIEW.md`. The orchestrator must not read the threads itself — that
+is context it cannot spare.
+
+**What blocks it.** Volume: with the runs there are today, any rate is an
+anecdote. The stronger half — an eval set built from changes that were later
+reverted — needs revert tracking, which does not exist.
