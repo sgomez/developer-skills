@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.27.0] - 2026-10-28
+
 ### Added
 - **Repo review guide.** `review-pr` reads a `REVIEW.md` at the repo root when
   there is one: the owners' lists of what blocks and what to ignore override
@@ -1463,7 +1465,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.26.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.27.0...next
+[0.27.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.27.0
 [0.26.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.26.0
 [0.25.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.25.0
 [0.24.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.24.0
