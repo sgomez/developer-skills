@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+## [0.29.0] - 2026-10-30
+
 ### Changed
 - **Worker status in herdr-core.** A worker's terminal reports its current
   step as `working` (`Bash npm test`), then its result as `done` (`PR #412`,
@@ -1480,7 +1482,8 @@ which renamed `/to-prd` → `/to-spec` and merged `/to-plan` + `/to-issues` →
 - Plugin `agents` manifest field requires explicit `.md` file paths.
 - Moved agents to the canonical top-level `agents/` directory.
 
-[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.28.0...next
+[Unreleased]: https://github.com/sgomez/developer-skills/compare/v0.29.0...next
+[0.29.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.29.0
 [0.28.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.28.0
 [0.27.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.27.0
 [0.26.0]: https://github.com/sgomez/developer-skills/releases/tag/v0.26.0
