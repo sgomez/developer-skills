@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Added
+- **Workers visible in herdr-core.** Run from a herdr-core terminal, each
+  `/developer` worker (build, fix, merge-fix, review) opens a child terminal
+  named after it (`build-387`, `review-412`) that follows what the worker does,
+  and closes when it stops. The herdr app lists them under the Claude terminal.
+  A no-op anywhere else.
+
 ## [0.27.0] - 2026-10-28
 
 ### Added
