@@ -3,7 +3,8 @@
 # SubagentStart / SubagentStop hook: in herdr-core, each /developer worker
 # (build, fix, merge-fix, review) gets a child terminal of the Claude terminal,
 # named after the workflow label (build-387), that follows the worker's
-# transcript (hc-agent-view.sh). It is killed when the worker stops.
+# transcript and status (hc-agent-view.sh). SubagentStop tells it the worker
+# ended; it shows the result for a while, then exits.
 #
 # The herdr app lists terminals, not OSC 7501 sub-records, so a terminal per
 # worker is what makes the workers visible there. Short mechanical agents
@@ -28,7 +29,7 @@ journal="$(grep -l "\"agentId\":\"$id\"" "${transcript%.jsonl}"/subagents/workfl
 
 if [[ $event == SubagentStop ]]; then
   hc ls --json 2>/dev/null | jq -r --arg id "$id" '.terminals[] | select(.labels["claude.agent"] == $id) | .address' |
-    while read -r t; do hc kill "$t" >/dev/null 2>&1; done
+    while read -r t; do hc send "$t" stop >/dev/null 2>&1; done
   exit 0
 fi
 [[ $event == SubagentStart ]] || exit 0
@@ -42,6 +43,6 @@ name="$(printf %s "$label" | tr 'A-Z' 'a-z' | tr -cs 'a-z0-9._' '-' | sed 's/^[-
 name=${name%-}
 for n in "$name" "$name-${id:0:6}"; do
   hc run --bg --no-notify --rm --name "$n" --label "claude.agent=$id" \
-    "$(dirname "$0")/hc-agent-view.sh" "$label" "$(dirname "$journal")/agent-$id.jsonl" >/dev/null 2>&1 && break
+    "$(dirname "$0")/hc-agent-view.sh" "$label" "$(dirname "$journal")/agent-$id.jsonl" "$journal" "$id" >/dev/null 2>&1 && break
 done
 exit 0

@@ -49,7 +49,7 @@ fire() {
   [[ $rc -eq 0 && ! -s $TMP/stdout ]] && pass || fail "expected exit 0 and no output, got $rc: $(cat "$TMP/stdout")"
 }
 expect() { [[ "$OUT" == "$1" ]] && pass || fail "expected $(printf %q "$1"), got $(printf %q "$OUT")"; }
-run_call() { echo "run --bg --no-notify --rm --name $1 --label claude.agent=$2 $ROOT/hooks/hc-agent-view.sh $3 $W/agent-$2.jsonl"; }
+run_call() { echo "run --bg --no-notify --rm --name $1 --label claude.agent=$2 $ROOT/hooks/hc-agent-view.sh $3 $W/agent-$2.jsonl $W/journal.jsonl $2"; }
 
 T="start/builder-gets-a-named-terminal"
 fire SubagentStart developer-skills:code-author a1
@@ -69,10 +69,10 @@ fire SubagentStart developer-skills:code-author a6
 expect "$(run_call taken a6 Taken)
 $(run_call taken-a6 a6 Taken)"
 
-T="stop/kills-the-agents-terminal-only"
+T="stop/tells-the-agents-terminal-only"
 fire SubagentStop developer-skills:code-author a1
 expect "ls --json
-kill t9"
+send t9 stop"
 
 T="mechanical-agent-ignored"
 fire SubagentStart workflow-subagent a5

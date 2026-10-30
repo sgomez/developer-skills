@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Changed
+- **Worker status in herdr-core.** A worker's terminal reports its current
+  step as `working` (`Bash npm test`), then its result as `done` (`PR #412`,
+  `CLEAN`) or `error` (the reason it blocked), shown for a minute before the
+  terminal closes. `hc get build-387` shows it from a plain console.
+
 ## [0.28.0] - 2026-10-30
 
 ### Added
