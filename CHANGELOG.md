@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes staged on the `next` branch, published as a new version once ready.
 
+### Fixed
+- **Worker terminals now close.** When a worker stopped, its terminal was never
+  told: `hc ls` leaves labels out of its output, so the lookup by agent found
+  nothing and `build-387` stayed `working` for good. It now asks `hc ls --label`.
+
 ## [0.29.0] - 2026-10-30
 
 ### Changed

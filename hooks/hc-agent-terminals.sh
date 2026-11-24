@@ -28,7 +28,8 @@ journal="$(grep -l "\"agentId\":\"$id\"" "${transcript%.jsonl}"/subagents/workfl
 [[ -n $journal ]] || exit 0
 
 if [[ $event == SubagentStop ]]; then
-  hc ls --json 2>/dev/null | jq -r --arg id "$id" '.terminals[] | select(.labels["claude.agent"] == $id) | .address' |
+  # `hc ls` omits labels from its output; only --label filters on them.
+  hc ls --json --label "claude.agent=$id" 2>/dev/null | jq -r '.terminals[].address' |
     while read -r t; do hc send "$t" stop >/dev/null 2>&1; done
   exit 0
 fi

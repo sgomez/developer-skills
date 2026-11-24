@@ -27,12 +27,19 @@ printf '%s\n' '{"type":"launched"}' \
   >"$W/journal.jsonl"
 
 # Fake hc: logs its argv; `run --name taken…` fails like a name already in use;
-# `ls` lists t9 as a1's terminal.
+# `ls` omits labels, like the real hc, and honours --label: t9 carries
+# claude.agent=a1.
 cat >"$TMP/bin/hc" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$HC_LOG"
 [[ $1 == run && $* == *"--name taken "* ]] && exit 1
-[[ $1 == ls ]] && echo '{"terminals":[{"address":"t9","labels":{"claude.agent":"a1"}},{"address":"t8","labels":{}}]}'
+if [[ $1 == ls ]]; then
+  case "$*" in
+    *"--label claude.agent=a1"*) echo '{"terminals":[{"address":"t9"}]}' ;;
+    *--label*) echo '{"terminals":[]}' ;;
+    *) echo '{"terminals":[{"address":"t9"},{"address":"t8"}]}' ;;
+  esac
+fi
 exit 0
 EOF
 chmod +x "$TMP/bin/hc"
@@ -71,7 +78,7 @@ $(run_call taken-a6 a6 Taken)"
 
 T="stop/tells-the-agents-terminal-only"
 fire SubagentStop developer-skills:code-author a1
-expect "ls --json
+expect "ls --json --label claude.agent=a1
 send t9 stop"
 
 T="mechanical-agent-ignored"
