@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Changes staged on the `next` branch, published as a new version once ready.
 
 ### Fixed
+- **`merge: manual` no longer hands over a red PR.** The checks gate only ran
+  under `merge: auto`, so a CLEAN PR was marked ready with its CI failing. It
+  now runs in both modes: a red CI gets its fix cycles, a conflict its
+  merge-fix, and only a green PR is marked ready.
 - **Worker terminals now close.** When a worker stopped, its terminal was never
   told: `hc ls` leaves labels out of its output, so the lookup by agent found
   nothing and `build-387` stayed `working` for good. It now asks `hc ls --label`.

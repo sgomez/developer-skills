@@ -70,7 +70,7 @@ build → review → fix → merge — and pings you when it's done.
   approval authority over agent-authored code.
 
 > By default `/developer` does **not** merge into `main`: the CLEAN spec PR
-> is marked ready and handed to you (sub-issues are merged into the
+> is marked ready once its checks are green, and handed to you (sub-issues are merged into the
 > integration branch either way). Opt into `merge: auto` at setup (or pass
 > `--auto-merge`) and it **merges to `main` unattended** when the reviewer
 > verdict is CLEAN — the `diff-reviewer` (Opus) is then the only gate.

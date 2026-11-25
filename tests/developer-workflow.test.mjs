@@ -301,7 +301,7 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
   ok(out[2].outcome === 'integrated' && out[3].outcome === 'integrated', 'sub-issues still integrate on their own')
   ok(st.n['merge #102'] === 1 && st.n['merge #103'] === 1, 'merged into the integration branch')
   ok(spec.outcome === 'ready-to-merge' && st.n['ready #900'] === 1 && !st.n['merge #900'], 'the spec PR waits for the human')
-  ok(!st.n['gate #900'], 'no gate on the spec PR')
+  ok(st.n['gate #900'] === 1 && st.spawned.indexOf('gate #900') < st.spawned.indexOf('ready #900'), 'the spec PR is gated before it is marked ready')
   ok(!st.n['gate #102'] && !st.n['gate #103'], 'sub-issues are not gated')
 }
 {
@@ -309,8 +309,24 @@ const t = (number, extra = {}) => ({ number, title: `Ticket ${number}`, labels: 
     mode: 'single', tickets: [t(2)], args: { merge: 'manual' },
   })
   ok(out[2].outcome === 'ready-to-merge', 'a single issue is ready-to-merge')
-  ok(!st.spawned.some(l => l.startsWith('gate') || l.startsWith('merge ')), 'no gate, no merge')
+  ok(st.n['gate #102'] === 1 && !st.spawned.some(l => l.startsWith('merge ')), 'gated, never merged')
   ok(st.n['ready #102'] === 1 && st.n['review #102'] === 1, 'reviewed and marked ready')
+}
+{
+  let gates = 0
+  const { out, st } = await run('manual-merge-red-ci', {
+    mode: 'single', tickets: [t(2)], args: { merge: 'manual' },
+    on: l => (l === 'gate #102' ? (++gates === 1 ? { verdict: 'RED_CODE', url: 'job' } : { verdict: 'GREEN' }) : undefined),
+  })
+  ok(out[2].outcome === 'ready-to-merge' && st.n['fix #102 (1)'] === 1, 'a red CI is fixed before the PR is handed over')
+  ok(st.n['gate #102'] === 2 && st.spawned.indexOf('fix #102 (1)') < st.spawned.indexOf('ready #102'), 'and gated again before ready')
+  ok(!st.spawned.some(l => l.startsWith('merge ')), 'never merged')
+}
+{
+  const { out, st } = await run('manual-merge-no-ci', {
+    mode: 'single', tickets: [t(2)], args: { merge: 'manual', ci: false },
+  })
+  ok(out[2].outcome === 'ready-to-merge' && !st.n['gate #102'], 'CI: none skips the gate')
 }
 {
   const { out, st, spec } = await run('local-host-keeps-the-per-pr-flow', {

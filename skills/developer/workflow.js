@@ -49,7 +49,8 @@ const SPEC = A.spec
 const LABEL = A.label || 'ready-for-human'
 const CAP = A.execution === 'sequential' ? 1 : A.cap || 3
 const AUTO = A.merge === 'auto' && !A.localHost
-const GATE = AUTO && A.ci !== false
+// The gate runs under merge: manual too — a PR is never handed over red.
+const GATE = A.ci !== false && !A.localHost
 const MAX_FIX_CYCLES = 3
 const MAX_MERGE_FIXES = 4 // backstop on a main that never stops moving
 const SMALL = { model: 'haiku', effort: 'low' }
@@ -432,7 +433,7 @@ Outcome merged; the cleanup's KEPT/WARN lines, and any bookkeeping step that fai
 
 async function readyToMerge(s) {
   const c = await agent(
-    `Sub-issue #${s.n}'s PR #${s.pr} is clean and stays for the human to merge. ${BARE}
+    `Sub-issue #${s.n}'s PR #${s.pr} is clean, its checks green, and stays for the human to merge. ${BARE}
 
 ${A.localHost ? '(Local code host: the reviewer already set `Status: ready`; nothing to mark.)' : `gh pr ready ${s.pr}    ("already ready" is fine)`}
 
@@ -447,7 +448,8 @@ Put the cleanup's KEPT/WARN lines in notes.`,
 }
 
 // Checks gate → serial merge, with the red-CI retry, the fix cycles a code
-// red earns, and the conflict queue for DIRTY.
+// red earns, and the conflict queue for DIRTY. Under merge: manual a GREEN
+// gate marks the PR ready instead of merging it.
 //
 // Into the integration branch there is no checks gate: the worker ran the
 // project checks before pushing, and the spec PR's gate runs the CI once on
@@ -470,6 +472,7 @@ async function mergePath(s) {
         rerunUsed = rerunUsed || !!v.rerunUsed
       }
       if (v.verdict === 'GREEN') {
+        if (!AUTO && !s.into) return readyToMerge(s)
         const m = await mergeLock.run(() => merge(s))
         if (!m) return escalate(s, 'merge agent died')
         if (m.outcome === 'merged') {
@@ -589,7 +592,6 @@ Whatever deserves a record goes in the PR body. Report only a PR number you have
     }
   }
 
-  if (!AUTO) return readyToMerge(s)
   return mergePath(s)
 }
 
@@ -693,7 +695,7 @@ Use the title as printed, with any double quote replaced by a single one. Report
         }
         spec.verdict = 'CLEAN'
       }
-      return AUTO ? mergePath(spec) : readyToMerge(spec)
+      return mergePath(spec)
     })()
   }
 }

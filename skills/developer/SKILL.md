@@ -82,7 +82,8 @@ Two knobs — CLI flag > repo default > factory default; ignore any other key:
 
 - **`merge: auto`** — a CLEAN verdict leads to the checks gate and the merge.
   The committed `merge: auto` line is the user's standing authorization.
-- **`merge: manual`** — the pipeline stops at CLEAN with the PR marked ready:
+- **`merge: manual`** — the pipeline runs the same checks gate (and fixes a
+  red CI), then stops with the PR marked ready instead of merging it:
   the spec PR for a spec, the one PR otherwise. Sub-issues are merged into
   the integration branch either way — that never touches `main`.
 - A **local code host** supports `manual` only: override `auto` and say so.
